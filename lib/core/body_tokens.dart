@@ -77,6 +77,17 @@ List<BodyToken> tokenizeBody(String body) {
   return tokens;
 }
 
+/// The site's hashtags rule, without the mention lookbehind: `/#([A-Za-z0-9_]+)/g`.
+final _hashtag = RegExp(r'#([A-Za-z0-9_]+)');
+
+/// Port of the server's `containsAsciiArt`. Drawing is opt-in by hashtag, and those
+/// posts render with compact line spacing — `line-height: 1.15` against the usual
+/// 1.65 — because art drawn on a character grid falls apart when the rows are spread.
+bool isAsciiArt(String body) => _hashtag.allMatches(body).any((match) {
+  final tag = match[1]!.toLowerCase();
+  return tag == 'ascii' || tag == 'ascii_art';
+});
+
 /// Port of the server's `fmt` — the compact "3h" / "2mo" stamp shown on every post.
 String relativeTime(DateTime time, {DateTime? now}) {
   final seconds = (now ?? DateTime.now()).difference(time).inSeconds;

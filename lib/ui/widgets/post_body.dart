@@ -82,9 +82,14 @@ class _PostBodyState extends ConsumerState<PostBody> {
     _disposeRecognizers();
 
     final palette = context.palette;
-    final base = widget.style ?? Theme.of(context).textTheme.bodyMedium!;
+    final plain = widget.style ?? Theme.of(context).textTheme.bodyMedium!;
+    // `.post p.ascii-art { line-height: 1.15 }`
+    final base = isAsciiArt(widget.body) ? plain.copyWith(height: 1.15) : plain;
     final link = base.asLink(palette);
-    final markdown = ref.watch(settingsProvider).valueOrNull?.markdown ?? false;
+    // Never run markdown over ASCII art. Beyond the spacing, art is full of `_` and
+    // `*`, which the emphasis rules would happily eat out of the middle of a drawing.
+    final markdown =
+        (ref.watch(settingsProvider).valueOrNull?.markdown ?? false) && !isAsciiArt(widget.body);
 
     if (!markdown) {
       return Text.rich(

@@ -27,8 +27,11 @@ final _emphasis = RegExp(r'\*\*(.+?)\*\*|~~(.+?)~~|\*(.+?)\*|_(.+?)_');
 
 /// Split a body into lines, each with its block kind and inline spans.
 List<BodyLine> markdownLines(String body) {
+  // Bodies come back with CRLF line endings. A stray carriage return left on the end
+  // of a line renders as an unmatched control character in a fallback face, which
+  // silently inflates that line's height.
   return [
-    for (final line in body.split('\n'))
+    for (final line in body.replaceAll('\r\n', '\n').split('\n'))
       if (_heading.firstMatch(line) case final match?)
         BodyLine(
           kind: BlockKind.heading,
