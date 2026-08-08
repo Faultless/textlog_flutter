@@ -1,11 +1,11 @@
 # Roadmap
 
-## Where we are — v0.0.5
+## Where we are — v0.0.6
 
 | Area | State |
 |---|---|
 | Feeds (latest, hot) | native, paginated |
-| Live firehose | native, SSE |
+| Live firehose | native, SSE, gap-reconciled |
 | Threads | native, nested 5 deep, cached |
 | Profiles, tag feeds | native |
 | Quoted parent posts | native |

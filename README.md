@@ -41,9 +41,9 @@ see [Building it for your own iPhone](#building-it-for-your-own-iphone).
 
 Read the whole thing in [ROADMAP.md](ROADMAP.md). In short:
 
-**Working today (v0.0.5)**
+**Working today (v0.0.6)**
 - Latest and hot feeds, infinite scroll
-- Live tab — new posts stream in as they are written
+- Live tab — new posts stream in as they are written, and nothing is lost when the server drops the connection
 - Nested reply threads you can fold, profiles, hashtag feeds
 - Replying, posting and logging in, handed to textlog.cc in a browser tab
 - Tell the app your handle and get your own profile, kept between launches

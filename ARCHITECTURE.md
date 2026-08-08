@@ -127,7 +127,35 @@ tags and URLs, so turning the setting on can never lose the behaviour the site h
 `/api/v1/firehose` is an SSE stream of every new post. `package:http` buffers whole
 responses in the browser, so the transport is conditionally imported — a streamed request
 on mobile, native `EventSource` on web — while the parser (`core/sse.dart`) is shared and
-pure. Reconnects with exponential backoff; the server allows three streams per IP.
+pure. The server allows three streams per IP.
+
+### The stream does not stay up, and cannot be made to
+
+An idle firehose connection dies after about twelve seconds. The server does send a
+keep-alive, but on a fifteen-second timer, so it never fires in time — whatever sits in
+front of the app (it answers `via: 1.1 Caddy`) drops the connection first. Measured with
+curl, over both HTTP/1.1 and HTTP/2, it was twelve seconds every time. While posts are
+actually flowing the bytes keep it open, so this bites hardest exactly when the community
+is quiet.
+
+Nothing in the client can fix that; it is a server-side timer. The upstream fix is a
+heartbeat shorter than the proxy's idle timeout. So the client is built to expect the
+churn instead:
+
+**Reconnect fast, don't back off.** An earlier version treated a twelve-second session as
+unhealthy and doubled its retry delay out to thirty seconds, which missed far more than it
+caught. A close after a successful connection is now normal — retry in a second. Exponential
+backoff is reserved for real failures: refused, rate limited, offline.
+
+**Reconcile, because the gap loses posts.** The server does not honour `Last-Event-ID`; a
+new connection simply subscribes to future posts, so anything published while it was down
+is gone as far as the stream is concerned. On every connect the live feed fetches
+`/feeds/latest` and merges what it missed, deduplicated by id.
+
+The mark it compares against is fixed at the moment the tab opened, **not** the newest post
+seen. That distinction is load-bearing: a moving mark loses posts, because a live post
+arriving before reconciliation finishes pushes the mark past older posts still missing from
+the gap, and they never arrive. There is a test for exactly that.
 
 ## Routing
 
