@@ -13,6 +13,10 @@ import '../theme.dart';
 Future<void> showSettings(BuildContext context) => showModalBottomSheet<void>(
   context: context,
   backgroundColor: Colors.transparent,
+  // Without these the sheet is capped at half the screen and simply clips whatever
+  // does not fit, leaving settings below the fold unreachable rather than scrollable.
+  isScrollControlled: true,
+  constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.85),
   builder: (_) => const _Settings(),
 );
 
@@ -53,16 +57,18 @@ class _Settings extends ConsumerWidget {
                 ],
               ),
             ),
-            Padding(
-              padding: EdgeInsets.fromLTRB(
-                gutterOf(context),
-                space4,
-                gutterOf(context),
-                space5,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+            // The handle and title stay put; only the settings scroll.
+            Flexible(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(
+                  gutterOf(context),
+                  space4,
+                  gutterOf(context),
+                  space5,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                   _Label('theme'),
                   const SizedBox(height: space3),
                   Wrap(
@@ -124,7 +130,8 @@ class _Settings extends ConsumerWidget {
                     value: settings.markdown,
                     onChanged: notifier.setMarkdown,
                   ),
-                ],
+                  ],
+                ),
               ),
             ),
           ],
