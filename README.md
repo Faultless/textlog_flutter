@@ -41,7 +41,7 @@ see [Building it for your own iPhone](#building-it-for-your-own-iphone).
 
 Read the whole thing in [ROADMAP.md](ROADMAP.md). In short:
 
-**Working today (v0.0.4)**
+**Working today (v0.0.5)**
 - Latest and hot feeds, infinite scroll
 - Live tab — new posts stream in as they are written
 - Nested reply threads you can fold, profiles, hashtag feeds
@@ -49,11 +49,11 @@ Read the whole thing in [ROADMAP.md](ROADMAP.md). In short:
 - Tell the app your handle and get your own profile, kept between launches
 - Light, dark, sepia and dracula themes with a choice of accent colour
 - Optional markdown rendering, off by default
+- Threads cached for the session, so reopening one costs no requests at all
 
-**Next — read polish (v0.0.5)**
+**Next — read polish (v0.0.6)**
 - Inline code and quote spans
 - Share a post or profile
-- Keep feeds warm instead of refetching when you navigate back
 
 **Then — accounts (v0.1.0)**
 - Follow, unfollow, block and report
