@@ -57,4 +57,30 @@ void main() {
     expect(theme.extension<Palette>(), Palette.dracula);
     expect(theme.brightness, Brightness.dark);
   });
+
+  group('fonts', () {
+    test('ids round-trip and an unknown one falls back to the default', () {
+      for (final choice in FontChoice.values) {
+        expect(FontChoice.fromId(choice.id), choice);
+      }
+      expect(FontChoice.fromId('comic-sans'), FontChoice.jetbrains);
+      expect(FontChoice.fromId(null), FontChoice.jetbrains);
+    });
+
+    test('the chosen face reaches the text theme', () {
+      final theme = textlogTheme(Palette.dark, FontChoice.fira);
+      expect(theme.textTheme.bodyMedium!.fontFamily, 'FiraCode');
+    });
+
+    test('only Fira Code keeps ligatures on', () {
+      expect(FontChoice.fira.features, isNull);
+      expect(FontChoice.jetbrains.features, isNotNull);
+      expect(FontChoice.system.features, isNotNull);
+    });
+
+    test('system falls back to platform monospace, bundled faces do not', () {
+      expect(FontChoice.system.fallback, isNotNull);
+      expect(FontChoice.jetbrains.fallback, isNull);
+    });
+  });
 }

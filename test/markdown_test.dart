@@ -27,6 +27,15 @@ void main() {
       }
     });
 
+    test('CRLF bodies do not leave a carriage return on every line', () {
+      // The API returns CRLF. A stray \r renders in a fallback face and quietly
+      // inflates that line's height.
+      final lines = markdownLines('one\r\ntwo');
+      expect(lines.length, 2);
+      expect((lines[0].spans.single as PlainText).text, 'one');
+      expect((lines[1].spans.single as PlainText).text, 'two');
+    });
+
     test('each newline is its own line', () {
       final lines = markdownLines('# Title\n- a\nplain');
       expect(lines.map((l) => l.kind), [

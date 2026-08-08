@@ -29,6 +29,21 @@ void main() {
     });
   });
 
+  group('isAsciiArt', () {
+    test('is opt-in by hashtag, exactly as the server decides it', () {
+      expect(isAsciiArt('┌──┐ #ascii'), isTrue);
+      expect(isAsciiArt('#ascii_art some art'), isTrue);
+      expect(isAsciiArt('#ASCII shouting'), isTrue, reason: 'tags are case-insensitive');
+    });
+
+    test('art without the tag is left at normal line spacing', () {
+      // The site does the same: no tag, no compact lines.
+      expect(isAsciiArt('┌──┐\n└──┘'), isFalse);
+      expect(isAsciiArt('talking about #asciimation'), isFalse);
+      expect(isAsciiArt('no tags here'), isFalse);
+    });
+  });
+
   group('relativeTime', () {
     final now = DateTime(2026, 8, 8, 12);
 
