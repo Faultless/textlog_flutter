@@ -1,6 +1,6 @@
 # Roadmap
 
-## Where we are — v0.0.6
+## Where we are — v0.0.7
 
 | Area | State |
 |---|---|
@@ -15,6 +15,7 @@
 | Your own profile | native, from your handle |
 | Activity, for-you | not in the app |
 | Markdown | opt-in, off by default |
+| Fonts | JetBrains Mono, Fira Code or system |
 | Themes | light, dark, sepia, dracula + accent |
 
 ## The one thing that gates the rest

@@ -41,7 +41,7 @@ see [Building it for your own iPhone](#building-it-for-your-own-iphone).
 
 Read the whole thing in [ROADMAP.md](ROADMAP.md). In short:
 
-**Working today (v0.0.6)**
+**Working today (v0.0.7)**
 - Latest and hot feeds, infinite scroll
 - Live tab — new posts stream in as they are written, and nothing is lost when the server drops the connection
 - Nested reply threads you can fold, profiles, hashtag feeds
@@ -49,6 +49,7 @@ Read the whole thing in [ROADMAP.md](ROADMAP.md). In short:
 - Tell the app your handle and get your own profile, kept between launches
 - Light, dark, sepia and dracula themes with a choice of accent colour
 - Optional markdown rendering, off by default
+- A choice of monospace font, and ASCII art that renders the way the site draws it
 - Threads cached for the session, so reopening one costs no requests at all
 
 **Next — read polish (v0.0.6)**
