@@ -43,3 +43,8 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Release signing — the keystore lives outside the repo and must never be committed.
+android/key.properties
+*.jks
+*.keystore
