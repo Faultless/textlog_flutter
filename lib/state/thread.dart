@@ -15,9 +15,18 @@ const maxThreadDepth = 5;
 /// nodes do not count against it.
 const maxThreadRequests = 16;
 
-/// Replies per node. The API allows 100; a node with more than this reports the
-/// remainder as unloaded rather than paginating inside the tree.
-const repliesPerNode = 50;
+/// How a pass over the thread treats what is already cached.
+enum ThreadFetch {
+  /// Normal open: reuse anything cached, fetch only what is missing.
+  cached,
+
+  /// Background pass: refetch what has aged past [repliesTtl], keep the rest.
+  revalidate,
+
+  /// The reader explicitly asked. Refetch everything, TTL be damned — this is the
+  /// one path where "nothing happened" is the wrong answer.
+  force,
+}
 
 /// Clock seam, so tests can age the cache without waiting.
 final nowProvider = Provider<DateTime Function()>((ref) => DateTime.now);
@@ -36,7 +45,7 @@ class ThreadNotifier extends AutoDisposeFamilyAsyncNotifier<List<ReplyNode>, int
     _disposed = false;
     ref.onDispose(() => _disposed = true);
 
-    final tree = await _walk(revalidate: false);
+    final tree = await _walk(ThreadFetch.cached);
 
     // Everything came from cache and some of it has aged out. Show it now — it is
     // almost certainly still correct — and quietly bring it up to date behind the
@@ -44,7 +53,7 @@ class ThreadNotifier extends AutoDisposeFamilyAsyncNotifier<List<ReplyNode>, int
     if (_hasStaleEntries()) {
       Future<void>.microtask(() async {
         if (_disposed) return;
-        final fresh = await _walk(revalidate: true);
+        final fresh = await _walk(ThreadFetch.revalidate);
         // The reader may have left while that was in flight.
         if (!_disposed) state = AsyncData(fresh);
       });
@@ -53,9 +62,10 @@ class ThreadNotifier extends AutoDisposeFamilyAsyncNotifier<List<ReplyNode>, int
     return tree;
   }
 
-  /// Pull-to-refresh: refetch anything past its TTL, keep the rest.
+  /// Pull-to-refresh. Refetches the whole tree: someone who pulls has usually just
+  /// been told there is a new reply and wants to see it now.
   Future<void> refresh() async {
-    final fresh = await _walk(revalidate: true);
+    final fresh = await _walk(ThreadFetch.force);
     state = AsyncData(fresh);
   }
 
@@ -68,7 +78,7 @@ class ThreadNotifier extends AutoDisposeFamilyAsyncNotifier<List<ReplyNode>, int
   /// Ids this notifier has walked, so revalidation knows the shape without refetching.
   final _visited = <int>{};
 
-  Future<List<ReplyNode>> _walk({required bool revalidate}) async {
+  Future<List<ReplyNode>> _walk(ThreadFetch mode) async {
     final loaded = <int, List<Post>>{};
     _visited.clear();
 
@@ -77,7 +87,7 @@ class ThreadNotifier extends AutoDisposeFamilyAsyncNotifier<List<ReplyNode>, int
 
     for (var depth = 0; depth < maxThreadDepth && frontier.isNotEmpty; depth++) {
       final results = await Future.wait([
-        for (final id in frontier) _replies(id, revalidate: revalidate, budget: () => budget--),
+        for (final id in frontier) _replies(id, mode: mode, budget: () => budget--),
       ]);
 
       final next = <int>[];
@@ -98,16 +108,20 @@ class ThreadNotifier extends AutoDisposeFamilyAsyncNotifier<List<ReplyNode>, int
   /// branch advertised-but-unloaded instead of dropping it.
   Future<List<Post>?> _replies(
     int id, {
-    required bool revalidate,
+    required ThreadFetch mode,
     required int Function() budget,
   }) async {
     final cache = ref.read(repliesCacheProvider);
     final now = ref.read(nowProvider)();
     final hit = cache[id];
 
-    // A cached node costs nothing and does not touch the budget. Only a revalidation
-    // pass looks at how old it is.
-    if (hit != null && !(revalidate && hit.isStale(now))) return hit.posts;
+    // A reused node costs nothing and does not touch the budget.
+    final reuse = switch (mode) {
+      ThreadFetch.cached => hit != null,
+      ThreadFetch.revalidate => hit != null && !hit.isStale(now),
+      ThreadFetch.force => false,
+    };
+    if (reuse) return hit!.posts;
 
     if (budget() <= 0) return hit?.posts;
 
@@ -117,6 +131,9 @@ class ThreadNotifier extends AutoDisposeFamilyAsyncNotifier<List<ReplyNode>, int
     });
     cache.remember(id, replies, now);
     ref.read(postCacheProvider).remember(replies);
+    // These carry current counts for the level below, which may invalidate what we
+    // hold for their own replies.
+    cache.noticeCounts(replies);
     return replies;
   }
 }
