@@ -1,4 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- The Flutter template only grants this in the debug and profile manifests,
+         so without it here a release build can reach nothing and every screen errors. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+
     <application
         android:label="textlog"
         android:name="${applicationName}"
