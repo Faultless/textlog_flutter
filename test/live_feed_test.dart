@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:textlog/core/models.dart';
 import 'package:textlog/data/firehose.dart';
+import 'package:textlog/state/cache.dart';
 import 'package:textlog/state/providers.dart';
 
 Map<String, dynamic> raw(int id) => {
@@ -123,6 +124,27 @@ void main() {
     await settle();
 
     expect(h.container.read(liveFeedProvider).map((p) => p.id), [13, 12, 11]);
+  });
+
+  test('a live reply drops its parent thread from the cache', () async {
+    final h = harness();
+    h.setLatest([50]);
+    h.container.listen(liveFeedProvider, (_, _) {}, fireImmediately: true);
+
+    // Pretend we are holding thread 40's replies.
+    h.container.read(repliesCacheProvider).remember(40, [post(41)], DateTime(2026));
+    expect(h.container.read(repliesCacheProvider)[40], isNotNull);
+
+    h.events.add(const FirehoseConnected());
+    await settle();
+    h.events.add(FirehosePost(Post.fromJson({...raw(60), 'parent_id': 40})));
+    await settle();
+
+    expect(
+      h.container.read(repliesCacheProvider)[40],
+      isNull,
+      reason: 'the new reply belongs to thread 40, so what we hold for it is stale',
+    );
   });
 
   test('a failed reconciliation leaves the buffer alone', () async {

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:textlog/core/models.dart';
 import 'package:textlog/state/cache.dart';
 import 'package:textlog/state/providers.dart';
 import 'package:textlog/state/thread.dart';
@@ -119,18 +120,47 @@ void main() {
     expect(t.requested.length, greaterThan(first), reason: 'stale entries refetched');
   });
 
-  test('refresh only refetches what has aged out', () async {
+  test('an explicit refresh refetches even when nothing has aged out', () async {
     final t = setUp$();
     await t.container.read(threadProvider(1).future);
     final first = t.requested.length;
 
-    // Nothing is stale yet, so an explicit refresh should cost nothing.
-    await t.container.read(threadProvider(1).notifier).refresh();
-    expect(t.requested.length, first);
-
-    t.advance(repliesTtl + const Duration(minutes: 1));
+    // Someone who pulls to refresh has usually just been told there is a new reply.
+    // "Nothing has expired yet" is never the answer they wanted.
     await t.container.read(threadProvider(1).notifier).refresh();
     expect(t.requested.length, greaterThan(first));
+  });
+
+  test('a reply_count that disagrees with the cache invalidates it', () async {
+    final t = setUp$();
+    await t.container.read(threadProvider(1).future);
+    final first = t.requested.length;
+
+    // Post 2 now claims two replies; we hold one. A feed or a live post carrying that
+    // count is enough to know our copy is stale, at no request cost.
+    t.container.read(repliesCacheProvider).noticeCounts([
+      Post.fromJson(post(2, parent: 1, replyCount: 2)),
+    ]);
+
+    t.container.invalidate(threadProvider(1));
+    await t.container.read(threadProvider(1).future);
+
+    expect(t.requested.sublist(first), contains(2));
+  });
+
+  test('a matching reply_count leaves the cache alone', () async {
+    final t = setUp$();
+    await t.container.read(threadProvider(1).future);
+    final first = t.requested.length;
+
+    t.container.read(repliesCacheProvider).noticeCounts([
+      Post.fromJson(post(2, parent: 1, replyCount: 1)),
+    ]);
+
+    t.container.invalidate(threadProvider(1));
+    await t.container.read(threadProvider(1).future);
+
+    expect(t.requested.length, first);
   });
 
   test('one pass never exceeds the request budget', () async {
