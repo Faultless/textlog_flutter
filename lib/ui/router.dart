@@ -1,6 +1,7 @@
 import 'package:go_router/go_router.dart';
 
 import 'screens/home.dart';
+import 'screens/me.dart';
 import 'screens/profile.dart';
 import 'screens/tag.dart';
 import 'screens/thread.dart';
@@ -12,6 +13,7 @@ final router = GoRouter(
     GoRoute(path: '/', builder: (_, _) => const HomeScreen(tab: 0)),
     GoRoute(path: '/hot', builder: (_, _) => const HomeScreen(tab: 1)),
     GoRoute(path: '/live', builder: (_, _) => const HomeScreen(tab: 2)),
+    GoRoute(path: '/me', builder: (_, _) => const MeScreen()),
     GoRoute(
       path: '/post/:id',
       builder: (_, state) => ThreadScreen(id: int.parse(state.pathParameters['id']!)),

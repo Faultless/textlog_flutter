@@ -18,11 +18,12 @@ void main() {
   // tapping into a thread on web would give you a URL for the page you just left.
   GoRouter.optionURLReflectsImperativeAPIs = true;
 
+  WidgetsFlutterBinding.ensureInitialized();
+
   if (kIsWeb) {
     // Flutter web paints into a canvas, so without a published semantics tree the
     // page is opaque to screen readers and to browser automation alike. textlog
     // itself is markup-first and accessible; match that.
-    WidgetsFlutterBinding.ensureInitialized();
     SemanticsBinding.instance.ensureSemantics();
   }
 

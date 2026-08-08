@@ -3,29 +3,32 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/feed_source.dart';
 import '../../core/models.dart';
+import '../../state/identity.dart';
 import '../../state/providers.dart';
 import '../theme.dart';
 import '../widgets/feed_view.dart';
 import '../widgets/shell.dart';
 import '../widgets/status.dart';
+import 'web_action.dart';
 
 class ProfileScreen extends ConsumerWidget {
-  const ProfileScreen({super.key, required this.handle});
+  const ProfileScreen({super.key, required this.handle, this.isSelf = false});
 
   final String handle;
+  final bool isSelf;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profile = ref.watch(profileProvider(handle));
 
     return Scaffold(
-      appBar: textlogAppBar(context, path: '/u/$handle', showBack: true),
+      appBar: textlogAppBar(context, path: '/u/$handle', showBack: !isSelf),
       body: FeedView(
         UserFeed(handle),
         emptyMessage: 'No posts yet.',
         header: SliverToBoxAdapter(
           child: switch (profile) {
-            AsyncData(:final value) => _Header(value),
+            AsyncData(:final value) => _Header(value, isSelf: isSelf),
             AsyncError(:final error) => StatusMessage(messageFor(error)),
             _ => const Spinner(),
           },
@@ -35,13 +38,14 @@ class ProfileScreen extends ConsumerWidget {
   }
 }
 
-class _Header extends StatelessWidget {
-  const _Header(this.profile);
+class _Header extends ConsumerWidget {
+  const _Header(this.profile, {required this.isSelf});
 
   final Profile profile;
+  final bool isSelf;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final palette = context.palette;
     final theme = Theme.of(context).textTheme;
 
@@ -50,20 +54,89 @@ class _Header extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('@${profile.handle}', style: theme.titleLarge),
-          if (profile.bio.trim().isNotEmpty) ...[
-            const SizedBox(height: space3),
-            // Bios routinely contain ASCII art, so preserve the author's spacing.
-            Text(profile.bio, style: theme.bodyMedium!.copyWith(color: palette.quoteInk)),
-          ],
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Expanded(
+                child: Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(text: '@', style: TextStyle(color: palette.accent)),
+                      TextSpan(text: profile.handle),
+                    ],
+                  ),
+                  style: theme.titleLarge,
+                ),
+              ),
+              if (isSelf) ...[
+                GestureDetector(
+                  onTap: () => openAccount(ref),
+                  child: Text('account', style: theme.bodySmall!.asLink(palette)),
+                ),
+                const SizedBox(width: space4),
+                GestureDetector(
+                  onTap: () => _confirmSignOut(context, ref),
+                  child: Text('log out', style: theme.bodySmall!.asLink(palette)),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: space3),
+          // Bios routinely contain ASCII art, so preserve the author's spacing.
+          Text(
+            profile.bio.trim().isEmpty ? 'No bio yet.' : profile.bio,
+            style: theme.bodyMedium!.copyWith(color: palette.quoteInk),
+          ),
           const SizedBox(height: space4),
           Text(
-            '${profile.postCount} posts · ${profile.followerCount} followers · '
-            '${profile.followingCount} following',
+            '${profile.postCount} notes · ${profile.followingCount} following · '
+            '${profile.followerCount} ${profile.followerCount == 1 ? 'follower' : 'followers'}',
             style: theme.labelSmall,
           ),
         ],
       ),
     );
   }
+}
+
+/// The app never held a session, so "log out" here can only forget the handle. Say
+/// so plainly rather than letting someone believe they signed out of textlog.
+Future<void> _confirmSignOut(BuildContext context, WidgetRef ref) async {
+  final palette = context.palette;
+  final theme = Theme.of(context).textTheme;
+
+  final signOut = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      backgroundColor: palette.panel,
+      shape: const RoundedRectangleBorder(),
+      title: Text('Log out', style: theme.bodyMedium),
+      content: Text(
+        'This app will forget your handle.\n\n'
+        'You stay signed in on textlog.cc in your browser — end that session from '
+        'account settings if you want to log out everywhere.',
+        style: theme.bodySmall!.copyWith(color: palette.quoteInk, height: 1.55),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: Text('cancel', style: theme.bodySmall!.copyWith(color: palette.muted)),
+        ),
+        TextButton(
+          onPressed: () {
+            Navigator.pop(context, false);
+            openSessions(ref);
+          },
+          child: Text('browser sessions', style: theme.bodySmall!.copyWith(color: palette.accent)),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context, true),
+          child: Text('forget', style: theme.bodySmall!.copyWith(color: palette.errorInk)),
+        ),
+      ],
+    ),
+  );
+
+  if (signOut ?? false) await ref.read(identityProvider.notifier).forget();
 }

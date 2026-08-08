@@ -25,6 +25,18 @@ Future<void> openCompose(WidgetRef ref) {
   return _open('/write');
 }
 
+/// Logging in and account settings live on textlog.cc, because that is where the
+/// session is. No pending write to settle afterwards.
+///
+/// There is deliberately no `openLogout`: the site's `/logout` is a form POST, so it
+/// cannot be triggered by opening a URL. Ending the browser session is done from
+/// `/account/security`, which lists and revokes sessions.
+Future<void> openLogin(WidgetRef ref) => _open('/enter');
+
+Future<void> openAccount(WidgetRef ref) => _open('/account/edit');
+
+Future<void> openSessions(WidgetRef ref) => _open('/account/security');
+
 Future<void> _open(String path) async {
   final url = Uri.parse('$textlogOrigin$path');
 

@@ -12,6 +12,7 @@ dependencies:
   flutter_riverpod: ^2.6.1
   go_router: ^14.6.2
   http: ^1.2.2
+  shared_preferences: ^2.3.3
   url_launcher: ^6.3.1
   web: ^1.1.1 # EventSource, for the firehose on Flutter web
   flutter_web_plugins:

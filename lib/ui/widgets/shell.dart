@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../data/api.dart';
+import '../../state/identity.dart';
 import '../theme.dart';
 
 /// `.brand` — the wordmark, with the accent full stop.
@@ -47,6 +49,7 @@ AppBar textlogAppBar(BuildContext context, {String? path, bool showBack = false}
     automaticallyImplyLeading: false,
     title: const Brand(),
     actions: [
+      const _You(),
       IconButton(
         tooltip: 'open on textlog.cc',
         icon: Icon(Icons.open_in_new, size: 16, color: palette.muted),
@@ -101,6 +104,27 @@ class FeedTabs extends StatelessWidget {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+
+/// `@handle` once you have told the app who you are, `sign in` before that.
+class _You extends ConsumerWidget {
+  const _You();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final handle = ref.watch(identityProvider).valueOrNull;
+    return GestureDetector(
+      onTap: () => context.push('/me'),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: space2),
+        child: Text(
+          handle == null ? 'sign in' : '@$handle',
+          style: Theme.of(context).textTheme.bodySmall!.asLink(context.palette),
+        ),
       ),
     );
   }
