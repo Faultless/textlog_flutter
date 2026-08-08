@@ -1,0 +1,59 @@
+name: Deploy web demo to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.41.5
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      # Cheap insurance: the demo is the thing people click from the portfolio, so
+      # don't publish it if the suite is red.
+      - run: flutter analyze
+      - run: flutter test
+
+      # Pages serves this from /<repo>/, so the base href has to match or every
+      # asset request 404s.
+      - run: flutter build web --release --base-href "/${{ github.event.repository.name }}/"
+
+      # The app uses path URLs, and Pages has no SPA rewrite. Serving index.html as
+      # the 404 page is what makes /post/328 work on a cold load instead of erroring.
+      - run: cp build/web/index.html build/web/404.html
+
+      # Stop Jekyll touching the build output.
+      - run: touch build/web/.nojekyll
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -16,6 +16,9 @@ web. Nothing more. No algorithm, no metrics, no accounts of its own.
 
 ---
 
+**[Try it in a browser](https://faultless.github.io/textlog_flutter/)** — the same code as the
+app, built for web on every push.
+
 **Unofficial.** Not affiliated with textlog.cc — see [acknowledgements](#acknowledgements).
 
 ## Install
