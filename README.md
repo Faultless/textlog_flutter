@@ -28,9 +28,10 @@ Take `textlog-<version>-arm64-v8a.apk` if you are not sure — it fits virtually
 sold in the last decade and is a third of the size. `textlog-<version>.apk` is the universal
 build that runs on anything.
 
-**iOS** — no builds yet, and not for want of trying. Apple requires a paid developer account
-to produce an installable build, and this project is AGPL, which has historically been
-incompatible with the App Store. Building it yourself works; see below.
+**iOS** — no downloads. Apple requires a paid developer account to hand someone an
+installable build, and this project is AGPL, which has historically been incompatible with
+the App Store. You can build it for your own phone in a few minutes though —
+see [Building it for your own iPhone](#building-it-for-your-own-iphone).
 
 > Builds up to and including the first v0.0.4 upload were signed with a debug key. Releases
 > from now on are properly signed, which means **you must uninstall an older build first** —
@@ -80,6 +81,42 @@ flutter run -d chrome       # in a browser
 flutter test
 flutter analyze
 ```
+
+### Building it for your own iPhone
+
+Needs a Mac with Xcode. A free Apple ID is enough — you don't need the paid developer
+programme, but a free one signs the app for **7 days**, after which you re-run step 4.
+
+1. Install the iOS platform SDK, once. It is several GB, and without it the build fails
+   with "Unable to find a destination matching the provided destination specifier".
+
+   ```sh
+   xcodebuild -downloadPlatform iOS
+   ```
+
+2. Open the project in Xcode:
+
+   ```sh
+   flutter pub get
+   open ios/Runner.xcworkspace
+   ```
+
+3. Select the **Runner** target → **Signing & Capabilities**. Choose your Apple ID under
+   *Team*, and change the *Bundle Identifier* to something of your own, for example
+   `com.yourname.textlog`. Apple will not sign `dev.serge.textlog` for you.
+
+4. Plug the phone in and run it:
+
+   ```sh
+   flutter devices                  # find your phone's id
+   flutter run --release -d <device-id>
+   ```
+
+5. The phone will refuse to open it the first time. Trust the certificate:
+   **Settings → General → VPN & Device Management → your Apple ID → Trust**.
+
+There are no prebuilt iOS downloads, and there won't be while this is AGPL — see
+[Licence](#license).
 
 ## Contributing
 
