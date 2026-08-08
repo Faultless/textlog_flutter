@@ -13,7 +13,8 @@
 | Follow, block, report | not in the app |
 | Your own profile | native, from your handle |
 | Activity, for-you | not in the app |
-| Markdown | not rendered (neither does the site) |
+| Markdown | opt-in, off by default |
+| Themes | light, dark, sepia, dracula + accent |
 
 ## The one thing that gates the rest
 
@@ -32,22 +33,11 @@ So the roadmap splits cleanly in two:
 
 ## v0.0.4 — read polish
 
-**Basic markdown (read only).**
-Worth being deliberate here. The server escapes everything except URLs, `@mentions` and
-`#hashtags`, and renders bodies as pre-wrapped plain text — so `**bold**` on textlog.cc
-shows up as literal asterisks. If the app renders it as bold, the app is showing formatting
-the author did not get, and the same post looks different in two places.
+**Done in v0.0.3:** markdown (bold, italic, strikethrough, links, bullets, headings) behind
+an off-by-default setting; light / dark / sepia / dracula themes with a chosen accent.
 
-Recommended shape:
-- Add inline `**bold**`, `*italic*`, `` `code` `` and `> quote` to the existing tokenizer
-  in `core/body_tokens.dart` — it already returns a token list, so this is a new token
-  type and a new span style, not a new rendering pipeline.
-- Ship it behind a setting, **defaulted to off**, labelled as "render markdown (textlog.cc
-  shows this as plain text)". Honest about the divergence, and the default matches the web.
-- Do not add block-level markdown (headings, lists, tables). Posts are 280 characters;
-  block layout is not what is missing.
-
-**Other read polish**
+**Still to do**
+- Inline `code` and `> quote` spans, the two markdown pieces left out.
 - Share a post / profile via the system share sheet.
 - Open a post's own permalink in a browser tab rather than handing off to the browser app.
 - `ref.keepAlive()` with a disposal timer so feeds survive navigation instead of refetching.

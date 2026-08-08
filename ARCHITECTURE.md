@@ -82,11 +82,21 @@ Adding a case becomes a compile error at every site that must handle it.
 **No comments that restate the code.** Comments here explain *why* — a workaround, a
 constraint, a decision that looks arbitrary until you know the reason.
 
-## Visual identity
+## Visual identity and themes
 
 Colours in `ui/theme.dart` are textlog's CSS custom properties copied verbatim and kept
 under their original names (`--soft` → `Palette.soft`), so a change on the site is a
 one-line diff here. Same for the `--space-*` scale and `--gutter`'s `clamp(18px, 3vw, 28px)`.
+
+`Palette` is a `ThemeExtension`, which is why every widget can say `context.palette` without
+anyone threading it down. There are four — `light` and `dark` are the site's own, `sepia`
+and `dracula` are ours — plus an accent the reader picks. Accents are a curated list rather
+than a colour picker: each has a variant tuned for light and for dark backgrounds, so no
+choice can produce unreadable links. `withAccent` derives the hover shade by shifting
+lightness, darker on light backgrounds and lighter on dark ones, as the site does.
+
+`system` hands the light/dark decision to Flutter so it tracks the device live; a fixed
+choice pins both theme slots to the same palette so it cannot.
 
 Two details that carry most of the look: everything is monospace, and links are
 accent-coloured with an underline in a *quieter* colour (`linkBorder`) — that is what
@@ -95,6 +105,22 @@ stops a dense feed reading as a wall of green.
 The body tokenizer in `core/body_tokens.dart` is a direct port of the server's `linkify`
 (`src/utils.ts`), including the rule that trailing sentence punctuation stays outside a
 URL. Bodies render identically to the website.
+
+## Markdown
+
+Off by default, and that default is the point: textlog escapes everything except URLs,
+mentions and hashtags, so `**bold**` really is asterisks on the site. Rendering it here
+means showing formatting the author never got, and the setting says so in as many words.
+
+`core/markdown.dart` layers on the plain tokenizer rather than replacing it. A line is
+classified (heading / bullet / paragraph), markdown links are pulled out **first** — else
+the plain tokenizer would link the bare URL inside `[label](url)` and lose the label — and
+whatever stays plain is then scanned for emphasis. That ordering is why `**@someone**` still
+resolves to a mention.
+
+Scope is deliberately small: bold, italic, strikethrough, links, bullets, headings. No
+nesting, no tables, no code fences. A test asserts that both paths link the same mentions,
+tags and URLs, so turning the setting on can never lose the behaviour the site has.
 
 ## Live tab
 

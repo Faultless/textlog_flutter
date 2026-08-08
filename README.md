@@ -38,9 +38,11 @@ Read the whole thing in [ROADMAP.md](ROADMAP.md). In short:
 - Threads with the parent post quoted, profiles, hashtag feeds
 - Replying, posting and logging in, handed to textlog.cc in a browser tab
 - Tell the app your handle and get your own profile, kept between launches
+- Light, dark, sepia and dracula themes with a choice of accent colour
+- Optional markdown rendering, off by default
 
 **Next — read polish (v0.0.4)**
-- Basic markdown for reading, off by default (textlog.cc itself shows plain text)
+- Inline code and quote spans
 - Share a post or profile
 - Keep feeds warm instead of refetching when you navigate back
 
