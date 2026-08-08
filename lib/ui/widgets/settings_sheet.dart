@@ -6,10 +6,13 @@ import '../theme.dart';
 
 /// A bottom sheet rather than a screen: appearance is a two-tap decision, and it
 /// should not take you out of what you were reading.
+///
+/// The sheet paints its own background instead of passing `backgroundColor`, which
+/// is captured once at call time and would keep the old colour when you switch
+/// theme with the sheet still open.
 Future<void> showSettings(BuildContext context) => showModalBottomSheet<void>(
   context: context,
-  backgroundColor: context.palette.panel,
-  shape: const RoundedRectangleBorder(),
+  backgroundColor: Colors.transparent,
   builder: (_) => const _Settings(),
 );
 
@@ -23,48 +26,110 @@ class _Settings extends ConsumerWidget {
     final palette = context.palette;
     final theme = Theme.of(context).textTheme;
 
-    return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: gutterOf(context), vertical: space5),
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: palette.panel,
+        border: Border(top: BorderSide(color: palette.soft)),
+      ),
+      child: SafeArea(
+        top: false,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('appearance', style: theme.bodySmall!.copyWith(color: palette.muted)),
-            const SizedBox(height: space4),
-            Wrap(
-              spacing: space2,
-              runSpacing: space2,
-              children: [
-                for (final choice in ThemeChoice.values)
-                  _Chip(
-                    label: choice.id,
-                    selected: settings.theme == choice,
-                    onTap: () => notifier.setTheme(choice),
+            const _Handle(),
+            Padding(
+              padding: EdgeInsets.fromLTRB(gutterOf(context), 0, space2, 0),
+              child: Row(
+                children: [
+                  Expanded(child: Text('appearance', style: theme.titleLarge)),
+                  IconButton(
+                    tooltip: 'done',
+                    visualDensity: VisualDensity.compact,
+                    icon: Icon(Icons.close, size: 18, color: palette.muted),
+                    onPressed: () => Navigator.of(context).pop(),
                   ),
-              ],
+                ],
+              ),
             ),
-            const SizedBox(height: space5),
-            Text('accent', style: theme.bodySmall!.copyWith(color: palette.muted)),
-            const SizedBox(height: space4),
-            Wrap(
-              spacing: space3,
-              runSpacing: space3,
-              children: [
-                for (final choice in AccentChoice.values)
-                  _Swatch(
-                    choice: choice,
-                    selected: settings.accent == choice,
-                    onTap: () => notifier.setAccent(choice),
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                gutterOf(context),
+                space4,
+                gutterOf(context),
+                space5,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _Label('theme'),
+                  const SizedBox(height: space3),
+                  Wrap(
+                    spacing: space2,
+                    runSpacing: space2,
+                    children: [
+                      for (final choice in ThemeChoice.values)
+                        _Chip(
+                          label: choice.id,
+                          selected: settings.theme == choice,
+                          onTap: () => notifier.setTheme(choice),
+                        ),
+                    ],
                   ),
-              ],
+                  const SizedBox(height: space5),
+                  _Label('accent'),
+                  const SizedBox(height: space3),
+                  Wrap(
+                    spacing: space3,
+                    runSpacing: space3,
+                    children: [
+                      for (final choice in AccentChoice.values)
+                        _Swatch(
+                          choice: choice,
+                          selected: settings.accent == choice,
+                          onTap: () => notifier.setAccent(choice),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: space5),
           ],
         ),
       ),
     );
   }
+}
+
+/// Grab bar — the affordance that says this can be dragged away.
+class _Handle extends StatelessWidget {
+  const _Handle();
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Container(
+      width: 36,
+      height: 4,
+      margin: const EdgeInsets.symmetric(vertical: space3),
+      decoration: BoxDecoration(
+        color: context.palette.soft,
+        borderRadius: BorderRadius.circular(2),
+      ),
+    ),
+  );
+}
+
+class _Label extends StatelessWidget {
+  const _Label(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Text(
+    text,
+    style: Theme.of(context).textTheme.labelSmall!.copyWith(color: context.palette.muted),
+  );
 }
 
 class _Chip extends StatelessWidget {
@@ -82,13 +147,13 @@ class _Chip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: space3, vertical: space2),
         decoration: BoxDecoration(
-          color: selected ? palette.accent : palette.tagBg,
+          color: selected ? palette.accent : palette.bg,
           border: Border.all(color: selected ? palette.accent : palette.soft),
         ),
         child: Text(
           label,
           style: Theme.of(context).textTheme.bodySmall!.copyWith(
-            color: selected ? palette.bg : palette.ink,
+            color: selected ? palette.bg : palette.muted,
           ),
         ),
       ),
@@ -116,19 +181,24 @@ class _Swatch extends StatelessWidget {
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          width: 28,
-          height: 28,
+          width: 30,
+          height: 30,
           decoration: BoxDecoration(
-            color: colour,
             shape: BoxShape.circle,
+            // A ring rather than a thicker border, so the swatch colour does not
+            // change size when you pick it.
             border: Border.all(
               color: selected ? palette.ink : palette.soft,
               width: selected ? 2 : 1,
             ),
           ),
-          child: choice == AccentChoice.theme
-              ? Icon(Icons.auto_awesome, size: 12, color: palette.bg)
-              : null,
+          child: Center(
+            child: Container(
+              width: selected ? 18 : 22,
+              height: selected ? 18 : 22,
+              decoration: BoxDecoration(color: colour, shape: BoxShape.circle),
+            ),
+          ),
         ),
       ),
     );
