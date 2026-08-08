@@ -66,6 +66,7 @@ class _TextlogAppState extends ConsumerState<TextlogApp> with WidgetsBindingObse
 
     ThemeData themed(Palette palette) => textlogTheme(
       palette.withAccent(settings.accent.forBrightness(palette.brightness)),
+      settings.font,
     );
 
     // `system` hands the light/dark decision to Flutter so it tracks the device

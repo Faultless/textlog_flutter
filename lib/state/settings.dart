@@ -8,6 +8,7 @@ final class Settings {
     this.theme = ThemeChoice.system,
     this.accent = AccentChoice.theme,
     this.markdown = false,
+    this.font = FontChoice.jetbrains,
   });
 
   final ThemeChoice theme;
@@ -16,11 +17,18 @@ final class Settings {
   /// Off by default, because textlog.cc itself renders bodies as plain text — on
   /// means the app shows formatting the author did not necessarily get.
   final bool markdown;
+  final FontChoice font;
 
-  Settings copyWith({ThemeChoice? theme, AccentChoice? accent, bool? markdown}) => Settings(
+  Settings copyWith({
+    ThemeChoice? theme,
+    AccentChoice? accent,
+    bool? markdown,
+    FontChoice? font,
+  }) => Settings(
     theme: theme ?? this.theme,
     accent: accent ?? this.accent,
     markdown: markdown ?? this.markdown,
+    font: font ?? this.font,
   );
 }
 
@@ -32,6 +40,7 @@ class SettingsNotifier extends AsyncNotifier<Settings> {
   static const _themeKey = 'theme';
   static const _accentKey = 'accent';
   static const _markdownKey = 'markdown';
+  static const _fontKey = 'font';
 
   @override
   Future<Settings> build() async {
@@ -43,6 +52,7 @@ class SettingsNotifier extends AsyncNotifier<Settings> {
         theme: ThemeChoice.fromId(preferences.getString(_themeKey)),
         accent: AccentChoice.fromId(preferences.getString(_accentKey)),
         markdown: preferences.getBool(_markdownKey) ?? false,
+        font: FontChoice.fromId(preferences.getString(_fontKey)),
       );
     } catch (_) {
       return const Settings();
@@ -57,6 +67,11 @@ class SettingsNotifier extends AsyncNotifier<Settings> {
   Future<void> setAccent(AccentChoice accent) async {
     state = AsyncData((state.valueOrNull ?? const Settings()).copyWith(accent: accent));
     await _write(_accentKey, accent.id);
+  }
+
+  Future<void> setFont(FontChoice font) async {
+    state = AsyncData((state.valueOrNull ?? const Settings()).copyWith(font: font));
+    await _write(_fontKey, font.id);
   }
 
   Future<void> setMarkdown(bool enabled) async {

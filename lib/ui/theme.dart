@@ -227,9 +227,41 @@ enum AccentChoice {
       brightness == Brightness.dark ? onDark : onLight;
 }
 
-/// The site's `ui-monospace, SFMono-Regular, Menlo, Consolas, monospace` stack,
-/// pinned to one bundled face so Android, iOS and web render identically.
-const monoFamily = 'RobotoMono';
+/// Which monospace face to read in.
+///
+/// Both bundled fonts cover box drawing and block elements in full, which the
+/// previous default (Roboto Mono) did not — it has none of them, so every `┌─┐` in
+/// an ASCII-art post fell back to another face mid-line and the drawing came apart.
+enum FontChoice {
+  jetbrains('jetbrains', 'JetBrains Mono', 'JetBrainsMono', ligatures: false),
+  fira('fira', 'Fira Code', 'FiraCode', ligatures: true),
+
+  /// Whatever the platform calls monospace. Costs nothing to ship and is the face
+  /// the website itself gets on the same device.
+  system('system', 'System', null, ligatures: false);
+
+  const FontChoice(this.id, this.label, this.family, {required this.ligatures});
+
+  final String id;
+  final String label;
+  final String? family;
+  final bool ligatures;
+
+  static FontChoice fromId(String? id) =>
+      values.firstWhere((choice) => choice.id == id, orElse: () => FontChoice.jetbrains);
+
+  String get fontFamily => family ?? 'monospace';
+
+  /// Only meaningful for `system`; a bundled family resolves on its own.
+  List<String>? get fallback =>
+      family == null ? const ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas'] : null;
+
+  /// Fira Code is the option you pick *for* ligatures. JetBrains Mono has them too,
+  /// but it is offered as the sober one, so they are turned off there.
+  List<FontFeature>? get features => ligatures
+      ? null
+      : const [FontFeature.disable('liga'), FontFeature.disable('calt')];
+}
 
 /// The site's `--space-*` scale.
 const space1 = 4.0;
@@ -260,11 +292,13 @@ extension LinkStyle on TextStyle {
   );
 }
 
-ThemeData textlogTheme(Palette palette) {
-  // RobotoMono ships as a variable font, so weight has to be set as an axis as
-  // well — fontWeight alone leaves it at 400.
+ThemeData textlogTheme(Palette palette, [FontChoice font = FontChoice.jetbrains]) {
+  // These ship as variable fonts, so weight has to be set as an axis as well —
+  // fontWeight alone leaves them at 400.
   TextStyle mono(double size, {FontWeight? weight, double? height, Color? color}) => TextStyle(
-    fontFamily: monoFamily,
+    fontFamily: font.fontFamily,
+    fontFamilyFallback: font.fallback,
+    fontFeatures: font.features,
     fontSize: size,
     fontWeight: weight,
     fontVariations: weight == null

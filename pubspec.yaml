@@ -1,7 +1,7 @@
 name: textlog
 description: A community-built mobile client for textlog.cc
 publish_to: 'none'
-version: 0.0.6+7
+version: 0.0.7+8
 
 environment:
   sdk: ^3.11.3
@@ -40,7 +40,14 @@ flutter:
   # Bundled rather than relying on a generic `monospace` family: Flutter web's
   # CanvasKit renderer only resolves fonts it has been given, so the site's
   # defining monospace look has to ship with the app.
+  #
+  # Both are subset to Latin, punctuation, arrows, maths, box drawing and blocks —
+  # everything textlog's ASCII art needs, and nothing else. Regenerate with
+  # `pyftsubset <font>.ttf --unicodes=... --layout-features='*'`.
   fonts:
-    - family: RobotoMono
+    - family: JetBrainsMono
       fonts:
-        - asset: assets/fonts/RobotoMono.ttf
+        - asset: assets/fonts/JetBrainsMono.ttf
+    - family: FiraCode
+      fonts:
+        - asset: assets/fonts/FiraCode.ttf
