@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:go_router/go_router.dart';
 
+import 'state/pending_write.dart';
 import 'ui/router.dart';
 import 'ui/theme.dart';
 
@@ -28,8 +29,34 @@ void main() {
   runApp(const ProviderScope(child: TextlogApp()));
 }
 
-class TextlogApp extends StatelessWidget {
+class TextlogApp extends ConsumerStatefulWidget {
   const TextlogApp({super.key});
+
+  @override
+  ConsumerState<TextlogApp> createState() => _TextlogAppState();
+}
+
+class _TextlogAppState extends ConsumerState<TextlogApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Coming back from the browser is the only signal we get that a reply or post
+    // may have landed.
+    if (state == AppLifecycleState.resumed) {
+      ref.read(pendingWriteProvider.notifier).settle();
+    }
+  }
 
   @override
   Widget build(BuildContext context) => MaterialApp.router(
