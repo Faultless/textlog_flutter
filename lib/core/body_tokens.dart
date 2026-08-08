@@ -12,8 +12,23 @@ final class PlainText extends BodyToken {
 }
 
 final class LinkToken extends BodyToken {
-  const LinkToken(this.url);
+  const LinkToken(this.url, {this.label});
   final String url;
+
+  /// Set only for a markdown `[label](url)`; otherwise the URL is its own label.
+  final String? label;
+
+  String get text => label ?? url;
+}
+
+/// Emphasised run of plain text. Only produced when markdown rendering is on.
+final class StyledText extends BodyToken {
+  const StyledText(this.text, {this.bold = false, this.italic = false, this.strike = false});
+
+  final String text;
+  final bool bold;
+  final bool italic;
+  final bool strike;
 }
 
 final class MentionToken extends BodyToken {

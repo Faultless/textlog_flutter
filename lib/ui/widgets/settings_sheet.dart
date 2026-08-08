@@ -92,6 +92,17 @@ class _Settings extends ConsumerWidget {
                         ),
                     ],
                   ),
+                  const SizedBox(height: space5),
+                  _Label('reading'),
+                  const SizedBox(height: space2),
+                  _Toggle(
+                    title: 'render markdown',
+                    // Say what the trade-off is instead of leaving people to
+                    // wonder why a post looks different here than on the site.
+                    note: 'textlog.cc shows posts as plain text',
+                    value: settings.markdown,
+                    onChanged: notifier.setMarkdown,
+                  ),
                 ],
               ),
             ),
@@ -200,6 +211,55 @@ class _Swatch extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+
+class _Toggle extends StatelessWidget {
+  const _Toggle({
+    required this.title,
+    required this.note,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String title;
+  final String note;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final theme = Theme.of(context).textTheme;
+
+    return GestureDetector(
+      onTap: () => onChanged(!value),
+      behavior: HitTestBehavior.opaque,
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: theme.bodySmall),
+                const SizedBox(height: space1),
+                Text(note, style: theme.labelSmall!.copyWith(color: palette.muted)),
+              ],
+            ),
+          ),
+          Switch(
+            value: value,
+            onChanged: onChanged,
+            activeThumbColor: palette.bg,
+            activeTrackColor: palette.accent,
+            inactiveThumbColor: palette.muted,
+            inactiveTrackColor: palette.bg,
+            trackOutlineColor: WidgetStatePropertyAll(palette.soft),
+          ),
+        ],
       ),
     );
   }
