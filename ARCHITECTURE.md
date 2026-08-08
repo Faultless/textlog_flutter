@@ -228,6 +228,32 @@ Assembly itself is pure — `core/reply_tree.dart` takes the fetched pages as a 
 returns the tree, so the depth cap, the budget overflow and a stale `reply_count` are all
 covered by plain unit tests.
 
+### Not spamming the replies endpoint
+
+The server allows 120 JSON requests a minute. One thread costs a request per branching
+node, so the naive version — refetch the tree every time a thread opens — rate-limits a
+reader who does nothing more unusual than browsing.
+
+`RepliesCache` holds reply pages for the whole session, keyed by the post they belong to,
+outliving the provider that fetched them. It changes the arithmetic completely: reopening
+a thread costs nothing, and following a `+ N more replies` link into a node the parent
+thread already walked costs nothing either, because those levels are already in hand.
+Measured against a real five-level thread: 10 requests cold, 0 on reopen, 0 for the
+sub-thread.
+
+Freshness is per node, not per thread. A normal open uses whatever is cached and fetches
+only what is missing. A revalidation pass — triggered on open when something has aged past
+`repliesTtl`, or by pull-to-refresh — refetches *only* the entries that are actually stale.
+That is the difference between one request and sixteen for a refresh.
+
+Stale content is shown immediately and updated behind the reader rather than replaced by a
+spinner. On a micro-blog a thread that was quiet five minutes ago is almost certainly still
+quiet, and being a few seconds behind costs nothing.
+
+`fetchOnce` collapses concurrent fetches of the same node. A thread screen can build more
+than once during a route transition, and without it both builds miss the cache and both hit
+the network — which is exactly what the request log showed before it was added.
+
 The rendering mirrors the site's `.reply-branch`: siblings share one hairline rail indented
 by a gutter, and nodes with children carry the same `−` / `+` fold control. The fold needs
 `excludeSemantics: true` or Flutter merges the label into the reply's text and the control
