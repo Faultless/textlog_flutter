@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import '../core/models.dart';
 import '../data/api.dart';
 import '../data/firehose.dart';
+import 'cache.dart';
 
 /// Override this in tests to run the whole app against a fake server.
 final httpClientProvider = Provider<http.Client>((ref) {
@@ -14,13 +15,24 @@ final httpClientProvider = Provider<http.Client>((ref) {
 
 final apiProvider = Provider<TextlogApi>((ref) => TextlogApi(ref.watch(httpClientProvider)));
 
-final postProvider = FutureProvider.autoDispose.family<Post, int>(
-  (ref, id) => ref.watch(apiProvider).post(id),
-);
+/// Served from [PostCache] when the post was already on screen, which is the usual
+/// case — you tapped it, or it is the parent of a reply you are looking at.
+final postProvider = FutureProvider.autoDispose.family<Post, int>((ref, id) async {
+  cacheFor(ref, postCacheDuration);
 
-final profileProvider = FutureProvider.autoDispose.family<Profile, String>(
-  (ref, handle) => ref.watch(apiProvider).profile(handle),
-);
+  final cache = ref.watch(postCacheProvider);
+  final known = cache[id];
+  if (known != null) return known;
+
+  final post = await ref.watch(apiProvider).post(id);
+  cache.remember([post]);
+  return post;
+});
+
+final profileProvider = FutureProvider.autoDispose.family<Profile, String>((ref, handle) {
+  cacheFor(ref, postCacheDuration);
+  return ref.watch(apiProvider).profile(handle);
+});
 
 final firehoseProvider = StreamProvider.autoDispose<Post>((ref) => firehose());
 
@@ -38,6 +50,7 @@ class LiveFeedNotifier extends AutoDisposeNotifier<List<Post>> {
     ref.listen(firehoseProvider, (_, next) {
       final post = next.valueOrNull;
       if (post != null) {
+        ref.read(postCacheProvider).remember([post]);
         state = [post, ...state.take(_liveBufferLimit - 1)];
       }
     });

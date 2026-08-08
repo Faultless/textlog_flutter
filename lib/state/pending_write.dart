@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/feed_source.dart';
+import 'cache.dart';
 import 'feed.dart';
 import 'providers.dart';
 
@@ -40,6 +41,9 @@ class PendingWriteNotifier extends Notifier<PendingWrite?> {
       // Refresh the thread you replied to, not the feed you came from — invalidating
       // a feed resets it to the top and throws away the reader's place.
       case PendingReply(:final postId):
+        // Evict first: postProvider serves the cache, so invalidating alone would
+        // just hand back the same pre-reply copy.
+        ref.read(postCacheProvider).forget(postId);
         ref.invalidate(postProvider(postId));
         ref.invalidate(feedProvider(RepliesFeed(postId)));
       case PendingPost():

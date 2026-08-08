@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/feed_source.dart';
 import '../core/models.dart';
+import 'cache.dart';
 import 'providers.dart';
 
 final class FeedState {
@@ -44,7 +45,9 @@ final feedProvider =
 class FeedNotifier extends AutoDisposeFamilyAsyncNotifier<FeedState, FeedSource> {
   @override
   Future<FeedState> build(FeedSource arg) async {
+    cacheFor(ref, feedCacheDuration);
     final page = await ref.watch(apiProvider).feed(arg);
+    ref.read(postCacheProvider).remember(page.items);
     return FeedState(posts: page.items, cursor: page.nextCursor);
   }
 
@@ -55,6 +58,7 @@ class FeedNotifier extends AutoDisposeFamilyAsyncNotifier<FeedState, FeedSource>
     state = AsyncData(current.copyWith(loadingMore: true));
     try {
       final page = await ref.read(apiProvider).feed(arg, cursor: current.cursor);
+      ref.read(postCacheProvider).remember(page.items);
       state = AsyncData(
         FeedState(posts: [...current.posts, ...page.items], cursor: page.nextCursor),
       );
