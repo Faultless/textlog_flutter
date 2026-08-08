@@ -8,9 +8,11 @@ in that feels like it belongs on the device: native scrolling, a live feed of ne
 threads you can follow with your thumb, and posts that look exactly like they do on the
 web. Nothing more. No algorithm, no metrics, no accounts of its own.
 
-<img width="200" height="420" alt="IMAGE 2026-08-08 12:29:16" src="https://github.com/user-attachments/assets/b9a7d50f-6bf0-44bd-90f1-b33cd16901df" />
-
-<img width="200" height="420" alt="IMAGE 2026-08-08 12:29:12" src="https://github.com/user-attachments/assets/51951c52-291d-4d1a-9c3a-a3e8c58db676" />
+<p>
+  <img width="200" alt="A nested reply thread in the sepia theme, with the post being replied to quoted beneath" src="docs/sepia-thread.jpg" />
+  <img width="200" alt="The appearance menu in the dracula theme, showing theme, accent and markdown settings" src="docs/dracula-appearance.jpg" />
+  <img width="200" alt="The live tab, waiting for new posts to arrive" src="https://github.com/user-attachments/assets/b9a7d50f-6bf0-44bd-90f1-b33cd16901df" />
+</p>
 
 ---
 
