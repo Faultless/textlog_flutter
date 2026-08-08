@@ -93,6 +93,27 @@ class _Settings extends ConsumerWidget {
                     ],
                   ),
                   const SizedBox(height: space5),
+                  _Label('font'),
+                  const SizedBox(height: space3),
+                  Wrap(
+                    spacing: space2,
+                    runSpacing: space2,
+                    children: [
+                      for (final choice in FontChoice.values)
+                        _Chip(
+                          label: choice.label,
+                          selected: settings.font == choice,
+                          onTap: () => notifier.setFont(choice),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: space3),
+                  // The one thing that visibly separates them, shown in the face itself.
+                  Text(
+                    '┌──┐ != >= -> ~~ 0O1l',
+                    style: theme.bodySmall!.copyWith(color: palette.quoteInk),
+                  ),
+                  const SizedBox(height: space5),
                   _Label('reading'),
                   const SizedBox(height: space2),
                   _Toggle(
