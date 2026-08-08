@@ -156,7 +156,9 @@ void main() {
 
     container.read(pendingWriteProvider.notifier).expect(const PendingReply(5));
     container.read(pendingWriteProvider.notifier).settle();
-    await Future<void>.delayed(Duration.zero);
+    // Await the rebuild rather than a bare microtask, or the assertion races it.
+    await container.read(postProvider(5).future);
+    await container.read(feedProvider(RepliesFeed(5)).future);
 
     final after = paths.sublist(settled);
     expect(container.read(pendingWriteProvider), isNull);
