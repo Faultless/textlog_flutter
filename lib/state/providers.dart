@@ -27,6 +27,7 @@ final postProvider = FutureProvider.autoDispose.family<Post, int>((ref, id) asyn
 
   final post = await ref.watch(apiProvider).post(id);
   cache.remember([post]);
+  ref.read(repliesCacheProvider).noticeCounts([post]);
   return post;
 });
 
@@ -65,6 +66,7 @@ class LiveFeedNotifier extends AutoDisposeNotifier<List<Post>> {
           _reconcile();
         case FirehosePost(:final post):
           ref.read(postCacheProvider).remember([post]);
+          _noticeReply(post);
           _merge([post]);
         case null:
           break;
@@ -97,10 +99,22 @@ class LiveFeedNotifier extends AutoDisposeNotifier<List<Post>> {
         return;
       }
 
+      ref.read(repliesCacheProvider).noticeCounts(page.items);
+
       final since = _since;
       _merge(page.items.where((post) => since == null || post.id > since));
     } catch (_) {
       // A failed reconciliation just means the next reconnect tries again.
+    }
+  }
+
+  /// A live post that is itself a reply tells us its parent's thread has changed,
+  /// even though the parent's own reply_count is not in this payload. Dropping the
+  /// parent's cached replies is what makes the new message appear when you open it.
+  void _noticeReply(Post post) {
+    if (post.parentId case final parentId?) {
+      ref.read(repliesCacheProvider).forget(parentId);
+      ref.read(postCacheProvider).forget(parentId);
     }
   }
 

@@ -48,6 +48,7 @@ class FeedNotifier extends AutoDisposeFamilyAsyncNotifier<FeedState, FeedSource>
     cacheFor(ref, feedCacheDuration);
     final page = await ref.watch(apiProvider).feed(arg);
     ref.read(postCacheProvider).remember(page.items);
+    ref.read(repliesCacheProvider).noticeCounts(page.items);
     return FeedState(posts: page.items, cursor: page.nextCursor);
   }
 
@@ -59,6 +60,7 @@ class FeedNotifier extends AutoDisposeFamilyAsyncNotifier<FeedState, FeedSource>
     try {
       final page = await ref.read(apiProvider).feed(arg, cursor: current.cursor);
       ref.read(postCacheProvider).remember(page.items);
+      ref.read(repliesCacheProvider).noticeCounts(page.items);
       state = AsyncData(
         FeedState(posts: [...current.posts, ...page.items], cursor: page.nextCursor),
       );

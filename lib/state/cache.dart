@@ -76,11 +76,32 @@ final class CachedReplies {
 /// costs a request per branching node, so without it: reopening a thread pays again,
 /// following a "+N more" link pays again for levels its parent already fetched, and
 /// going back and forward a few times is enough to get rate limited.
+/// Replies fetched per node. The API allows 100.
+const repliesPerNode = 50;
+
 final class RepliesCache {
   static const _limit = 200;
 
   final _byParent = <int, CachedReplies>{};
   final _inFlight = <int, Future<List<Post>>>{};
+
+  /// Drop cached replies that the server has since contradicted.
+  ///
+  /// Every post carries its own `reply_count`, and feeds, the firehose and a single
+  /// post fetch all return a current one. That makes it the cheapest change signal
+  /// the API gives us: if a post now claims more replies than we hold for it, our
+  /// copy is provably out of date and the next read should refetch — no polling, and
+  /// no waiting for a TTL to lapse.
+  ///
+  /// A node holding a full page is skipped, because there the counts can legitimately
+  /// disagree and we cannot tell staleness from truncation.
+  void noticeCounts(Iterable<Post> posts) {
+    for (final post in posts) {
+      final cached = _byParent[post.id];
+      if (cached == null || cached.posts.length >= repliesPerNode) continue;
+      if (post.replyCount != cached.posts.length) _byParent.remove(post.id);
+    }
+  }
 
   CachedReplies? operator [](int parentId) => _byParent[parentId];
 
