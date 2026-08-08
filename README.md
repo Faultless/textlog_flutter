@@ -32,16 +32,16 @@ anything not from the Play Store.
 
 Read the whole thing in [ROADMAP.md](ROADMAP.md). In short:
 
-**Working today (v0.0.3)**
+**Working today (v0.0.4)**
 - Latest and hot feeds, infinite scroll
 - Live tab — new posts stream in as they are written
-- Threads with the parent post quoted, profiles, hashtag feeds
+- Nested reply threads you can fold, profiles, hashtag feeds
 - Replying, posting and logging in, handed to textlog.cc in a browser tab
 - Tell the app your handle and get your own profile, kept between launches
 - Light, dark, sepia and dracula themes with a choice of accent colour
 - Optional markdown rendering, off by default
 
-**Next — read polish (v0.0.4)**
+**Next — read polish (v0.0.5)**
 - Inline code and quote spans
 - Share a post or profile
 - Keep feeds warm instead of refetching when you navigate back

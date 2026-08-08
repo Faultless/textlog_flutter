@@ -209,6 +209,30 @@ The cache has one sharp edge worth knowing: `postProvider` serves from it, so in
 alone would hand back the same copy. `pending_write.dart` calls `forget(id)` *before*
 invalidating, or refreshing after a reply would be a no-op. There is a test for exactly that.
 
+## Nested threads
+
+`/posts/{id}/replies` returns **direct children only** — every item comes back with
+`parent_id` equal to the id you asked for. A nested thread is therefore assembled from one
+request per branching node; the data is not already there for free.
+
+What makes that affordable is `reply_count`: every post says how many replies it has, so we
+know which nodes are worth a request and, for the ones we skip, exactly how many are still
+down there. Nothing is silently dropped — an unvisited branch shows `+ N more replies`.
+
+`state/thread.dart` walks breadth-first, fetching each level in parallel. A five-deep thread
+is five round trips, not one per node in series. Two ceilings keep it bounded:
+`maxThreadDepth` (5 levels, then the branch becomes a link) and `maxThreadRequests` (24, so
+a very wide thread cannot make the reader wait on dozens of calls).
+
+Assembly itself is pure — `core/reply_tree.dart` takes the fetched pages as a map and
+returns the tree, so the depth cap, the budget overflow and a stale `reply_count` are all
+covered by plain unit tests.
+
+The rendering mirrors the site's `.reply-branch`: siblings share one hairline rail indented
+by a gutter, and nodes with children carry the same `−` / `+` fold control. The fold needs
+`excludeSemantics: true` or Flutter merges the label into the reply's text and the control
+vanishes for screen readers.
+
 ## Quoted parents
 
 A reply renders the post it answers in a tinted box beneath it, as the site does. The feed

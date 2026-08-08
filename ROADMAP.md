@@ -1,12 +1,13 @@
 # Roadmap
 
-## Where we are — v0.0.3
+## Where we are — v0.0.4
 
 | Area | State |
 |---|---|
 | Feeds (latest, hot) | native, paginated |
 | Live firehose | native, SSE |
-| Threads, profiles, tag feeds | native |
+| Threads | native, nested 5 deep |
+| Profiles, tag feeds | native |
 | Quoted parent posts | native |
 | Reply / write | browser tab onto textlog.cc |
 | Log in / sign up | browser tab onto textlog.cc |
@@ -31,7 +32,7 @@ So the roadmap splits cleanly in two:
 
 ---
 
-## v0.0.4 — read polish
+## v0.0.5 — read polish
 
 **Done in v0.0.3:** markdown (bold, italic, strikethrough, links, bullets, headings) behind
 an off-by-default setting; light / dark / sepia / dracula themes with a chosen accent.
