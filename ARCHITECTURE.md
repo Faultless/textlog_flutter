@@ -1,7 +1,7 @@
-# textlog (Flutter client)
+# Architecture
 
-A thin, read-only mobile client for [textlog.cc](https://textlog.cc). Android, iOS and web
-from one codebase.
+How this client is put together and why. For what it is and how to run it, see the
+[README](README.md); for what is planned, the [roadmap](ROADMAP.md).
 
 ## The constraint that shapes everything
 
@@ -104,19 +104,20 @@ responses in the browser, so the transport is conditionally imported — a strea
 on mobile, native `EventSource` on web — while the parser (`core/sse.dart`) is shared and
 pure. Reconnects with exponential backoff; the server allows three streams per IP.
 
-## Running
-
-```sh
-flutter pub get
-flutter run                 # attached device
-flutter run -d chrome       # web
-flutter test
-flutter analyze
-```
+## Routing
 
 Routes mirror the website (`/`, `/hot`, `/live`, `/post/:id`, `/u/:handle`, `/tag/:tag`),
 so on web every screen has a shareable URL and "open on textlog.cc" is a straight
 passthrough.
+
+Two web-only settings in `main.dart` earn their keep. `usePathUrlStrategy()` — without it
+web URLs are hash-based and `/tag/open_source` never reaches the router.
+`GoRouter.optionURLReflectsImperativeAPIs` — without it `push` keeps the back stack but
+leaves the address bar showing the page you just left.
+
+`SemanticsBinding.instance.ensureSemantics()` publishes the semantics tree on web. Flutter
+paints into a canvas, so without it the page is opaque to screen readers and to browser
+automation alike.
 
 ## Writes
 
