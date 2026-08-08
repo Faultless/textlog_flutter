@@ -29,8 +29,9 @@ class ThreadScreen extends ConsumerWidget {
         onRefresh: () async {
           ref.read(postCacheProvider).forget(id);
           ref.invalidate(postProvider(id));
-          ref.invalidate(threadProvider(id));
-          await ref.read(threadProvider(id).future);
+          // Not invalidate: the notifier refetches only what has aged out and keeps
+          // the rest, which is the difference between one request and sixteen.
+          await ref.read(threadProvider(id).notifier).refresh();
         },
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),

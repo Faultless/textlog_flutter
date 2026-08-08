@@ -54,3 +54,60 @@ final class PostCache {
 }
 
 final postCacheProvider = Provider<PostCache>((ref) => PostCache());
+
+/// How long a node's replies are trusted before a revalidation pass will refetch
+/// them. textlog is a micro-blog: a thread that was quiet a few minutes ago is
+/// almost certainly still quiet, and the server allows 120 requests a minute.
+const repliesTtl = Duration(minutes: 5);
+
+final class CachedReplies {
+  const CachedReplies(this.posts, this.fetchedAt);
+
+  final List<Post> posts;
+  final DateTime fetchedAt;
+
+  bool isStale(DateTime now) => now.difference(fetchedAt) > repliesTtl;
+}
+
+/// Replies keyed by the post they belong to, kept for the whole session rather than
+/// per screen.
+///
+/// This is what stops the app hammering `/posts/{id}/replies`. Assembling one thread
+/// costs a request per branching node, so without it: reopening a thread pays again,
+/// following a "+N more" link pays again for levels its parent already fetched, and
+/// going back and forward a few times is enough to get rate limited.
+final class RepliesCache {
+  static const _limit = 200;
+
+  final _byParent = <int, CachedReplies>{};
+  final _inFlight = <int, Future<List<Post>>>{};
+
+  CachedReplies? operator [](int parentId) => _byParent[parentId];
+
+  /// Collapse concurrent fetches of the same node into one request.
+  ///
+  /// A thread screen can be built more than once during a route transition, and two
+  /// builds racing each other both miss the cache and both hit the network. Sharing
+  /// the in-flight future makes the second one free.
+  Future<List<Post>> fetchOnce(int parentId, Future<List<Post>> Function() fetch) {
+    final existing = _inFlight[parentId];
+    if (existing != null) return existing;
+
+    final pending = fetch();
+    _inFlight[parentId] = pending;
+    return pending.whenComplete(() => _inFlight.remove(parentId));
+  }
+
+  void remember(int parentId, List<Post> posts, DateTime now) {
+    _byParent[parentId] = CachedReplies(posts, now);
+    if (_byParent.length > _limit) {
+      for (final id in _byParent.keys.take(_byParent.length - _limit).toList()) {
+        _byParent.remove(id);
+      }
+    }
+  }
+
+  void forget(int parentId) => _byParent.remove(parentId);
+}
+
+final repliesCacheProvider = Provider<RepliesCache>((ref) => RepliesCache());
