@@ -2,6 +2,21 @@
 /// of one named event out. Pure, so it is tested against a list of literal lines.
 library;
 
+/// What a transport reports upward. The connection itself is an event, because the
+/// client has to reconcile what it missed each time the stream comes back.
+sealed class FirehoseFrame {
+  const FirehoseFrame();
+}
+
+final class FirehoseOpened extends FirehoseFrame {
+  const FirehoseOpened();
+}
+
+final class FirehosePayload extends FirehoseFrame {
+  const FirehosePayload(this.json);
+  final String json;
+}
+
 Stream<String> sseDataOf(Stream<String> lines, String eventName) async* {
   String? event;
   final data = StringBuffer();

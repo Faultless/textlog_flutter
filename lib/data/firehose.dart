@@ -1,32 +1,65 @@
 import 'dart:convert';
 
 import '../core/models.dart';
+import '../core/sse.dart';
 import 'api.dart';
 import 'sse_io.dart' if (dart.library.js_interop) 'sse_web.dart';
 
-const _minBackoff = Duration(seconds: 1);
+/// textlog.cc closes the firehose after about twelve seconds. Its own keep-alive
+/// heartbeat is on a fifteen-second timer, so it never fires in time — something in
+/// front of the app (it answers `via: 1.1 Caddy`) drops the idle connection first.
+///
+/// That is a server-side problem and cannot be fixed from here, so the client is
+/// built to expect it: a close is normal, reconnect quickly, and reconcile whatever
+/// was missed. Backing off exponentially would be exactly wrong — the earlier version
+/// treated a twelve-second session as unhealthy and drifted out to a 30s retry, which
+/// missed far more than it caught.
+const _reconnectDelay = Duration(seconds: 1);
+
+/// Real failures — refused, rate limited, offline — still back off.
+const _minBackoff = Duration(seconds: 2);
 const _maxBackoff = Duration(seconds: 30);
 
-/// A session this long is evidence the server is healthy, so the next retry starts
-/// from the shortest delay instead of inheriting the previous backoff.
-const _healthySession = Duration(seconds: 30);
+sealed class FirehoseEvent {
+  const FirehoseEvent();
+}
 
-/// Every new post on textlog, as it happens. Reconnects with exponential backoff —
-/// the server drops idle streams and allows only three per IP.
-Stream<Post> firehose() async* {
+/// The stream is live. Anything published while it was down was missed, so this is
+/// the cue to reconcile.
+final class FirehoseConnected extends FirehoseEvent {
+  const FirehoseConnected();
+}
+
+final class FirehosePost extends FirehoseEvent {
+  const FirehosePost(this.post);
+  final Post post;
+}
+
+Stream<FirehoseEvent> firehose() async* {
   var backoff = _minBackoff;
 
   while (true) {
-    final startedAt = DateTime.now();
+    var connected = false;
     try {
-      await for (final data in connectPostEvents(apiBase.resolve('firehose'))) {
-        yield Post.fromJson(jsonDecode(data) as Map<String, dynamic>);
+      await for (final frame in connectFirehose(apiBase.resolve('firehose'))) {
+        switch (frame) {
+          case FirehoseOpened():
+            connected = true;
+            backoff = _minBackoff;
+            yield const FirehoseConnected();
+          case FirehosePayload(:final json):
+            yield FirehosePost(Post.fromJson(jsonDecode(json) as Map<String, dynamic>));
+        }
       }
     } catch (_) {
-      // Fall through to the backoff below; a dropped stream is expected, not fatal.
+      // Fall through: a dropped stream is expected here, not fatal.
     }
-    if (DateTime.now().difference(startedAt) > _healthySession) backoff = _minBackoff;
-    await Future<void>.delayed(backoff);
-    backoff = backoff * 2 > _maxBackoff ? _maxBackoff : backoff * 2;
+
+    if (connected) {
+      await Future<void>.delayed(_reconnectDelay);
+    } else {
+      await Future<void>.delayed(backoff);
+      backoff = backoff * 2 > _maxBackoff ? _maxBackoff : backoff * 2;
+    }
   }
 }

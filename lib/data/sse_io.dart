@@ -5,7 +5,7 @@ import 'package:http/http.dart' as http;
 import '../core/sse.dart';
 
 /// Mobile/desktop transport: a long-lived streamed GET, split into lines.
-Stream<String> connectPostEvents(Uri url) async* {
+Stream<FirehoseFrame> connectFirehose(Uri url) async* {
   final client = http.Client();
   try {
     final request = http.Request('GET', url)..headers['accept'] = 'text/event-stream';
@@ -13,8 +13,11 @@ Stream<String> connectPostEvents(Uri url) async* {
     if (response.statusCode != 200) {
       throw http.ClientException('firehose refused (${response.statusCode})', url);
     }
+
+    yield const FirehoseOpened();
+
     final lines = response.stream.transform(utf8.decoder).transform(const LineSplitter());
-    yield* sseDataOf(lines, 'post');
+    yield* sseDataOf(lines, 'post').map(FirehosePayload.new);
   } finally {
     client.close();
   }
