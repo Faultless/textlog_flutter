@@ -269,10 +269,31 @@ thread already walked costs nothing either, because those levels are already in 
 Measured against a real five-level thread: 10 requests cold, 0 on reopen, 0 for the
 sub-thread.
 
-Freshness is per node, not per thread. A normal open uses whatever is cached and fetches
-only what is missing. A revalidation pass — triggered on open when something has aged past
-`repliesTtl`, or by pull-to-refresh — refetches *only* the entries that are actually stale.
-That is the difference between one request and sixteen for a refresh.
+Freshness is per node, not per thread, and there are three modes (`ThreadFetch`):
+
+- **cached** — a normal open. Reuse anything held, fetch only what is missing.
+- **revalidate** — the automatic pass on opening a thread that has aged past `repliesTtl`.
+  Refetches only the entries that are actually stale.
+- **force** — pull-to-refresh. Refetches everything.
+
+That last one exists because the first version got it wrong: refresh ran in *revalidate*
+mode, so pulling on a thread cached two minutes ago did nothing whatsoever. Someone who
+pulls has usually just been told there is a new reply, and "nothing has expired yet" is
+never the answer they wanted.
+
+### Knowing a thread changed without asking
+
+A TTL is a guess. `reply_count` is a fact, and every post carries one — feeds, the firehose
+and a single-post fetch all return a current value. `RepliesCache.noticeCounts` compares it
+against what we hold: if a post claims more replies than we have, our copy is provably out
+of date and gets dropped, so the next read refetches. No polling, and no waiting out a TTL.
+
+Nodes holding a full page are skipped, because there a disagreement could equally be
+truncation rather than staleness.
+
+The live stream gives a second, sharper signal. A post arriving on the firehose with a
+`parent_id` says that thread changed, even though the payload carries no count for the
+parent — so the parent's cached replies are dropped outright.
 
 Stale content is shown immediately and updated behind the reader rather than replaced by a
 spinner. On a micro-blog a thread that was quiet five minutes ago is almost certainly still
