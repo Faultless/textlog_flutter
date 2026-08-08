@@ -144,6 +144,45 @@ nothing.
 resumes. A reply refreshes the thread only — invalidating the feed you came from would
 reset it to the top and throw away your place.
 
+## Accounts: identity, not authentication
+
+The app asks for your handle once and stores it (`state/identity.dart`). It has no session
+and cannot get one.
+
+Logging in means a magic link, which opens in your default browser. Chrome Custom Tabs runs
+inside Chrome's own sandbox and SFSafariViewController is walled off from its host app by
+design — no platform API hands an app the browser's cookies. That isolation is the same
+property that makes the magic link work at all.
+
+Taking the link over is not a shortcut worth taking either: `/enter/magic` deletes the token
+in the same transaction that creates the session, and `issueMagicLink` invalidates any
+earlier link for that email. One link yields one session. An app that claimed it would leave
+the browser logged out — and the browser is still where writing happens. Write endpoints
+have to come first; see [ROADMAP.md](ROADMAP.md).
+
+For a read-only client none of this costs anything, because nothing is gated. A handle only
+answers "whose profile does *you* mean", and `/api/v1/users/{handle}` is public. What it
+cannot show is what the API does not expose: the site's profile header counts tags followed
+and users blocked, and there are no endpoints for either.
+
+A storage failure is treated as "we don't know who you are" rather than an error state —
+blocking a reader behind a preferences read would be absurd.
+
+## Caching
+
+`cacheFor` in `state/cache.dart` keeps an autoDispose provider alive for five minutes after
+its last listener goes, instead of dropping it the moment you navigate away. Without it,
+tapping into a thread and pressing back refetches the feed and throws you to the top, which
+is the single thing that makes a Flutter app feel like a website.
+
+`PostCache` holds posts already seen in any feed. Tapping a post is the most common
+navigation in the app, and its target is nearly always something that was just on screen, so
+that transition costs no request at all. Bounded to 500 entries, oldest evicted first.
+
+The cache has one sharp edge worth knowing: `postProvider` serves from it, so invalidation
+alone would hand back the same copy. `pending_write.dart` calls `forget(id)` *before*
+invalidating, or refreshing after a reply would be a no-op. There is a test for exactly that.
+
 ## Quoted parents
 
 A reply renders the post it answers in a tinted box beneath it, as the site does. The feed

@@ -32,21 +32,20 @@ anything not from the Play Store.
 
 Read the whole thing in [ROADMAP.md](ROADMAP.md). In short:
 
-**Working today (v0.0.2)**
+**Working today (v0.0.3)**
 - Latest and hot feeds, infinite scroll
 - Live tab — new posts stream in as they are written
 - Threads with the parent post quoted, profiles, hashtag feeds
 - Replying, posting and logging in, handed to textlog.cc in a browser tab
+- Tell the app your handle and get your own profile, kept between launches
 
-**Next — read polish (v0.0.3)**
+**Next — read polish (v0.0.4)**
 - Basic markdown for reading, off by default (textlog.cc itself shows plain text)
 - Share a post or profile
 - Keep feeds warm instead of refetching when you navigate back
 
 **Then — accounts (v0.1.0)**
-- Know when you are signed in, and show your own profile
 - Follow, unfollow, block and report
-- Log out
 
 **Then — distribution (v0.2.0)**
 - Smaller per-device APKs, a real signing key, an app icon

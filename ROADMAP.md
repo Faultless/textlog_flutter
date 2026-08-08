@@ -1,6 +1,6 @@
 # Roadmap
 
-## Where we are — v0.0.2
+## Where we are — v0.0.3
 
 | Area | State |
 |---|---|
@@ -11,7 +11,8 @@
 | Reply / write | browser tab onto textlog.cc |
 | Log in / sign up | browser tab onto textlog.cc |
 | Follow, block, report | not in the app |
-| Your own profile, activity, for-you | not in the app |
+| Your own profile | native, from your handle |
+| Activity, for-you | not in the app |
 | Markdown | not rendered (neither does the site) |
 
 ## The one thing that gates the rest
@@ -29,7 +30,7 @@ So the roadmap splits cleanly in two:
 
 ---
 
-## v0.0.3 — read polish
+## v0.0.4 — read polish
 
 **Basic markdown (read only).**
 Worth being deliberate here. The server escapes everything except URLs, `@mentions` and
@@ -55,30 +56,36 @@ Recommended shape:
 
 ## v0.1.0 — accounts, as far as the API allows
 
-Logging in happens in the system browser, which means the app cannot read the session
-cookie directly — that is the same isolation that makes the magic link work at all.
+**Done in v0.0.3:** the app asks for your handle once, stores it locally, and uses the
+public API for everything else. `@handle` in the app bar, your own profile with `account`
+and `log out`. This is identity, not authentication — see
+[ARCHITECTURE.md](ARCHITECTURE.md#accounts-identity-not-authentication).
 
-**Know whether you are logged in.**
-Needs a signal the app can actually see. The cheapest honest option is asking the user to
-confirm their handle once after logging in, and storing just that locally; the alternative
-is waiting for `GET /api/v1/me` in Track B. Do not guess by parsing HTML.
-
-**Your profile.**
-Once the handle is known, the profile screen is already built — point it at your own
-handle. Everything on it comes from the public API, so no new data work.
-
-**Signed-in affordances.**
-- Show `reply` / `write` as active rather than always sending you to a login wall.
-- A "you" entry in the app bar linking to your profile.
-- Log out — sends you to textlog.cc's own logout, since the session lives in the browser.
-
-**Follow / unfollow, block, report.**
-Browser tab, same helper as `openReply`, with the same resume-refresh.
+**Still to do here**
+- Follow / unfollow, block, report — browser tab, same helper as `openReply`.
+- Show `reply` / `write` differently before you have introduced yourself.
 
 ⚠️ **Deliberately not doing:** scraping textlog.cc's HTML with the session cookie to build
 native `for-you`, `activity`, `followers` or `following` screens. Those pages are HTML-only
 with no API equivalent. Parsing them would mean the app breaks on any markup change on the
 server, which is exactly the fragility this project avoided on day one.
+
+### Why the app cannot just take over the magic link
+
+Worth writing down, because it looks like an easy win.
+
+`/enter/magic` deletes the token inside the same transaction that creates the session, so
+it is strictly single-use — and `issueMagicLink` runs
+`DELETE FROM magic_links WHERE email=?` before inserting, so requesting a second link
+invalidates the first. One link, one session, one place.
+
+If the app registered as a handler for that URL, it would claim the session and leave your
+**browser** logged out — while writing still has to happen in the browser. You would be
+signed in exactly where you cannot post.
+
+The ordering therefore matters: **write endpoints first, magic-link takeover second.** Once
+the app can post natively it no longer needs a browser session, and intercepting the link
+breaks nothing. Doing it in the other order strands you.
 
 ---
 
