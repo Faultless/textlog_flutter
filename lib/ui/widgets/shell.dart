@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../data/api.dart';
 import '../../state/identity.dart';
 import '../theme.dart';
+import 'settings_sheet.dart';
 
 /// `.brand` — the wordmark, with the accent full stop.
 class Brand extends StatelessWidget {
@@ -51,14 +52,21 @@ AppBar textlogAppBar(BuildContext context, {String? path, bool showBack = false}
     actions: [
       const _You(),
       IconButton(
+        tooltip: 'appearance',
+        visualDensity: VisualDensity.compact,
+        icon: Icon(Icons.tune, size: 16, color: palette.muted),
+        onPressed: () => showSettings(context),
+      ),
+      IconButton(
         tooltip: 'open on textlog.cc',
+        visualDensity: VisualDensity.compact,
         icon: Icon(Icons.open_in_new, size: 16, color: palette.muted),
         onPressed: () => launchUrl(
           Uri.parse('$textlogOrigin${path ?? '/'}'),
           mode: LaunchMode.externalApplication,
         ),
       ),
-      SizedBox(width: gutterOf(context) - space2),
+      SizedBox(width: gutterOf(context) - space3),
     ],
   );
 }
