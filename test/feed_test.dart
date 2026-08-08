@@ -7,6 +7,7 @@ import 'package:http/testing.dart';
 import 'package:textlog/core/feed_source.dart';
 import 'package:textlog/core/models.dart';
 import 'package:textlog/state/feed.dart';
+import 'package:textlog/state/pending_write.dart';
 import 'package:textlog/state/providers.dart';
 
 Map<String, dynamic> post(int id) => {
@@ -126,5 +127,58 @@ void main() {
       container.read(postProvider(999).future),
       throwsA(isA<ApiFailure>().having((e) => e.isNotFound, 'isNotFound', isTrue)),
     );
+  });
+
+  test('a settled reply refreshes the thread and leaves the feeds alone', () async {
+    final paths = <String>[];
+    final container = containerWith(
+      MockClient((request) async {
+        paths.add(request.url.path);
+        if (request.url.path == '/api/v1/posts/5') {
+          return http.Response(jsonEncode({'data': post(5)}), 200);
+        }
+        return http.Response(
+          jsonEncode({
+            'data': [post(5)],
+            'pagination': {'next_cursor': null},
+          }),
+          200,
+        );
+      }),
+    );
+
+    // Hold subscriptions so invalidation refetches instead of just disposing.
+    container.listen(postProvider(5), (_, _) {}, fireImmediately: true);
+    container.listen(feedProvider(const LatestFeed()), (_, _) {}, fireImmediately: true);
+    await container.read(postProvider(5).future);
+    await container.read(feedProvider(const LatestFeed()).future);
+    final settled = paths.length;
+
+    container.read(pendingWriteProvider.notifier).expect(const PendingReply(5));
+    container.read(pendingWriteProvider.notifier).settle();
+    await Future<void>.delayed(Duration.zero);
+
+    final after = paths.sublist(settled);
+    expect(container.read(pendingWriteProvider), isNull);
+    expect(after, contains('/api/v1/posts/5'));
+    expect(after, isNot(contains('/api/v1/feeds/latest')));
+  });
+
+  test('nothing refreshes when no write is pending', () async {
+    final paths = <String>[];
+    final container = containerWith(
+      MockClient((request) async {
+        paths.add(request.url.path);
+        return http.Response(jsonEncode({'data': post(1)}), 200);
+      }),
+    );
+    container.listen(postProvider(1), (_, _) {}, fireImmediately: true);
+    await container.read(postProvider(1).future);
+    final settled = paths.length;
+
+    container.read(pendingWriteProvider.notifier).settle();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(paths.length, settled);
   });
 }
