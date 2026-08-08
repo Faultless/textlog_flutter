@@ -1,0 +1,30 @@
+/// Minimal server-sent-events parser: a stream of lines in, the `data:` payloads
+/// of one named event out. Pure, so it is tested against a list of literal lines.
+library;
+
+Stream<String> sseDataOf(Stream<String> lines, String eventName) async* {
+  String? event;
+  final data = StringBuffer();
+
+  await for (final line in lines) {
+    if (line.isEmpty) {
+      if (event == eventName && data.isNotEmpty) yield data.toString();
+      event = null;
+      data.clear();
+      continue;
+    }
+    if (line.startsWith(':')) continue; // heartbeat
+
+    final separator = line.indexOf(':');
+    final field = separator == -1 ? line : line.substring(0, separator);
+    var value = separator == -1 ? '' : line.substring(separator + 1);
+    if (value.startsWith(' ')) value = value.substring(1);
+
+    if (field == 'event') {
+      event = value;
+    } else if (field == 'data') {
+      if (data.isNotEmpty) data.write('\n');
+      data.write(value);
+    }
+  }
+}

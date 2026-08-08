@@ -1,0 +1,78 @@
+/// Port of the server's `linkify` (src/utils.ts) so bodies render identically here.
+/// Pure in, pure out — the widget layer only decides how each token looks.
+library;
+
+sealed class BodyToken {
+  const BodyToken();
+}
+
+final class PlainText extends BodyToken {
+  const PlainText(this.text);
+  final String text;
+}
+
+final class LinkToken extends BodyToken {
+  const LinkToken(this.url);
+  final String url;
+}
+
+final class MentionToken extends BodyToken {
+  const MentionToken(this.handle);
+  final String handle;
+}
+
+final class TagToken extends BodyToken {
+  const TagToken(this.tag);
+  final String tag;
+}
+
+final _tokens = RegExp(
+  r'https?://[^\s<>"]+|(?<![A-Za-z0-9_])[@#][A-Za-z0-9_]+',
+  caseSensitive: false,
+);
+
+final _trailingPunctuation = RegExp(r'[.,!?;:]+$');
+
+List<BodyToken> tokenizeBody(String body) {
+  final tokens = <BodyToken>[];
+  var end = 0;
+
+  void addText(String text) {
+    if (text.isNotEmpty) tokens.add(PlainText(text));
+  }
+
+  for (final match in _tokens.allMatches(body)) {
+    addText(body.substring(end, match.start));
+    final token = match[0]!;
+
+    if (token.toLowerCase().startsWith('http')) {
+      // A URL at the end of a sentence must not swallow the full stop.
+      final url = token.replaceFirst(_trailingPunctuation, '');
+      tokens.add(LinkToken(url));
+      addText(token.substring(url.length));
+    } else if (token.startsWith('@')) {
+      tokens.add(MentionToken(token.substring(1)));
+    } else {
+      tokens.add(TagToken(token.substring(1)));
+    }
+    end = match.end;
+  }
+
+  addText(body.substring(end));
+  return tokens;
+}
+
+/// Port of the server's `fmt` — the compact "3h" / "2mo" stamp shown on every post.
+String relativeTime(DateTime time, {DateTime? now}) {
+  final seconds = (now ?? DateTime.now()).difference(time).inSeconds;
+  if (seconds < 60) return '${seconds < 1 ? 1 : seconds}s';
+  final minutes = seconds ~/ 60;
+  if (minutes < 60) return '${minutes}m';
+  final hours = minutes ~/ 60;
+  if (hours < 24) return '${hours}h';
+  final days = hours ~/ 24;
+  if (days < 30) return '${days}d';
+  final months = days ~/ 30;
+  if (months < 12) return '${months}mo';
+  return '${days ~/ 365}y';
+}
