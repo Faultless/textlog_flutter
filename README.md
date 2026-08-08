@@ -28,6 +28,11 @@ Take `textlog-<version>-arm64-v8a.apk` if you are not sure — it fits virtually
 sold in the last decade and is a third of the size. `textlog-<version>.apk` is the universal
 build that runs on anything.
 
+**macOS** — a `.dmg` is attached to each release. It is ad-hoc signed rather than notarised,
+because notarising needs a paid Apple developer account, so the first launch needs one extra
+step: open it, let macOS refuse, then **System Settings → Privacy & Security → Open Anyway**.
+Or from a terminal, `xattr -dr com.apple.quarantine /Applications/textlog.app`.
+
 **iOS** — no downloads. Apple requires a paid developer account to hand someone an
 installable build, and this project is AGPL, which has historically been incompatible with
 the App Store. You can build it for your own phone in a few minutes though —

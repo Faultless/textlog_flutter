@@ -76,6 +76,36 @@ apksigner verify --print-certs build/app/outputs/flutter-apk/app-release.apk
 Expect `CN=textlog flutter client`. If it says `CN=Android Debug`, `key.properties` was not
 picked up.
 
+## macOS
+
+```sh
+flutter build macos --release
+```
+
+`macos/Runner/Release.entitlements` must keep `com.apple.security.network.client`. The
+Flutter template grants it only in the debug profile, so without it the release build is
+sandboxed with no outbound network and every screen errors — the same trap as the missing
+INTERNET permission on Android. Verify it survived into the binary:
+
+```sh
+codesign -d --entitlements - --xml build/macos/Build/Products/Release/textlog.app \
+  | plutil -convert xml1 -o - - | grep -A1 network.client
+```
+
+Wrap it as a disk image:
+
+```sh
+rm -rf /tmp/dmgroot && mkdir -p /tmp/dmgroot
+cp -R build/macos/Build/Products/Release/textlog.app /tmp/dmgroot/
+ln -s /Applications /tmp/dmgroot/Applications
+hdiutil create -volname "textlog <version>" -srcfolder /tmp/dmgroot -ov -format UDZO \
+  textlog-<version>-macos.dmg
+```
+
+The build is **ad-hoc signed** (`TeamIdentifier=not set`). It runs, but Gatekeeper blocks it
+on a machine that downloaded it until the user allows it explicitly. Notarising would need a
+paid Apple developer account.
+
 ## iOS
 
 Not yet built. It needs the iOS platform SDK installed in Xcode:
