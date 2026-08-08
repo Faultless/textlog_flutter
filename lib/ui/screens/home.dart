@@ -25,7 +25,7 @@ class HomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) => Scaffold(
     appBar: textlogAppBar(context, path: homePaths[tab]),
     floatingActionButton: FloatingActionButton.small(
-      onPressed: () => openCompose(context, ref),
+      onPressed: () => openCompose(ref),
       backgroundColor: context.palette.accent,
       foregroundColor: context.palette.bg,
       elevation: 0,

@@ -13,7 +13,6 @@ dependencies:
   go_router: ^14.6.2
   http: ^1.2.2
   url_launcher: ^6.3.1
-  webview_flutter: ^4.10.0
   web: ^1.1.1 # EventSource, for the firehose on Flutter web
   flutter_web_plugins:
     sdk: flutter

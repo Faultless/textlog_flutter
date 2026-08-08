@@ -60,7 +60,7 @@ class PostTile extends ConsumerWidget {
                 ),
                 const SizedBox(width: space4),
                 GestureDetector(
-                  onTap: () => openReply(context, ref, post.id),
+                  onTap: () => openReply(ref, post.id),
                   child: Text(
                     'reply',
                     style: meta.asLink(palette).copyWith(color: palette.muted),
