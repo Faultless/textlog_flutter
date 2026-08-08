@@ -1,6 +1,6 @@
 # Roadmap
 
-## Where we are — v0.0.1
+## Where we are — v0.0.2
 
 | Area | State |
 |---|---|
@@ -8,9 +8,9 @@
 | Live firehose | native, SSE |
 | Threads, profiles, tag feeds | native |
 | Quoted parent posts | native |
-| Reply / write | web view onto textlog.cc |
-| Log in / sign up | web view onto textlog.cc |
-| Follow, block, report | not in the app — web view only |
+| Reply / write | browser tab onto textlog.cc |
+| Log in / sign up | browser tab onto textlog.cc |
+| Follow, block, report | not in the app |
 | Your own profile, activity, for-you | not in the app |
 | Markdown | not rendered (neither does the site) |
 
@@ -22,14 +22,14 @@ session-cookie HTML form POSTs against unversioned routes.
 
 So the roadmap splits cleanly in two:
 
-- **Track A — things we can build now**, by pairing native reading with a web view that
-  owns the session cookie.
+- **Track A — things we can build now**, by pairing native reading with a browser tab that
+  shares the system browser's session.
 - **Track B — things that need the server first.** Listed at the bottom so it is obvious
   what is our work and what is not.
 
 ---
 
-## v0.0.2 — read polish
+## v0.0.3 — read polish
 
 **Basic markdown (read only).**
 Worth being deliberate here. The server escapes everything except URLs, `@mentions` and
@@ -48,19 +48,20 @@ Recommended shape:
 
 **Other read polish**
 - Share a post / profile via the system share sheet.
-- Open a post's own permalink in the web view rather than an external browser.
+- Open a post's own permalink in a browser tab rather than handing off to the browser app.
 - `ref.keepAlive()` with a disposal timer so feeds survive navigation instead of refetching.
 
 ---
 
 ## v0.1.0 — accounts, as far as the API allows
 
-The web view already holds a real session cookie after login. That cookie is the hook for
-making the app feel signed-in without inventing an auth layer.
+Logging in happens in the system browser, which means the app cannot read the session
+cookie directly — that is the same isolation that makes the magic link work at all.
 
 **Know whether you are logged in.**
-Read the `textlog` session cookie out of the web view's cookie jar on return. That alone
-unlocks the UI below.
+Needs a signal the app can actually see. The cheapest honest option is asking the user to
+confirm their handle once after logging in, and storing just that locally; the alternative
+is waiting for `GET /api/v1/me` in Track B. Do not guess by parsing HTML.
 
 **Your profile.**
 Once the handle is known, the profile screen is already built — point it at your own
@@ -69,10 +70,10 @@ handle. Everything on it comes from the public API, so no new data work.
 **Signed-in affordances.**
 - Show `reply` / `write` as active rather than always sending you to a login wall.
 - A "you" entry in the app bar linking to your profile.
-- Log out — clear the web view cookie jar.
+- Log out — sends you to textlog.cc's own logout, since the session lives in the browser.
 
 **Follow / unfollow, block, report.**
-Web view, one screen deep, returning to where you were. Same helper as `openReply`.
+Browser tab, same helper as `openReply`, with the same resume-refresh.
 
 ⚠️ **Deliberately not doing:** scraping textlog.cc's HTML with the session cookie to build
 native `for-you`, `activity`, `followers` or `following` screens. Those pages are HTML-only
@@ -100,7 +101,7 @@ What would unblock a fully native client:
 
 | Needed endpoint | Unlocks |
 |---|---|
-| token issue / refresh | native login, no web view |
+| token issue / refresh | native login, no browser hand-off |
 | `POST /api/v1/posts` | native compose |
 | `POST /api/v1/posts/{id}/replies` | native reply |
 | `POST /api/v1/users/{handle}/follow` | native follow |
@@ -111,6 +112,6 @@ When they land, the change is contained: add the calls to `data/api.dart` and th
 notifiers to `state/`. The layering means nothing above `data/` currently assumes
 read-only, so the reader does not get rewritten.
 
-Until then the web view is not a stopgap to apologise for — it is the correct answer.
+Until then the browser tab is not a stopgap to apologise for — it is the correct answer.
 It reuses the server's own login, rate limiting and moderation instead of reimplementing
 them, and it cannot drift out of sync with the site.

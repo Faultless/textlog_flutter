@@ -12,11 +12,10 @@ POSTs against unversioned routes. The author's position, from
 
 > if someone wants to implement API authentication and mutation endpoints they are free to try
 
-So the app reads natively and hands every write to textlog.cc itself, in an in-app web
-view that owns the session cookie (`ui/screens/web_action.dart`). Replying, posting and
-logging in work exactly as they do in a browser, and the cookie survives between launches.
-That is not a limitation we work around — it is the reason the whole thing has no auth
-code, no token storage, no offline write queue and no sync conflicts.
+So the app reads natively and hands every write to textlog.cc itself, in a browser tab
+(`ui/screens/web_action.dart`). That is not a limitation we work around — it is the reason
+the whole thing has no auth code, no token storage, no offline write queue and no sync
+conflicts.
 
 If mutation endpoints ever land, the place to add them is `data/api.dart`; nothing above
 it assumes read-only.
@@ -119,14 +118,31 @@ leaves the address bar showing the page you just left.
 paints into a canvas, so without it the page is opaque to screen readers and to browser
 automation alike.
 
-## Writes
+## Writes, and why they are not in a WebView
 
-`openReply` and `openCompose` push a web view onto textlog.cc — `/post/{id}?reply=1` and
-`/write`. Navigation is pinned to the textlog origin; anything else is handed to the real
-browser, so this never becomes a general-purpose web view. On Flutter web there is no
-web view plugin, and a new tab is the native equivalent, so it opens one.
+`openReply` and `openCompose` open `/post/{id}?reply=1` and `/write` in the *system
+browser's* tab — Chrome Custom Tabs on Android, SFSafariViewController on iOS, via
+`LaunchMode.inAppBrowserView`.
 
-When the view closes, the caches that would still show pre-write state are invalidated.
+This is forced by how textlog authenticates. Its `/enter` flow takes an email address and
+nothing else — there is no password field anywhere — and mails back a magic link. That link
+opens in whatever browser the phone considers default. An embedded WebView keeps a private
+cookie jar, so the session would land in a browser the app cannot read, and replying would
+be impossible for every user, permanently. A browser tab shares the browser's cookies, so
+the link works and the session is still there next time.
+
+The first cut of this used `webview_flutter` and had exactly that bug. The fix removed a
+dependency.
+
+Android 11+ hides other installed apps unless they are declared, so
+`android/app/src/main/AndroidManifest.xml` carries a `<queries>` entry for `https` VIEW
+intents. Without it `url_launcher` cannot resolve a browser and every reply silently does
+nothing.
+
+**Refreshing afterwards.** A browser tab gives no callback when it closes, so
+`state/pending_write.dart` records what the write targeted and settles it when the app next
+resumes. A reply refreshes the thread only — invalidating the feed you came from would
+reset it to the top and throw away your place.
 
 ## Quoted parents
 

@@ -32,13 +32,13 @@ anything not from the Play Store.
 
 Read the whole thing in [ROADMAP.md](ROADMAP.md). In short:
 
-**Working today (v0.0.1)**
+**Working today (v0.0.2)**
 - Latest and hot feeds, infinite scroll
 - Live tab — new posts stream in as they are written
 - Threads with the parent post quoted, profiles, hashtag feeds
-- Replying, posting and logging in, via textlog.cc in an in-app browser
+- Replying, posting and logging in, handed to textlog.cc in a browser tab
 
-**Next — read polish (v0.0.2)**
+**Next — read polish (v0.0.3)**
 - Basic markdown for reading, off by default (textlog.cc itself shows plain text)
 - Share a post or profile
 - Keep feeds warm instead of refetching when you navigate back
