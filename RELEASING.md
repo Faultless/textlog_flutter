@@ -14,10 +14,11 @@ version: 0.0.1+1
 ## 2. Build
 
 ```sh
-flutter build apk --release
+flutter build apk --release                  # universal, ~48MB
+flutter build apk --release --split-per-abi  # per-device, ~15-18MB each
 ```
 
-Output: `build/app/outputs/flutter-apk/app-release.apk`
+Output: `build/app/outputs/flutter-apk/`
 
 Verify before shipping — a release APK without `INTERNET` reaches nothing and every screen
 errors, and the Flutter template only grants it in the debug manifest:
@@ -47,11 +48,46 @@ their downloads folder.
 Android blocks APKs from outside the Play Store by default. On first open the phone will
 offer to allow installs from the browser or files app — that has to be granted once.
 
-## Known limitations of these builds
+## Signing
 
-- **Debug-signed.** `android/app/build.gradle.kts` still uses `signingConfigs.debug` for
-  release builds. They install and run, but Android shows an unverified-app warning, and a
-  future differently-signed build will **not** install over one of these — testers will
-  have to uninstall first. Worth fixing before asking anyone to keep the app installed.
-- **Universal APK, ~49MB.** One file that works on every device. `--split-per-abi` cuts it
-  to roughly a third each, at the cost of testers having to pick the right one.
+Release builds are signed with a real key from `android/key.properties`, which points at a
+keystore kept **outside** the repo. Both are gitignored; the keystore has never been
+committed and must not be.
+
+```
+~/keystores/textlog-release.jks        the key
+~/keystores/textlog-release.password   its password
+android/key.properties                 where Gradle looks (gitignored)
+```
+
+**Back both up somewhere you will still have in a year.** If the keystore is lost, no future
+build can ever update an existing install — every user would have to uninstall and lose
+their settings. There is no recovery: Android identifies an app by `applicationId` *and*
+signature.
+
+A clone without `key.properties` still builds; it falls back to debug signing.
+
+Verify what you are about to ship:
+
+```sh
+apksigner verify --print-certs build/app/outputs/flutter-apk/app-release.apk
+```
+
+Expect `CN=textlog flutter client`. If it says `CN=Android Debug`, `key.properties` was not
+picked up.
+
+## iOS
+
+Not yet built. It needs the iOS platform SDK installed in Xcode:
+
+```sh
+xcodebuild -downloadPlatform iOS    # several GB, one time
+flutter build ios --release --no-codesign
+```
+
+That produces an **unsigned** `.app`. It cannot be installed by tapping it — a recipient
+needs AltStore, Sideloadly or similar plus their own Apple ID, and a free Apple ID re-signs
+only for 7 days at a time.
+
+The App Store is not an option regardless: this project is AGPL, which has historically been
+incompatible with Apple's terms. See the licence note in the README.

@@ -20,15 +20,21 @@ web. Nothing more. No algorithm, no metrics, no accounts of its own.
 
 ## Install
 
-**Android** — grab the `.apk` from [Releases](../../releases) and open it. Android will ask
-once for permission to install apps from your browser or files app; that is expected for
-anything not from the Play Store.
+**Android** — grab an `.apk` from [Releases](../../releases) and open it. Android asks once
+for permission to install apps from your browser or files app; that is expected for anything
+outside the Play Store.
 
-**iOS** — no builds yet. Build it yourself with the steps below.
+Take `textlog-<version>-arm64-v8a.apk` if you are not sure — it fits virtually every phone
+sold in the last decade and is a third of the size. `textlog-<version>.apk` is the universal
+build that runs on anything.
 
-> These are early pre-release builds signed with a debug key. They install and run, but a
-> future properly-signed build will not install over them — you will need to uninstall
-> first. See [RELEASING.md](RELEASING.md).
+**iOS** — no builds yet, and not for want of trying. Apple requires a paid developer account
+to produce an installable build, and this project is AGPL, which has historically been
+incompatible with the App Store. Building it yourself works; see below.
+
+> Builds up to and including the first v0.0.4 upload were signed with a debug key. Releases
+> from now on are properly signed, which means **you must uninstall an older build first** —
+> Android refuses to replace an app whose signature changed.
 
 ## Roadmap
 
@@ -52,8 +58,8 @@ Read the whole thing in [ROADMAP.md](ROADMAP.md). In short:
 - Follow, unfollow, block and report
 
 **Then — distribution (v0.2.0)**
-- Smaller per-device APKs, a real signing key, an app icon
 - Automated builds attached to each release
+- iOS, once there is a way to ship it that people can actually install
 
 **Someday — fully native writing (v1.0.0)**
 - Blocked on textlog adding authenticated write endpoints to its API. Until then, writing

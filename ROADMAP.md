@@ -82,10 +82,14 @@ breaks nothing. Doing it in the other order strands you.
 
 ## v0.2.0 — distribution
 
-- Split-ABI APKs (~17MB each instead of one 49MB universal file).
-- A real signing key, so updates install over previous versions.
-- GitHub Actions building the APK on tag push and attaching it to the release.
-- App icon (currently the Flutter default).
+**Done in v0.0.4:** a real signing key, split-ABI APKs (~15–18MB against 48MB universal),
+and the caret app icon.
+
+**Still to do**
+- GitHub Actions building the APKs on tag push and attaching them to the release.
+- iOS. Blocked twice over: the Xcode iOS platform SDK has to be installed to build at all,
+  and an unsigned build needs the recipient to sideload it with their own Apple ID. The App
+  Store is out while the project is AGPL.
 
 ---
 
