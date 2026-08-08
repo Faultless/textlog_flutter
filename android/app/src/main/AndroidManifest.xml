@@ -3,6 +3,15 @@
          so without it here a release build can reach nothing and every screen errors. -->
     <uses-permission android:name="android.permission.INTERNET"/>
 
+    <!-- Android 11+ hides other apps unless they are declared here. Without it
+         url_launcher cannot resolve a browser and every reply silently does nothing. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="https"/>
+        </intent>
+    </queries>
+
     <application
         android:label="textlog"
         android:name="${applicationName}"
