@@ -12,9 +12,11 @@ POSTs against unversioned routes. The author's position, from
 
 > if someone wants to implement API authentication and mutation endpoints they are free to try
 
-So this app reads, and links out to the website for anything that writes. That is not a
-limitation we work around — it is the reason the whole thing fits in ~700 lines with no
-auth, no token storage, no offline write queue and no sync conflicts.
+So the app reads natively and hands every write to textlog.cc itself, in an in-app web
+view that owns the session cookie (`ui/screens/web_action.dart`). Replying, posting and
+logging in work exactly as they do in a browser, and the cookie survives between launches.
+That is not a limitation we work around — it is the reason the whole thing has no auth
+code, no token storage, no offline write queue and no sync conflicts.
 
 If mutation endpoints ever land, the place to add them is `data/api.dart`; nothing above
 it assumes read-only.
@@ -116,14 +118,28 @@ Routes mirror the website (`/`, `/hot`, `/live`, `/post/:id`, `/u/:handle`, `/ta
 so on web every screen has a shareable URL and "open on textlog.cc" is a straight
 passthrough.
 
+## Writes
+
+`openReply` and `openCompose` push a web view onto textlog.cc — `/post/{id}?reply=1` and
+`/write`. Navigation is pinned to the textlog origin; anything else is handed to the real
+browser, so this never becomes a general-purpose web view. On Flutter web there is no
+web view plugin, and a new tab is the native equivalent, so it opens one.
+
+When the view closes, the caches that would still show pre-write state are invalidated.
+
+## Quoted parents
+
+A reply renders the post it answers in a tinted box beneath it, as the site does. The feed
+endpoints return `parent_id` but not the parent, so `ParentQuote` fetches it via
+`postProvider`. Riverpod caches by id, so replies sharing a parent fetch it once, and only
+tiles that actually build ask for one. A quote is decoration: while it loads, or if the
+parent is gone, it renders nothing rather than a spinner mid-feed.
+
 ## Known gaps
 
-- **Quoted parent posts.** The site renders a reply's parent inline in a tinted quote box.
-  The API's post object carries `parent_id` but not the parent's body, so this needs a
-  second fetch per reply. The thread screen links up to the parent instead.
 - **Explore / followers / following.** HTML-only on the server; no API equivalent.
 - **Feeds refetch rather than cache across navigations.** `autoDispose` drops a feed when
   you leave it. `ref.keepAlive()` with a disposal timer in `FeedNotifier.build` is the
   standard fix if it starts to bite.
-- **Fonts** resolve to each platform's generic `monospace`. Bundle a face in `pubspec.yaml`
-  if the three targets need to be pixel-identical.
+- **Reply counts on quoted parents** come from the parent fetch, so a quote can briefly
+  show a count that is one behind the feed it appears in.
