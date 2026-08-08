@@ -6,6 +6,7 @@ import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:go_router/go_router.dart';
 
 import 'state/pending_write.dart';
+import 'state/settings.dart';
 import 'ui/router.dart';
 import 'ui/theme.dart';
 
@@ -60,11 +61,39 @@ class _TextlogAppState extends ConsumerState<TextlogApp> with WidgetsBindingObse
   }
 
   @override
-  Widget build(BuildContext context) => MaterialApp.router(
-    title: 'textlog',
-    debugShowCheckedModeBanner: false,
-    theme: textlogTheme(Brightness.light),
-    darkTheme: textlogTheme(Brightness.dark),
-    routerConfig: router,
-  );
+  Widget build(BuildContext context) {
+    final settings = ref.watch(settingsProvider).valueOrNull ?? const Settings();
+
+    ThemeData themed(Palette palette) => textlogTheme(
+      palette.withAccent(settings.accent.forBrightness(palette.brightness)),
+    );
+
+    // `system` hands the light/dark decision to Flutter so it tracks the device
+    // live; a fixed choice pins both slots to the same palette so it cannot.
+    final (light, dark, mode) = switch (settings.theme) {
+      ThemeChoice.system => (
+        themed(Palette.light),
+        themed(Palette.dark),
+        ThemeMode.system,
+      ),
+      final choice => () {
+        final palette = choice.resolve(Brightness.light);
+        final theme = themed(palette);
+        return (
+          theme,
+          theme,
+          palette.brightness == Brightness.dark ? ThemeMode.dark : ThemeMode.light,
+        );
+      }(),
+    };
+
+    return MaterialApp.router(
+      title: 'textlog',
+      debugShowCheckedModeBanner: false,
+      theme: light,
+      darkTheme: dark,
+      themeMode: mode,
+      routerConfig: router,
+    );
+  }
 }
