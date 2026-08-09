@@ -140,24 +140,17 @@ final class Session {
 }
 
 final class Account {
-  const Account({
-    required this.handle,
-    required this.bio,
-    required this.canPost,
-    required this.writesEnabled,
-  });
+  const Account({required this.handle, required this.bio, required this.canPost});
 
   final String handle;
   final String bio;
-  final bool canPost;
 
-  /// False until the account turns API access on, in a browser.
-  final bool writesEnabled;
+  /// False until the address is verified, which the server requires before posting.
+  final bool canPost;
 
   factory Account.fromJson(Map<String, dynamic> json) => Account(
     handle: json['handle'] as String,
     bio: json['bio'] as String? ?? '',
     canPost: json['can_post'] as bool? ?? false,
-    writesEnabled: json['api_writes_enabled'] as bool? ?? false,
   );
 }

@@ -37,7 +37,7 @@ class SessionNotifier extends AsyncNotifier<Session?> {
       return Session(
         token: token,
         expiresAt: DateTime.now(),
-        account: Account(handle: handle, bio: '', canPost: true, writesEnabled: true),
+        account: Account(handle: handle, bio: '', canPost: true),
       );
     }
   }

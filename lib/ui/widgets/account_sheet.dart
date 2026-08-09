@@ -65,11 +65,10 @@ class _Account extends ConsumerWidget {
                 ),
                 style: theme.titleLarge,
               ),
-              if (session != null && !session.account.writesEnabled) ...[
+              if (session != null && !session.account.canPost) ...[
                 const SizedBox(height: space2),
                 Text(
-                  'API access is off for this account, so writing is refused. Turn it on '
-                  'under account security.',
+                  'Verify your email address before posting.',
                   style: theme.labelSmall!.copyWith(color: palette.errorInk, height: 1.5),
                 ),
               ],
