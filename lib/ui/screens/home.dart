@@ -8,6 +8,8 @@ import '../theme.dart';
 import '../widgets/feed_view.dart';
 import '../widgets/post_tile.dart';
 import '../widgets/shell.dart';
+import '../../state/session.dart';
+import '../widgets/compose_sheet.dart';
 import '../widgets/status.dart';
 import 'web_action.dart';
 
@@ -25,7 +27,13 @@ class HomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) => Scaffold(
     appBar: textlogAppBar(context, path: homePaths[tab]),
     floatingActionButton: FloatingActionButton.small(
-      onPressed: () => openCompose(ref),
+      onPressed: () async {
+        if (ref.read(sessionProvider).valueOrNull == null) {
+          await openCompose(ref);
+          return;
+        }
+        await showCompose(context);
+      },
       backgroundColor: context.palette.accent,
       foregroundColor: context.palette.bg,
       elevation: 0,

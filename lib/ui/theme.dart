@@ -26,6 +26,11 @@ final class Palette extends ThemeExtension<Palette> {
     required this.quoteBg,
     required this.errorInk,
     required this.linkBorder,
+    required this.buttonBg,
+    required this.buttonInk,
+    required this.unfollowBg,
+    required this.disabledBg,
+    required this.disabledInk,
   });
 
   final String name;
@@ -41,6 +46,12 @@ final class Palette extends ThemeExtension<Palette> {
   final Color quoteInk;
   final Color quoteBg;
   final Color errorInk;
+
+  final Color buttonBg;
+  final Color buttonInk;
+  final Color unfollowBg;
+  final Color disabledBg;
+  final Color disabledInk;
 
   /// Links are accent-coloured but underlined in a *quieter* colour — the detail
   /// that keeps a dense monospace feed from looking like a wall of one hue.
@@ -61,6 +72,11 @@ final class Palette extends ThemeExtension<Palette> {
     quoteBg: Color(0x0f749668),
     errorInk: Color(0xff7a3f39),
     linkBorder: Color(0xffafb4a9),
+    buttonBg: Color(0xff273126),
+    buttonInk: Color(0xffffffff),
+    unfollowBg: Color(0xff65775e),
+    disabledBg: Color(0xffd9dbd4),
+    disabledInk: Color(0xff777d73),
   );
 
   static const dark = Palette(
@@ -78,6 +94,11 @@ final class Palette extends ThemeExtension<Palette> {
     quoteBg: Color(0x149abd8e),
     errorInk: Color(0xffefb3aa),
     linkBorder: Color(0xff50594d),
+    buttonBg: Color(0xff3b503d),
+    buttonInk: Color(0xffe5e8e1),
+    unfollowBg: Color(0xff58705a),
+    disabledBg: Color(0xff292f29),
+    disabledInk: Color(0xff747c72),
   );
 
   /// Warm paper. Same bones as `light`, aged.
@@ -96,6 +117,11 @@ final class Palette extends ThemeExtension<Palette> {
     quoteBg: Color(0x128a6d3b),
     errorInk: Color(0xff8a3f39),
     linkBorder: Color(0xffc4b593),
+    buttonBg: Color(0xff4a3a24),
+    buttonInk: Color(0xfffbf6e9),
+    unfollowBg: Color(0xff8a7550),
+    disabledBg: Color(0xffe0d4b8),
+    disabledInk: Color(0xff8c7a5e),
   );
 
   /// The canonical Dracula values, mapped onto textlog's roles.
@@ -114,6 +140,11 @@ final class Palette extends ThemeExtension<Palette> {
     quoteBg: Color(0x1abd93f9),
     errorInk: Color(0xffff5555),
     linkBorder: Color(0xff4b4f6b),
+    buttonBg: Color(0xff44475a),
+    buttonInk: Color(0xfff8f8f2),
+    unfollowBg: Color(0xff6272a4),
+    disabledBg: Color(0xff343746),
+    disabledInk: Color(0xff6272a4),
   );
 
   static const all = [light, dark, sepia, dracula];
@@ -152,6 +183,11 @@ final class Palette extends ThemeExtension<Palette> {
     quoteBg: quoteBg ?? this.quoteBg,
     errorInk: errorInk,
     linkBorder: linkBorder,
+    buttonBg: buttonBg,
+    buttonInk: buttonInk,
+    unfollowBg: unfollowBg,
+    disabledBg: disabledBg,
+    disabledInk: disabledInk,
   );
 
   @override
@@ -173,6 +209,11 @@ final class Palette extends ThemeExtension<Palette> {
       quoteBg: mix(quoteBg, other.quoteBg),
       errorInk: mix(errorInk, other.errorInk),
       linkBorder: mix(linkBorder, other.linkBorder),
+      buttonBg: mix(buttonBg, other.buttonBg),
+      buttonInk: mix(buttonInk, other.buttonInk),
+      unfollowBg: mix(unfollowBg, other.unfollowBg),
+      disabledBg: mix(disabledBg, other.disabledBg),
+      disabledInk: mix(disabledInk, other.disabledInk),
     );
   }
 }

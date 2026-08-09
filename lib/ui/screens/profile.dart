@@ -4,10 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/feed_source.dart';
 import '../../core/models.dart';
 import '../../state/identity.dart';
+import '../../state/session.dart';
 import '../../state/providers.dart';
 import '../theme.dart';
 import '../widgets/feed_view.dart';
 import '../widgets/shell.dart';
+import '../widgets/post_actions.dart';
 import '../widgets/status.dart';
 import 'web_action.dart';
 
@@ -62,7 +64,10 @@ class _Header extends ConsumerWidget {
                 child: Text.rich(
                   TextSpan(
                     children: [
-                      TextSpan(text: '@', style: TextStyle(color: palette.accent)),
+                      TextSpan(
+                        text: '@',
+                        style: TextStyle(color: palette.accent),
+                      ),
                       TextSpan(text: profile.handle),
                     ],
                   ),
@@ -79,7 +84,8 @@ class _Header extends ConsumerWidget {
                   onTap: () => _confirmSignOut(context, ref),
                   child: Text('log out', style: theme.bodySmall!.asLink(palette)),
                 ),
-              ],
+              ] else
+                FollowButton(profile.handle),
             ],
           ),
           const SizedBox(height: space3),
@@ -100,8 +106,8 @@ class _Header extends ConsumerWidget {
   }
 }
 
-/// The app never held a session, so "log out" here can only forget the handle. Say
-/// so plainly rather than letting someone believe they signed out of textlog.
+/// Signs the app out and forgets the handle. A browser session on textlog.cc is a
+/// separate thing, so say so rather than implying this ends both.
 Future<void> _confirmSignOut(BuildContext context, WidgetRef ref) async {
   final palette = context.palette;
   final theme = Theme.of(context).textTheme;
@@ -113,9 +119,9 @@ Future<void> _confirmSignOut(BuildContext context, WidgetRef ref) async {
       shape: const RoundedRectangleBorder(),
       title: Text('Log out', style: theme.bodyMedium),
       content: Text(
-        'This app will forget your handle.\n\n'
-        'You stay signed in on textlog.cc in your browser — end that session from '
-        'account settings if you want to log out everywhere.',
+        'This signs the app out and forgets your handle.\n\n'
+        'A browser session on textlog.cc stays signed in. End that from account '
+        'settings if you want to log out everywhere.',
         style: theme.bodySmall!.copyWith(color: palette.quoteInk, height: 1.55),
       ),
       actions: [
@@ -138,5 +144,8 @@ Future<void> _confirmSignOut(BuildContext context, WidgetRef ref) async {
     ),
   );
 
-  if (signOut ?? false) await ref.read(identityProvider.notifier).forget();
+  if (signOut ?? false) {
+    await ref.read(sessionProvider.notifier).signOut();
+    await ref.read(identityProvider.notifier).forget();
+  }
 }
