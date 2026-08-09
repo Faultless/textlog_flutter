@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/feed_source.dart';
 import '../../state/feed.dart';
+import '../../core/search.dart';
 import '../theme.dart';
 import 'post_tile.dart';
 import 'status.dart';
@@ -24,6 +25,7 @@ const _loadMoreThreshold = 600.0;
 
 class _FeedViewState extends ConsumerState<FeedView> {
   final _controller = ScrollController();
+  final _search = TextEditingController();
 
   @override
   void initState() {
@@ -34,8 +36,12 @@ class _FeedViewState extends ConsumerState<FeedView> {
   @override
   void dispose() {
     _controller.dispose();
+    _search.dispose();
     super.dispose();
   }
+
+  /// Shown once a timeline is long enough that scrolling for something is a chore.
+  static const _searchAfter = 15;
 
   void _maybeLoadMore() {
     final position = _controller.position;
@@ -62,16 +68,35 @@ class _FeedViewState extends ConsumerState<FeedView> {
             AsyncData(:final value) when value.posts.isEmpty => [
               SliverToBoxAdapter(child: StatusMessage(widget.emptyMessage)),
             ],
-            AsyncData(:final value) => [
-              SliverList.builder(
-                itemCount: value.posts.length,
-                itemBuilder: (context, index) => PostTile(
-                  value.posts[index],
-                  showTopBorder: index > 0 || widget.header != null,
+            AsyncData(:final value) => () {
+              final query = _search.text;
+              final posts = searchPosts(value.posts, query);
+              final filtering = query.trim().isNotEmpty;
+              final filter = SliverToBoxAdapter(
+                child: _Filter(_search, () => setState(() {})),
+              );
+
+              if (posts.isEmpty) {
+                return [
+                  filter,
+                  SliverToBoxAdapter(
+                    child: StatusMessage('Nothing loaded matches that.'),
+                  ),
+                ];
+              }
+              return [
+                if (filtering || value.posts.length >= _searchAfter) filter,
+                SliverList.builder(
+                  itemCount: posts.length,
+                  itemBuilder: (context, index) => PostTile(
+                    posts[index],
+                    showTopBorder: index > 0 || widget.header != null,
+                  ),
                 ),
-              ),
-              SliverToBoxAdapter(child: _Footer(value, notifier)),
-            ],
+                // Fetching more mid-filter would look like the filter had broken.
+                if (!filtering) SliverToBoxAdapter(child: _Footer(value, notifier)),
+              ];
+            }(),
             AsyncError(:final error) => [
               SliverToBoxAdapter(
                 child: StatusMessage(messageFor(error), onRetry: notifier.refresh),
@@ -98,5 +123,58 @@ class _Footer extends StatelessWidget {
     }
     if (state.hasMore) return const Spinner();
     return const SizedBox(height: space6);
+  }
+}
+
+/// Filters what is already loaded. Nothing is fetched, which is the point: it is
+/// instant, and it works on the posts you can actually see.
+class _Filter extends StatelessWidget {
+  const _Filter(this.controller, this.onChanged);
+
+  final TextEditingController controller;
+  final VoidCallback onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final theme = Theme.of(context).textTheme;
+
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: gutterOf(context), vertical: space3),
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: palette.soft))),
+      child: Row(
+        children: [
+          Text('/', style: theme.bodySmall!.copyWith(color: palette.accent)),
+          const SizedBox(width: space3),
+          Expanded(
+            child: TextField(
+              controller: controller,
+              onChanged: (_) => onChanged(),
+              style: theme.bodySmall,
+              cursorColor: palette.accent,
+              decoration: InputDecoration(
+                isDense: true,
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.zero,
+                hintText: 'filter these posts',
+                hintStyle: theme.bodySmall!.copyWith(color: palette.muted),
+              ),
+            ),
+          ),
+          if (controller.text.isNotEmpty)
+            GestureDetector(
+              onTap: () {
+                controller.clear();
+                onChanged();
+              },
+              behavior: HitTestBehavior.opaque,
+              child: Padding(
+                padding: const EdgeInsets.only(left: space3),
+                child: Text('clear', style: theme.labelSmall!.asLink(palette)),
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }
