@@ -4,8 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/body_tokens.dart';
 import '../../core/reply_tree.dart';
-import '../screens/web_action.dart';
 import '../theme.dart';
+import 'post_actions.dart';
 import 'post_body.dart';
 
 /// `.reply-branch` — siblings share one hairline rail, indented by a gutter.
@@ -65,36 +65,24 @@ class _NodeState extends ConsumerState<_Node> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
+              Wrap(
+                spacing: space3,
+                runSpacing: space2,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  Flexible(
-                    child: GestureDetector(
-                      onTap: () => context.push('/u/${node.post.author.handle}'),
-                      child: Text(
-                        '@${node.post.author.handle}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: meta.asLink(palette).copyWith(color: palette.ink),
-                      ),
+                  GestureDetector(
+                    onTap: () => context.push('/u/${node.post.author.handle}'),
+                    child: Text(
+                      '@${node.post.author.handle}',
+                      style: meta.asLink(palette).copyWith(color: palette.ink),
                     ),
                   ),
-                  const SizedBox(width: space3),
                   GestureDetector(
                     onTap: () => context.push('/post/${node.post.id}'),
                     child: Text(relativeTime(node.post.createdAt), style: meta.asLink(palette)),
                   ),
-                  const SizedBox(width: space3),
-                  GestureDetector(
-                    onTap: () => openReply(ref, node.post.id),
-                    child: Text(
-                      'reply',
-                      style: meta.asLink(palette).copyWith(color: palette.muted),
-                    ),
-                  ),
+                  ...postActions(context, ref, node.post, style: meta),
                   if (foldable) ...[
-                    const SizedBox(width: space1),
                     // `container: true` or Flutter merges this into the reply's
                     // text and the control disappears for screen readers.
                     Semantics(

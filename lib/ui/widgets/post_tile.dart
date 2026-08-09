@@ -6,9 +6,9 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/body_tokens.dart';
 import '../../core/models.dart';
-import '../screens/web_action.dart';
 import '../theme.dart';
 import 'parent_quote.dart';
+import 'post_actions.dart';
 import 'post_body.dart';
 
 /// `.post` — 24px/gutter padding, hairline top rule, `@handle` and an accent
@@ -40,22 +40,19 @@ class PostTile extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
+            // `.posttop` — handle, time and the actions all on one line.
+            Wrap(
+              spacing: space4,
+              runSpacing: space2,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                Flexible(
-                  child: GestureDetector(
-                    onTap: () => context.push('/u/${post.author.handle}'),
-                    child: Text(
-                      '@${post.author.handle}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: meta.asLink(palette).copyWith(color: palette.ink),
-                    ),
+                GestureDetector(
+                  onTap: () => context.push('/u/${post.author.handle}'),
+                  child: Text(
+                    '@${post.author.handle}',
+                    style: meta.asLink(palette).copyWith(color: palette.ink),
                   ),
                 ),
-                const SizedBox(width: space4),
                 Text(
                   relativeTime(post.createdAt) +
                       (post.replyCount > 0
@@ -63,14 +60,7 @@ class PostTile extends ConsumerWidget {
                           : ''),
                   style: meta.asLink(palette),
                 ),
-                const SizedBox(width: space4),
-                GestureDetector(
-                  onTap: () => openReply(ref, post.id),
-                  child: Text(
-                    'reply',
-                    style: meta.asLink(palette).copyWith(color: palette.muted),
-                  ),
-                ),
+                ...postActions(context, ref, post, style: meta),
               ],
             ),
             const SizedBox(height: space3),
