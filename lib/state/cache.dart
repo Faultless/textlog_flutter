@@ -51,6 +51,10 @@ final class PostCache {
 
   /// Drop a post whose server state we know has changed, so the next read refetches.
   void forget(int id) => _posts.remove(id);
+
+  /// Write a post we just changed straight into the cache, so the screen behind a
+  /// sheet is already correct when it closes rather than flickering through a refetch.
+  void replace(Post post) => _posts[post.id] = post;
 }
 
 final postCacheProvider = Provider<PostCache>((ref) => PostCache());
@@ -69,6 +73,9 @@ final class CachedReplies {
   bool isStale(DateTime now) => now.difference(fetchedAt) > repliesTtl;
 }
 
+/// Replies fetched per node. The API allows 100.
+const repliesPerNode = 50;
+
 /// Replies keyed by the post they belong to, kept for the whole session rather than
 /// per screen.
 ///
@@ -76,9 +83,6 @@ final class CachedReplies {
 /// costs a request per branching node, so without it: reopening a thread pays again,
 /// following a "+N more" link pays again for levels its parent already fetched, and
 /// going back and forward a few times is enough to get rate limited.
-/// Replies fetched per node. The API allows 100.
-const repliesPerNode = 50;
-
 final class RepliesCache {
   static const _limit = 200;
 
@@ -129,6 +133,22 @@ final class RepliesCache {
   }
 
   void forget(int parentId) => _byParent.remove(parentId);
+
+  /// Apply a local change to every cached reply list holding this post. Used after an
+  /// edit or a delete so threads update without waiting on the network.
+  void apply(int postId, Post? updated) {
+    for (final entry in _byParent.entries.toList()) {
+      final index = entry.value.posts.indexWhere((post) => post.id == postId);
+      if (index < 0) continue;
+      final posts = [...entry.value.posts];
+      if (updated == null) {
+        posts.removeAt(index);
+      } else {
+        posts[index] = updated;
+      }
+      _byParent[entry.key] = CachedReplies(posts, entry.value.fetchedAt);
+    }
+  }
 }
 
 final repliesCacheProvider = Provider<RepliesCache>((ref) => RepliesCache());
