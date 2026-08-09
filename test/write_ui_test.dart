@@ -8,6 +8,8 @@ import 'package:http/testing.dart';
 import 'package:textlog/core/models.dart';
 import 'package:textlog/state/providers.dart';
 import 'package:textlog/state/session.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:textlog/ui/screens/me.dart';
 import 'package:textlog/ui/theme.dart';
 import 'package:textlog/ui/widgets/compose_sheet.dart';
 import 'package:textlog/ui/widgets/post_actions.dart';
@@ -61,7 +63,7 @@ class FakeSession extends SessionNotifier {
 
 /// The key matters: pumping a second tree in one test has to build a new scope,
 /// or the session override from the first one is what the widgets keep reading.
-Widget app(Widget child, {Session? session, http.Client? client}) => ProviderScope(
+Widget app(Widget child, {Session? session, http.Client? client, bool bare = false}) => ProviderScope(
   key: UniqueKey(),
   overrides: [
     sessionProvider.overrideWith(() => FakeSession(session)),
@@ -69,7 +71,8 @@ Widget app(Widget child, {Session? session, http.Client? client}) => ProviderSco
   ],
   child: MaterialApp(
     theme: textlogTheme(Palette.dark),
-    home: Scaffold(body: child),
+    // Screens bring their own Scaffold; loose widgets need one for sheets and toasts.
+    home: bare ? child : Scaffold(body: child),
   ),
 );
 
@@ -141,6 +144,47 @@ void main() {
 
     expect(http.calls, ['PATCH /api/v1/posts/1']);
     expect(find.byType(TextField), findsNothing);
+  });
+
+  testWidgets('the keyboard does not cover what you are typing into', (tester) async {
+    addTearDown(tester.view.reset);
+    final ratio = tester.view.devicePixelRatio;
+    final screen = tester.view.physicalSize.height / ratio;
+    const keyboard = 300.0;
+
+    await tester.pumpWidget(
+      app(opens((context) => showCompose(context)), session: signedIn, client: recorder().client),
+    );
+    await settle(tester);
+    await tester.tap(find.text('open'));
+    await settle(tester);
+
+    tester.view.viewInsets = FakeViewPadding(bottom: keyboard * ratio);
+    await settle(tester);
+
+    // Reading the insets from the calling context instead of the sheet's used to
+    // leave the field sitting behind the keyboard.
+    expect(tester.getBottomLeft(find.byType(TextField)).dy, lessThanOrEqualTo(screen - keyboard));
+    expect(tester.getBottomLeft(find.text('post →')).dy, lessThanOrEqualTo(screen - keyboard));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('the keyboard does not cover the sign in field either', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    addTearDown(tester.view.reset);
+    final ratio = tester.view.devicePixelRatio;
+    final screen = tester.view.physicalSize.height / ratio;
+    const keyboard = 300.0;
+
+    await tester.pumpWidget(app(const MeScreen(), bare: true));
+    await settle(tester);
+    expect(find.text('send code →'), findsOneWidget);
+
+    tester.view.viewInsets = FakeViewPadding(bottom: keyboard * ratio);
+    await settle(tester);
+
+    expect(tester.getBottomLeft(find.byType(TextField)).dy, lessThanOrEqualTo(screen - keyboard));
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('an empty post is refused before it reaches the server', (tester) async {
