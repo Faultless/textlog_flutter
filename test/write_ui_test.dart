@@ -116,7 +116,7 @@ void main() {
 
   testWidgets('editing opens with the post in it and saves the change', (tester) async {
     final http = recorder(
-      (request) => Response(jsonEncode({'data': postJson(1, 'me', body: 'a better hello')})),
+      (request) => jsonResponse(jsonEncode({'data': postJson(1, 'me', body: 'a better hello')})),
     );
     await tester.pumpWidget(
       app(
@@ -247,5 +247,5 @@ void main() {
 }
 
 /// A JSON body with the headers the client expects.
-http.Response Response(String body, [int status = 200]) =>
+http.Response jsonResponse(String body, [int status = 200]) =>
     http.Response(body, status, headers: {'content-type': 'application/json'});
