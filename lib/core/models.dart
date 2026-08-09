@@ -122,3 +122,42 @@ final class ApiFailure implements Exception {
   @override
   String toString() => message;
 }
+
+/// A signed-in session. The token is an ordinary textlog session, listed and
+/// revocable under account security on the website.
+final class Session {
+  const Session({required this.token, required this.expiresAt, required this.account});
+
+  final String token;
+  final DateTime expiresAt;
+  final Account account;
+
+  factory Session.fromJson(Map<String, dynamic> json) => Session(
+    token: json['token'] as String,
+    expiresAt: DateTime.parse(json['expires_at'] as String).toLocal(),
+    account: Account.fromJson(json['user'] as Map<String, dynamic>),
+  );
+}
+
+final class Account {
+  const Account({
+    required this.handle,
+    required this.bio,
+    required this.canPost,
+    required this.writesEnabled,
+  });
+
+  final String handle;
+  final String bio;
+  final bool canPost;
+
+  /// False until the account turns API access on, in a browser.
+  final bool writesEnabled;
+
+  factory Account.fromJson(Map<String, dynamic> json) => Account(
+    handle: json['handle'] as String,
+    bio: json['bio'] as String? ?? '',
+    canPost: json['can_post'] as bool? ?? false,
+    writesEnabled: json['api_writes_enabled'] as bool? ?? false,
+  );
+}
