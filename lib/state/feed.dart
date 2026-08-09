@@ -42,10 +42,24 @@ final feedProvider =
       FeedNotifier.new,
     );
 
+/// Feeds currently on screen or still cached. Reading a family member that is not
+/// alive would create it, and creating it would fetch, so a local change is pushed to
+/// the ones that exist instead of guessing at names.
+final _liveFeeds = <FeedNotifier>{};
+
+/// Reflect an edit or a delete in every feed holding that post.
+void applyToLiveFeeds(int postId, Post? updated) {
+  for (final feed in _liveFeeds.toList()) {
+    feed.applyLocal(postId, updated);
+  }
+}
+
 class FeedNotifier extends AutoDisposeFamilyAsyncNotifier<FeedState, FeedSource> {
   @override
   Future<FeedState> build(FeedSource arg) async {
     cacheFor(ref, feedCacheDuration);
+    _liveFeeds.add(this);
+    ref.onDispose(() => _liveFeeds.remove(this));
     final page = await ref.watch(apiProvider).feed(arg);
     ref.read(postCacheProvider).remember(page.items);
     ref.read(repliesCacheProvider).noticeCounts(page.items);
@@ -67,6 +81,23 @@ class FeedNotifier extends AutoDisposeFamilyAsyncNotifier<FeedState, FeedSource>
     } catch (error) {
       state = AsyncData(current.copyWith(loadingMore: false, loadMoreError: error));
     }
+  }
+
+  /// Reflect a local edit or delete without refetching. The server already agreed,
+  /// so showing the old copy until a refresh lands would just be wrong for longer.
+  void applyLocal(int postId, Post? updated) {
+    final current = state.valueOrNull;
+    if (current == null) return;
+    final index = current.posts.indexWhere((post) => post.id == postId);
+    if (index < 0) return;
+
+    final posts = [...current.posts];
+    if (updated == null) {
+      posts.removeAt(index);
+    } else {
+      posts[index] = updated;
+    }
+    state = AsyncData(current.copyWith(posts: posts));
   }
 
   Future<void> refresh() async {
