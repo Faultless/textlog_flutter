@@ -90,6 +90,7 @@ class _ComposeState extends ConsumerState<_Compose> {
         case ComposeKind.post:
           await api.createPost(session.token, body);
           ref.invalidate(feedProvider(const LatestFeed()));
+          ref.invalidate(profileProvider(session.account.handle));
         case ComposeKind.reply:
           await api.createPost(session.token, body, parentId: widget.target!.id);
           _replyLanded(widget.target!.id);
@@ -115,6 +116,7 @@ class _ComposeState extends ConsumerState<_Compose> {
     ref.invalidate(postProvider(parentId));
     ref.invalidate(threadProvider(parentId));
     ref.invalidate(feedProvider(const LatestFeed()));
+    ref.invalidate(profileProvider(ref.read(sessionProvider).valueOrNull!.account.handle));
   }
 
   /// An edit comes back fully formed, so write it straight into everything holding it.
