@@ -14,13 +14,23 @@ import 'post_body.dart';
 /// `.post` — 24px/gutter padding, hairline top rule, `@handle` and an accent
 /// timestamp above the body, and the quoted parent beneath it when this is a reply.
 class PostTile extends ConsumerWidget {
-  const PostTile(this.post, {super.key, this.showTopBorder = true, this.large = false});
+  const PostTile(
+    this.post, {
+    super.key,
+    this.showTopBorder = true,
+    this.large = false,
+    this.isSubject = false,
+  });
 
   final Post post;
   final bool showTopBorder;
 
   /// `.thread-root > .post > p` — the post a thread is about is set larger.
   final bool large;
+
+  /// True when this page is about this post, which is the only case where deleting
+  /// it has to navigate somewhere.
+  final bool isSubject;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -60,7 +70,7 @@ class PostTile extends ConsumerWidget {
                           : ''),
                   style: meta.asLink(palette),
                 ),
-                ...postActions(context, ref, post, style: meta),
+                ...postActions(context, ref, post, style: meta, isSubject: isSubject),
               ],
             ),
             const SizedBox(height: space3),
