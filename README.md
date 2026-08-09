@@ -49,31 +49,32 @@ see [Building it for your own iPhone](#building-it-for-your-own-iphone).
 
 Read the whole thing in [ROADMAP.md](ROADMAP.md). In short:
 
-**Working today (v0.0.7)**
+**Working today (v0.0.8)**
 - Latest and hot feeds, infinite scroll
 - Live tab — new posts stream in as they are written, and nothing is lost when the server drops the connection
 - Nested reply threads you can fold, profiles, hashtag feeds
-- Replying, posting and logging in, handed to textlog.cc in a browser tab
-- Tell the app your handle and get your own profile, kept between launches
+- Sign in with a code sent to your email, then post, reply, edit, delete, follow and report
+- Filter a loaded timeline as you type, instantly and without a request
 - Light, dark, sepia and dracula themes with a choice of accent colour
 - Optional markdown rendering, off by default
 - A choice of monospace font, and ASCII art that renders the way the site draws it
 - Threads cached for the session, so reopening one costs no requests at all
 
-**Next — read polish (v0.0.6)**
+**Next — read polish**
 - Inline code and quote spans
 - Share a post or profile
 
-**Then — accounts (v0.1.0)**
-- Follow, unfollow, block and report
+**Then — the rest of accounts**
+- Block, and a list of who you have blocked
+- Signing up stays in a browser on purpose, because that is where the server puts its abuse controls
 
 **Then — distribution (v0.2.0)**
 - Automated builds attached to each release
 - iOS, once there is a way to ship it that people can actually install
 
-**Someday — fully native writing (v1.0.0)**
-- Blocked on textlog adding authenticated write endpoints to its API. Until then, writing
-  goes through the site itself, which is the honest answer rather than a workaround.
+**Someday (v1.0.0)**
+- The personalised feed, activity, and follower lists. Each needs an endpoint textlog does
+  not have yet.
 
 ## Development
 
@@ -152,7 +153,7 @@ changes its markup.
 
 textlog is designed, built and run by **[stagas](https://github.com/stagas)** —
 [github.com/stagas/textlog](https://github.com/stagas/textlog). The service, its design,
-and the public read-only API that makes this client possible are all their work.
+and the public API that makes this client possible are all their work.
 
 This app deliberately follows the site rather than reinterpreting it: the colours are its
 CSS variables, the text is its monospace, and the way bodies render is a direct port of its
