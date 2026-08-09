@@ -27,7 +27,10 @@ Future<bool> showCompose(
     context: context,
     backgroundColor: Colors.transparent,
     isScrollControlled: true,
-    builder: (_) => Padding(
+    // The sheet's own context, not the one that opened it. Reading the insets from
+    // the caller registers the dependency outside this route, so the keyboard comes
+    // up, nothing here rebuilds, and the field you are typing into stays behind it.
+    builder: (context) => Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
       child: _Compose(kind: kind, target: target),
     ),
@@ -142,7 +145,9 @@ class _ComposeState extends ConsumerState<_Compose> {
       ),
       child: SafeArea(
         top: false,
-        child: Padding(
+        // Scrollable so a short window, a landscape phone or a tall keyboard leaves
+        // the button reachable instead of overflowing off the bottom.
+        child: SingleChildScrollView(
           padding: EdgeInsets.symmetric(horizontal: gutterOf(context), vertical: space5),
           child: Column(
             mainAxisSize: MainAxisSize.min,
