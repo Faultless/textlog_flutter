@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:url_launcher/url_launcher.dart';
 
-import '../../data/api.dart';
 import '../../state/identity.dart';
+import '../../state/session.dart';
 import '../theme.dart';
+import 'account_sheet.dart';
 import 'settings_sheet.dart';
 
 /// `.brand` — the wordmark, with the accent full stop.
@@ -22,7 +22,10 @@ class Brand extends StatelessWidget {
           children: [
             // The prompt glyph from textlog.svg, drawn as type so there is no
             // SVG dependency for a two-character mark.
-            TextSpan(text: '>_ ', style: TextStyle(color: context.palette.accent)),
+            TextSpan(
+              text: '>_ ',
+              style: TextStyle(color: context.palette.accent),
+            ),
             const TextSpan(text: 'textlog'),
           ],
         ),
@@ -50,21 +53,12 @@ AppBar textlogAppBar(BuildContext context, {String? path, bool showBack = false}
     automaticallyImplyLeading: false,
     title: const Brand(),
     actions: [
-      const _You(),
+      _You(path: path),
       IconButton(
         tooltip: 'appearance',
         visualDensity: VisualDensity.compact,
         icon: Icon(Icons.tune, size: 16, color: palette.muted),
         onPressed: () => showSettings(context),
-      ),
-      IconButton(
-        tooltip: 'open on textlog.cc',
-        visualDensity: VisualDensity.compact,
-        icon: Icon(Icons.open_in_new, size: 16, color: palette.muted),
-        onPressed: () => launchUrl(
-          Uri.parse('$textlogOrigin${path ?? '/'}'),
-          mode: LaunchMode.externalApplication,
-        ),
       ),
       SizedBox(width: gutterOf(context) - space3),
     ],
@@ -86,7 +80,9 @@ class FeedTabs extends StatelessWidget {
 
     return Container(
       padding: EdgeInsets.fromLTRB(gutterOf(context) - space3, space4, 0, 0),
-      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: palette.soft))),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: palette.soft)),
+      ),
       child: Row(
         children: [
           for (final (index, label) in tabs.indexed)
@@ -105,9 +101,7 @@ class FeedTabs extends StatelessWidget {
                 ),
                 child: Text(
                   label,
-                  style: style.copyWith(
-                    color: index == active ? palette.ink : palette.muted,
-                  ),
+                  style: style.copyWith(color: index == active ? palette.ink : palette.muted),
                 ),
               ),
             ),
@@ -117,16 +111,20 @@ class FeedTabs extends StatelessWidget {
   }
 }
 
-
 /// `@handle` once you have told the app who you are, `sign in` before that.
 class _You extends ConsumerWidget {
-  const _You();
+  const _You({this.path});
+
+  /// The page on screen, so the sheet's "open on textlog.cc" lands in the same place.
+  final String? path;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final handle = ref.watch(identityProvider).valueOrNull;
+    final handle =
+        ref.watch(sessionProvider).valueOrNull?.account.handle ??
+        ref.watch(identityProvider).valueOrNull;
     return GestureDetector(
-      onTap: () => context.push('/me'),
+      onTap: () => showAccount(context, path: path),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: space2),
         child: Text(
