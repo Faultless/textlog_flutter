@@ -81,7 +81,7 @@ void main() {
     expect(session.account.handle, isNotEmpty);
 
     final account = await api.me(session.token);
-    expect(account.writesEnabled, isTrue, reason: 'turn API access on for this account');
+    expect(account.canPost, isTrue, reason: 'the account needs a verified email');
 
     final stamp = DateTime.now().microsecondsSinceEpoch;
     final post = await api.createPost(session.token, 'from the flutter client $stamp');
