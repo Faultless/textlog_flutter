@@ -1,6 +1,6 @@
 # Roadmap
 
-## Where we are — v0.0.7
+## Where we are — v0.0.8
 
 | Area | State |
 |---|---|
@@ -9,27 +9,27 @@
 | Threads | native, nested 5 deep, cached |
 | Profiles, tag feeds | native |
 | Quoted parent posts | native |
-| Reply / write | browser tab onto textlog.cc |
-| Log in / sign up | browser tab onto textlog.cc |
-| Follow, block, report | not in the app |
-| Your own profile | native, from your handle |
+| Post, reply, edit, delete | native |
+| Log in | native, emailed code |
+| Follow, report | native |
+| Sign up | browser tab onto textlog.cc |
+| Filter a loaded timeline | native, client-side |
+| Your own profile | native, from your session |
 | Activity, for-you | not in the app |
 | Markdown | opt-in, off by default |
 | Fonts | JetBrains Mono, Fira Code or system |
 | Themes | light, dark, sepia, dracula + accent |
 
-## The one thing that gates the rest
+## The thing that used to gate the rest
 
-textlog's public API is **read-only**. Every endpoint is `GET`/`HEAD`, there is no
-authentication, and there are no mutation endpoints. Accounts and writing exist only as
-session-cookie HTML form POSTs against unversioned routes.
+textlog's public API was read-only: every endpoint `GET`/`HEAD`, no authentication, no
+mutations. Accounts and writing existed only as session-cookie HTML form POSTs. So this app
+read natively and handed every write to a browser tab, and everything below was split into
+what we could build and what needed the server first.
 
-So the roadmap splits cleanly in two:
-
-- **Track A — things we can build now**, by pairing native reading with a browser tab that
-  shares the system browser's session.
-- **Track B — things that need the server first.** Listed at the bottom so it is obvious
-  what is our work and what is not.
+That is no longer the shape of the problem. textlog now ships authenticated write endpoints
+([stagas/textlog#3](https://github.com/stagas/textlog/pull/3), written for this client), and
+v0.0.8 uses them for everything except signing up.
 
 ---
 
@@ -44,43 +44,29 @@ an off-by-default setting; light / dark / sepia / dracula themes with a chosen a
 **Still to do**
 - Inline `code` and `> quote` spans, the two markdown pieces left out.
 - Share a post / profile via the system share sheet.
-- Open a post's own permalink in a browser tab rather than handing off to the browser app.
-- `ref.keepAlive()` with a disposal timer so feeds survive navigation instead of refetching.
 
 ---
 
-## v0.1.0 — accounts, as far as the API allows
+## v0.0.8 — native writes
 
-**Done in v0.0.3:** the app asks for your handle once, stores it locally, and uses the
-public API for everything else. `@handle` in the app bar, your own profile with `account`
-and `log out`. This is identity, not authentication — see
-[ARCHITECTURE.md](ARCHITECTURE.md#accounts-identity-not-authentication).
+**Done:** sign in with an emailed code, post, reply, edit, delete, follow, unfollow and
+report, all against the API with a bearer token. Account actions moved behind your handle in
+the app bar. Timelines you have already loaded can be filtered as you type, with no request.
+Edits and deletes are written into the caches that hold the post instead of refetching.
 
-**Still to do here**
-- Follow / unfollow, block, report — browser tab, same helper as `openReply`.
-- Show `reply` / `write` differently before you have introduced yourself.
+The token is an ordinary textlog session and shows up under account security on the website
+like any other, so signing out there signs the app out too.
+
+**Still to do**
+- Sign up. Accounts are only ever created in a browser, on purpose: it is where the server
+  puts its abuse controls, and the API deliberately refuses to be a way around them.
+- Block, and a list of who you have blocked. The endpoint exists, the screen does not.
+- Show `reply` and `write` differently before you have signed in.
 
 ⚠️ **Deliberately not doing:** scraping textlog.cc's HTML with the session cookie to build
 native `for-you`, `activity`, `followers` or `following` screens. Those pages are HTML-only
 with no API equivalent. Parsing them would mean the app breaks on any markup change on the
 server, which is exactly the fragility this project avoided on day one.
-
-### Why the app cannot just take over the magic link
-
-Worth writing down, because it looks like an easy win.
-
-`/enter/magic` deletes the token inside the same transaction that creates the session, so
-it is strictly single-use — and `issueMagicLink` runs
-`DELETE FROM magic_links WHERE email=?` before inserting, so requesting a second link
-invalidates the first. One link, one session, one place.
-
-If the app registered as a handler for that URL, it would claim the session and leave your
-**browser** logged out — while writing still has to happen in the browser. You would be
-signed in exactly where you cannot post.
-
-The ordering therefore matters: **write endpoints first, magic-link takeover second.** Once
-the app can post natively it no longer needs a browser session, and intercepting the link
-breaks nothing. Doing it in the other order strands you.
 
 ---
 
@@ -88,6 +74,9 @@ breaks nothing. Doing it in the other order strands you.
 
 **Done in v0.0.4:** a real signing key, split-ABI APKs (~15–18MB against 48MB universal),
 and the caret app icon.
+
+**Done in v0.0.7:** a macOS build, and the web build deployed to GitHub Pages on every push
+to `main`.
 
 **Still to do**
 - GitHub Actions building the APKs on tag push and attaching them to the release.
@@ -97,27 +86,17 @@ and the caret app icon.
 
 ---
 
-## v1.0.0 — native writes — **blocked on the server**
+## v1.0.0 — the screens that still need the server
 
-Everything here needs textlog to add authenticated mutation endpoints. From
-[post 274](https://textlog.cc/post/274), the author is open to it but wary of inviting
-bots. Nothing in this app should try to route around that.
-
-What would unblock a fully native client:
+These are the last places the app is thinner than the site, and each needs an endpoint that
+does not exist yet:
 
 | Needed endpoint | Unlocks |
 |---|---|
-| token issue / refresh | native login, no browser hand-off |
-| `POST /api/v1/posts` | native compose |
-| `POST /api/v1/posts/{id}/replies` | native reply |
-| `POST /api/v1/users/{handle}/follow` | native follow |
-| `GET /api/v1/me` | your profile, settings |
-| `GET /api/v1/feeds/for-you`, `/activity` | personalised feeds, notifications |
+| `GET /api/v1/feeds/for-you` | the personalised feed |
+| `GET /api/v1/activity` | replies and mentions of you |
+| `GET /api/v1/users/{handle}/followers`, `/following` | who follows whom |
+| `GET /api/v1/me/blocks` | a block list you can undo from |
 
-When they land, the change is contained: add the calls to `data/api.dart` and the
-notifiers to `state/`. The layering means nothing above `data/` currently assumes
-read-only, so the reader does not get rewritten.
-
-Until then the browser tab is not a stopgap to apologise for — it is the correct answer.
-It reuses the server's own login, rate limiting and moderation instead of reimplementing
-them, and it cannot drift out of sync with the site.
+The layering means adding them stays contained: the calls go in `data/api.dart`, the
+notifiers in `state/`, and the reader above them does not change.

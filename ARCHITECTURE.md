@@ -3,22 +3,27 @@
 How this client is put together and why. For what it is and how to run it, see the
 [README](README.md); for what is planned, the [roadmap](ROADMAP.md).
 
-## The constraint that shapes everything
+## The constraint that used to shape everything
 
-textlog's public API is **read-only**: `GET`/`HEAD` only, no authentication, `CORS: *`.
-Posting, replying, following and logging in exist solely as session-cookie HTML form
-POSTs against unversioned routes. The author's position, from
+For most of this project textlog's public API was **read-only**: `GET`/`HEAD` only, no
+authentication, `CORS: *`. Posting, replying, following and logging in existed solely as
+session-cookie HTML form POSTs against unversioned routes, so the app read natively and
+handed every write to textlog.cc in a browser tab. The author's position, from
 [post 274](https://textlog.cc/post/274):
 
 > if someone wants to implement API authentication and mutation endpoints they are free to try
 
-So the app reads natively and hands every write to textlog.cc itself, in a browser tab
-(`ui/screens/web_action.dart`). That is not a limitation we work around — it is the reason
-the whole thing has no auth code, no token storage, no offline write queue and no sync
-conflicts.
+We did, in [stagas/textlog#3](https://github.com/stagas/textlog/pull/3), and it shipped.
+Bearer tokens, `POST`/`PATCH`/`DELETE` on posts, and follow, block and report all live under
+`/api/v1/` now, so writing is native.
 
-If mutation endpoints ever land, the place to add them is `data/api.dart`; nothing above
-it assumes read-only.
+Two things survive from the old shape, and neither is a workaround:
+
+- **Signing up is still a browser tab.** The API refuses to create accounts, deliberately.
+  That is where the server puts its abuse controls, and an app that routed around them would
+  be the thing everyone was worried about.
+- **The layering held.** Adding writes touched `data/api.dart` and added `state/session.dart`.
+  Nothing in the reader assumed read-only, so nothing in the reader changed.
 
 ## Layers
 
@@ -28,7 +33,7 @@ Dependencies point one way only — `ui` → `state` → `data` → `core`.
 core/    pure Dart. No Flutter, no I/O, no packages.
          models, FeedSource, body tokenizer, SSE parser, relative time.
 data/    the only code that talks to the network. api.dart + firehose transports.
-state/   Riverpod providers. Thin — they wire data into the widget tree.
+state/   Riverpod providers. Thin — they wire data into the widget tree. Session lives here.
 ui/      widgets. Pure functions of state.
 ```
 
@@ -172,55 +177,55 @@ leaves the address bar showing the page you just left.
 paints into a canvas, so without it the page is opaque to screen readers and to browser
 automation alike.
 
-## Writes, and why they are not in a WebView
+## Writes
 
-`openReply` and `openCompose` open `/post/{id}?reply=1` and `/write` in the *system
-browser's* tab — Chrome Custom Tabs on Android, SFSafariViewController on iOS, via
-`LaunchMode.inAppBrowserView`.
+`ui/widgets/compose_sheet.dart` is one form for posting, replying and editing, because on
+textlog those are the same 280 characters and the same button. `ui/widgets/post_actions.dart`
+returns the row of actions as loose widgets rather than a widget of its own, so they sit on
+the same line as the handle and the time the way `.posttop` does on the site.
 
-This is forced by how textlog authenticates. Its `/enter` flow takes an email address and
-nothing else — there is no password field anywhere — and mails back a magic link. That link
-opens in whatever browser the phone considers default. An embedded WebView keeps a private
-cookie jar, so the session would land in a browser the app cannot read, and replying would
-be impossible for every user, permanently. A browser tab shares the browser's cookies, so
-the link works and the session is still there next time.
+**After a write lands, nothing refetches if it does not have to.** An edit comes back fully
+formed, so it is written straight into the post cache, into every cached reply list holding
+it, and into any live feed showing it. A delete removes it from the same three places. Only
+a reply invalidates, because a new post has an id and a timestamp that only the server knows.
+Deleting the post a screen is *about* navigates to its parent; deleting from a feed or a
+profile leaves you where you were, with the post simply gone.
 
-The first cut of this used `webview_flutter` and had exactly that bug. The fix removed a
-dependency.
+**Signed out, the old path is still there.** `openReply` and friends
+(`ui/screens/web_action.dart`) open textlog.cc in the *system browser's* tab, which is also
+what makes the app usable against a server without the write endpoints. A browser tab, not a
+WebView: an embedded WebView keeps a private cookie jar, so a magic link opened in the
+device's default browser would sign you into a session the app could never see. The first cut
+used `webview_flutter` and had exactly that bug. The fix removed a dependency.
 
 Android 11+ hides other installed apps unless they are declared, so
 `android/app/src/main/AndroidManifest.xml` carries a `<queries>` entry for `https` VIEW
-intents. Without it `url_launcher` cannot resolve a browser and every reply silently does
+intents. Without it `url_launcher` cannot resolve a browser and the fallback silently does
 nothing.
 
-**Refreshing afterwards.** A browser tab gives no callback when it closes, so
-`state/pending_write.dart` records what the write targeted and settles it when the app next
-resumes. A reply refreshes the thread only — invalidating the feed you came from would
-reset it to the top and throw away your place.
+## Accounts
 
-## Accounts: identity, not authentication
+`state/session.dart` holds a bearer token and the account it belongs to, in
+`shared_preferences`. On launch it validates the token against `GET /api/v1/me`: an
+`ApiFailure` means the session is gone and it clears, while any other error means the phone
+is offline and it trusts what it stored rather than signing a reader out over bad reception.
 
-The app asks for your handle once and stores it (`state/identity.dart`). It has no session
-and cannot get one.
+The token is an ordinary textlog session. It appears under account security on the website
+alongside browser sessions and can be revoked there, which is the property that makes it
+reasonable for an app to hold one at all.
 
-Logging in means a magic link, which opens in your default browser. Chrome Custom Tabs runs
-inside Chrome's own sandbox and SFSafariViewController is walled off from its host app by
-design — no platform API hands an app the browser's cookies. That isolation is the same
-property that makes the magic link work at all.
+Signing in is two steps: an email address, then the six-digit code the server mails back.
+The app never handles the magic link itself. That was a deliberate call, made back when it
+looked like a shortcut: `/enter/magic` deletes the token in the same transaction that creates
+the session, and `issueMagicLink` invalidates any earlier link for the same address, so one
+link yields exactly one session. An app that claimed it would leave your browser logged out.
+The code is a second door to the same flow, added in the same PR as the write endpoints.
 
-Taking the link over is not a shortcut worth taking either: `/enter/magic` deletes the token
-in the same transaction that creates the session, and `issueMagicLink` invalidates any
-earlier link for that email. One link yields one session. An app that claimed it would leave
-the browser logged out — and the browser is still where writing happens. Write endpoints
-have to come first; see [ROADMAP.md](ROADMAP.md).
-
-For a read-only client none of this costs anything, because nothing is gated. A handle only
-answers "whose profile does *you* mean", and `/api/v1/users/{handle}` is public. What it
-cannot show is what the API does not expose: the site's profile header counts tags followed
-and users blocked, and there are no endpoints for either.
-
-A storage failure is treated as "we don't know who you are" rather than an error state —
-blocking a reader behind a preferences read would be absurd.
+If the server has no write endpoints, signing in returns a 404 and the sign-in screen offers
+to remember your handle instead (`state/identity.dart`). That is identity rather than
+authentication, it gates nothing, and `/api/v1/users/{handle}` is public. A storage failure
+is treated as "we don't know who you are" rather than an error state, because blocking a
+reader behind a preferences read would be absurd.
 
 ## Caching
 
@@ -234,8 +239,9 @@ navigation in the app, and its target is nearly always something that was just o
 that transition costs no request at all. Bounded to 500 entries, oldest evicted first.
 
 The cache has one sharp edge worth knowing: `postProvider` serves from it, so invalidation
-alone would hand back the same copy. `pending_write.dart` calls `forget(id)` *before*
-invalidating, or refreshing after a reply would be a no-op. There is a test for exactly that.
+alone would hand back the same copy. Everything that changes a post calls `forget(id)` or
+`replace(post)` *before* invalidating, or refreshing after a write would be a no-op. There is
+a test for exactly that.
 
 ## Nested threads
 
