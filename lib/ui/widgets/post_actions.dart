@@ -18,7 +18,13 @@ import 'form_parts.dart';
 ///
 /// Without a session these fall back to opening textlog.cc, so the app still works
 /// against a server that has no write endpoints.
-List<Widget> postActions(BuildContext context, WidgetRef ref, Post post, {TextStyle? style}) {
+List<Widget> postActions(
+  BuildContext context,
+  WidgetRef ref,
+  Post post, {
+  TextStyle? style,
+  bool isSubject = false,
+}) {
   final palette = context.palette;
   final meta = style ?? Theme.of(context).textTheme.bodySmall!;
   final session = ref.watch(sessionProvider).valueOrNull;
@@ -40,13 +46,22 @@ List<Widget> postActions(BuildContext context, WidgetRef ref, Post post, {TextSt
     }),
     if (mine) ...[
       action('edit', () => showCompose(context, kind: ComposeKind.edit, target: post)),
-      action('delete', () => _confirmDelete(context, ref, post), colour: palette.errorInk),
+      action(
+        'delete',
+        () => _confirmDelete(context, ref, post, isSubject: isSubject),
+        colour: palette.errorInk,
+      ),
     ] else if (session != null)
       action('report', () => _report(context, ref, post)),
   ];
 }
 
-Future<void> _confirmDelete(BuildContext context, WidgetRef ref, Post post) async {
+Future<void> _confirmDelete(
+  BuildContext context,
+  WidgetRef ref,
+  Post post, {
+  required bool isSubject,
+}) async {
   final palette = context.palette;
   final theme = Theme.of(context).textTheme;
 
@@ -84,11 +99,18 @@ Future<void> _confirmDelete(BuildContext context, WidgetRef ref, Post post) asyn
     ref.read(postCacheProvider).forget(post.id);
     ref.read(repliesCacheProvider).apply(post.id, null);
     applyToLiveFeeds(post.id, null);
+    // The note count sits right next to the list it no longer agrees with.
+    ref.invalidate(profileProvider(post.author.handle));
     if (post.parentId case final parent?) {
       ref.read(postCacheProvider).forget(parent);
       ref.invalidate(postProvider(parent));
     }
-    if (context.mounted && post.parentId == null) context.go('/');
+    // Only leave when the page was about this post. Deleting from a feed or a
+    // profile should leave you where you were, with the post simply gone.
+    if (isSubject && context.mounted) {
+      final parent = post.parentId;
+      parent == null ? context.go('/') : context.go('/post/$parent');
+    }
   } on ApiFailure catch (failure) {
     if (context.mounted) _toast(context, failure.message);
   }

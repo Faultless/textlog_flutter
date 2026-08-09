@@ -37,7 +37,12 @@ class ThreadScreen extends ConsumerWidget {
           physics: const AlwaysScrollableScrollPhysics(),
           children: [
             switch (post) {
-              AsyncData(:final value) => PostTile(value, showTopBorder: false, large: true),
+              AsyncData(:final value) => PostTile(
+                value,
+                showTopBorder: false,
+                large: true,
+                isSubject: true,
+              ),
               AsyncError(:final error) => StatusMessage(
                 messageFor(error),
                 onRetry: () => ref.invalidate(postProvider(id)),
