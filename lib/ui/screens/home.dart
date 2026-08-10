@@ -16,51 +16,65 @@ import 'web_action.dart';
 const homeTabs = ['latest', 'hot', 'live'];
 const homePaths = ['/', '/hot', '/live'];
 
-/// All three tabs stay mounted: the live stream has to keep buffering while you
-/// read elsewhere, and switching back should not refetch.
-class HomeScreen extends ConsumerWidget {
+/// Tabs mount on first visit and stay: the live stream keeps buffering while you
+/// read elsewhere, and switching back should not refetch. Building all three up
+/// front fetched two feeds and opened the firehose to show one.
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key, required this.tab});
 
   final int tab;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) => Scaffold(
-    appBar: textlogAppBar(context, path: homePaths[tab]),
-    floatingActionButton: FloatingActionButton.small(
-      onPressed: () async {
-        if (ref.read(sessionProvider).valueOrNull == null) {
-          await openCompose(ref);
-          return;
-        }
-        await showCompose(context);
-      },
-      backgroundColor: context.palette.accent,
-      foregroundColor: context.palette.bg,
-      elevation: 0,
-      tooltip: 'write a post',
-      child: const Icon(Icons.edit, size: 16),
-    ),
-    body: Column(
-      children: [
-        FeedTabs(
-          tabs: homeTabs,
-          active: tab,
-          onSelect: (index) => context.go(homePaths[index]),
-        ),
-        Expanded(
-          child: IndexedStack(
-            index: tab,
-            sizing: StackFit.expand,
-            children: const [
-              FeedView(LatestFeed()),
-              FeedView(HotFeed()),
-              LiveFeed(),
-            ],
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  final _visited = <int>{};
+
+  @override
+  Widget build(BuildContext context) {
+    final tab = widget.tab;
+    _visited.add(tab);
+
+    const panes = [FeedView(LatestFeed()), FeedView(HotFeed()), LiveFeed()];
+
+    return Scaffold(
+      appBar: textlogAppBar(context, path: homePaths[tab]),
+      floatingActionButton: FloatingActionButton.small(
+        onPressed: () async {
+          if (ref.read(sessionProvider).valueOrNull == null) {
+            await openCompose(ref);
+            return;
+          }
+          await showCompose(context);
+        },
+        backgroundColor: context.palette.accent,
+        foregroundColor: context.palette.bg,
+        elevation: 0,
+        tooltip: 'write a post',
+        child: const Icon(Icons.edit, size: 16),
+      ),
+      body: Column(
+        children: [
+          FeedTabs(
+            tabs: homeTabs,
+            active: tab,
+            onSelect: (index) => context.go(homePaths[index]),
           ),
-        ),
-      ],
-    ),
-  );
+          Expanded(
+            child: IndexedStack(
+              index: tab,
+              sizing: StackFit.expand,
+              children: [
+                for (final (index, pane) in panes.indexed)
+                  if (_visited.contains(index)) pane else const SizedBox.shrink(),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class LiveFeed extends ConsumerWidget {
