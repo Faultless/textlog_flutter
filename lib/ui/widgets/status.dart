@@ -5,10 +5,21 @@ import '../theme.dart';
 
 String messageFor(Object error) => switch (error) {
   ApiFailure(isNotFound: true) => 'Not found.',
-  ApiFailure(isRateLimited: true) => 'Rate limited — try again in a moment.',
+  ApiFailure(isRateLimited: true, :final retryAfter?) =>
+    'Too many requests. Try again in ${humanDuration(retryAfter)}.',
+  ApiFailure(isRateLimited: true) => 'Too many requests. Try again in a moment.',
   ApiFailure(:final message) => message,
   _ => 'Could not reach textlog.',
 };
+
+/// Rounded up.
+String humanDuration(Duration duration) {
+  if (duration.inSeconds < 60) return '${duration.inSeconds.clamp(1, 59)} seconds';
+  final minutes = (duration.inSeconds / 60).ceil();
+  if (minutes < 60) return '$minutes ${minutes == 1 ? 'minute' : 'minutes'}';
+  final hours = (minutes / 60).ceil();
+  return '$hours ${hours == 1 ? 'hour' : 'hours'}';
+}
 
 class StatusMessage extends StatelessWidget {
   const StatusMessage(this.message, {super.key, this.onRetry});
