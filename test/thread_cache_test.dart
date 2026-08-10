@@ -74,20 +74,16 @@ void main() {
     expect(t.requested.length, first, reason: 'the replies cache outlives the provider');
   });
 
-  test('opening a sub-thread reuses the levels its parent already fetched', () async {
+  test('opening a branch you already expanded costs nothing', () async {
     final t = setUp$();
     await t.container.read(threadProvider(1).future);
+    await t.container.read(threadProvider(1).notifier).expand(2);
     final first = t.requested.length;
 
-    // Following a "+N more" link into post 3, already walked as part of thread 1.
-    await t.container.read(threadProvider(3).future);
+    // Following the reply into its own page.
+    await t.container.read(threadProvider(2).future);
 
-    final extra = t.requested.sublist(first);
-    expect(
-      extra.where((id) => id <= 3),
-      isEmpty,
-      reason: 'levels already cached must not be refetched',
-    );
+    expect(t.requested.length, first, reason: 'its replies are already cached');
   });
 
   test('a fresh thread is not revalidated on reopen', () async {
@@ -136,16 +132,16 @@ void main() {
     await t.container.read(threadProvider(1).future);
     final first = t.requested.length;
 
-    // Post 2 now claims two replies; we hold one. A feed or a live post carrying that
-    // count is enough to know our copy is stale, at no request cost.
+    // The thread now claims two replies; we hold one. A feed or a live post carrying
+    // that count is enough to know our copy is stale, at no request cost.
     t.container.read(repliesCacheProvider).noticeCounts([
-      Post.fromJson(post(2, parent: 1, replyCount: 2)),
+      Post.fromJson(post(1, parent: 0, replyCount: 2)),
     ]);
 
     t.container.invalidate(threadProvider(1));
     await t.container.read(threadProvider(1).future);
 
-    expect(t.requested.sublist(first), contains(2));
+    expect(t.requested.sublist(first), contains(1));
   });
 
   test('a matching reply_count leaves the cache alone', () async {
@@ -154,7 +150,7 @@ void main() {
     final first = t.requested.length;
 
     t.container.read(repliesCacheProvider).noticeCounts([
-      Post.fromJson(post(2, parent: 1, replyCount: 1)),
+      Post.fromJson(post(1, parent: 0, replyCount: 1)),
     ]);
 
     t.container.invalidate(threadProvider(1));
