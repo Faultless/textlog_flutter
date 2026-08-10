@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme.dart';
+import 'pressable.dart';
 
 /// `.button` — square, inked, 12px.
 class TextlogButton extends StatelessWidget {
@@ -20,11 +21,13 @@ class TextlogButton extends StatelessWidget {
       ButtonTone.danger => palette.errorInk,
     };
 
-    return GestureDetector(
+    return Pressable(
       onTap: onPressed,
-      child: Container(
+      builder: (context, pressed) => Container(
         padding: const EdgeInsets.symmetric(horizontal: space4, vertical: space3),
-        color: enabled ? background : palette.disabledBg,
+        color: enabled
+            ? (pressed ? Color.alphaBlend(palette.ink.withValues(alpha: 0.2), background) : background)
+            : palette.disabledBg,
         child: Text(
           label,
           style: Theme.of(context).textTheme.bodySmall!.copyWith(
