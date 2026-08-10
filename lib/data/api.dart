@@ -16,9 +16,12 @@ final apiBase = Uri.parse('$textlogOrigin/api/v1/');
 /// The only class in the app that performs I/O. Everything downstream of it is
 /// pure, which is what makes the rest testable without a server.
 final class TextlogApi {
-  const TextlogApi(this._client);
+  const TextlogApi(this._client, {this.onResult});
 
   final http.Client _client;
+
+  /// Every answer, so one place can notice a 429.
+  final void Function(ApiFailure? failure)? onResult;
 
   Future<Page<Post>> feed(FeedSource source, {String? cursor, int limit = 20}) async {
     final json = await _get(pathOf(source), {'limit': '$limit', 'cursor': ?cursor});
@@ -103,19 +106,44 @@ final class TextlogApi {
       request.body = jsonEncode(body);
     }
 
-    final response = await http.Response.fromStream(await _client.send(request));
-    final decoded = response.body.isEmpty
-        ? <String, dynamic>{}
-        : jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+    // Nothing may hang forever.
+    final streamed = await _client.send(request).timeout(requestTimeout);
+    final response = await http.Response.fromStream(streamed).timeout(requestTimeout);
+    final decoded = _decode(response);
 
     if (response.statusCode >= 400) {
       final error = decoded['error'] as Map<String, dynamic>?;
-      throw ApiFailure(
+      final failure = ApiFailure(
         code: error?['code'] as String? ?? 'unknown',
         message: error?['message'] as String? ?? 'Request failed',
         status: response.statusCode,
+        retryAfter: retryAfterOf(response.headers),
       );
+      onResult?.call(failure);
+      throw failure;
     }
+    onResult?.call(null);
     return decoded;
   }
+}
+
+/// Long enough for a bad connection, short enough to fail rather than hang.
+const requestTimeout = Duration(seconds: 20);
+
+/// A proxy can answer in HTML. Anything unparseable counts as no body.
+Map<String, dynamic> _decode(http.Response response) {
+  if (response.body.isEmpty) return const {};
+  try {
+    final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+    return decoded is Map<String, dynamic> ? decoded : const {};
+  } catch (_) {
+    return const {};
+  }
+}
+
+/// Seconds only. The HTTP-date form would need dart:io, which web lacks.
+Duration? retryAfterOf(Map<String, String> headers) {
+  final seconds = int.tryParse(headers['retry-after']?.trim() ?? '');
+  if (seconds == null || seconds < 0) return null;
+  return Duration(seconds: seconds);
 }

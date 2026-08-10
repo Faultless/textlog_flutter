@@ -110,14 +110,28 @@ final class Page<T> {
 /// The server's `{"error": {"code", "message"}}` envelope, kept structured so the
 /// UI can distinguish a 404 from a rate limit without matching on strings.
 final class ApiFailure implements Exception {
-  const ApiFailure({required this.code, required this.message, required this.status});
+  const ApiFailure({
+    required this.code,
+    required this.message,
+    required this.status,
+    this.retryAfter,
+  });
 
   final String code;
   final String message;
   final int status;
 
+  /// From `Retry-After`.
+  final Duration? retryAfter;
+
   bool get isNotFound => status == 404;
   bool get isRateLimited => status == 429;
+
+  /// The token was rejected. The only reason to sign someone out.
+  bool get isUnauthorized => status == 401 || status == 403;
+
+  /// Worth trying again later, unchanged.
+  bool get isTransient => status == 429 || status >= 500;
 
   @override
   String toString() => message;
