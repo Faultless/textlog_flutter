@@ -25,21 +25,28 @@ class SessionNotifier extends AsyncNotifier<Session?> {
       // Confirm the token still works, and pick up any change to the account.
       final account = await ref.read(apiProvider).me(token);
       return Session(token: token, expiresAt: DateTime.now(), account: account);
-    } on ApiFailure {
+    } on ApiFailure catch (failure) {
+      // Only a rejected token means the session is gone.
+      if (!failure.isUnauthorized) return _stored();
       await _clear();
       return null;
     } catch (_) {
-      // Offline. Trust what we stored rather than signing the reader out.
-      final preferences = await SharedPreferences.getInstance();
-      final token = preferences.getString(_tokenKey);
-      final handle = preferences.getString(_handleKey);
-      if (token == null || handle == null) return null;
-      return Session(
-        token: token,
-        expiresAt: DateTime.now(),
-        account: Account(handle: handle, bio: '', canPost: true),
-      );
+      // Offline, or the request timed out. Trust what we stored.
+      return _stored();
     }
+  }
+
+  /// What we last knew, for when the server cannot confirm it.
+  Future<Session?> _stored() async {
+    final preferences = await SharedPreferences.getInstance();
+    final token = preferences.getString(_tokenKey);
+    final handle = preferences.getString(_handleKey);
+    if (token == null || handle == null) return null;
+    return Session(
+      token: token,
+      expiresAt: DateTime.now(),
+      account: Account(handle: handle, bio: '', canPost: true),
+    );
   }
 
   Future<void> requestCode(String email) => ref.read(apiProvider).requestCode(email);
