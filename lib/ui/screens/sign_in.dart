@@ -6,6 +6,7 @@ import '../../state/identity.dart';
 import '../../state/session.dart';
 import '../theme.dart';
 import '../widgets/form_parts.dart';
+import '../widgets/status.dart';
 import 'web_action.dart';
 
 /// The site's `/enter` flow: give an address, then type the code it emails you.
@@ -47,7 +48,8 @@ class _SignInCardState extends ConsumerState<SignInCard> {
     } on ApiFailure catch (failure) {
       if (!mounted) return;
       setState(() {
-        _error = failure.message;
+        // A limit has to say how long, or all you can do is keep tapping.
+        _error = failure.isRateLimited ? messageFor(failure) : failure.message;
         // This server only serves reads.
         if (failure.isNotFound) _writesUnsupported = true;
       });
