@@ -13,11 +13,11 @@ export 'cache.dart' show nowProvider;
 /// How many levels to nest before a branch becomes a "N more replies" link.
 const maxThreadDepth = 5;
 
-/// Hard ceiling on *network* requests for one pass over a thread. The server allows
-/// 120 JSON requests a minute, and a thread costs a request per branching node, so
-/// without a ceiling a handful of wide threads would rate-limit the reader. Cached
-/// nodes do not count against it.
-const maxThreadRequests = 16;
+/// Ceiling on network requests for one pass. Cached nodes are free.
+const maxThreadRequests = 8;
+
+/// How many of those may be in flight together.
+const maxThreadConcurrency = 2;
 
 /// How a pass over the thread treats what is already cached.
 enum ThreadFetch {
@@ -82,6 +82,18 @@ class ThreadNotifier extends AutoDisposeFamilyAsyncNotifier<List<ReplyNode>, int
   /// Ids this notifier has walked, so revalidation knows the shape without refetching.
   final _visited = <int>{};
 
+  /// Branches we may fetch: the thread itself, plus whatever the reader opened.
+  /// Opening a thread is one request; each branch is one more, on demand.
+  late final _expanded = <int>{arg};
+
+  bool isExpanded(int id) => _expanded.contains(id);
+
+  /// One request. Everything already loaded is reused.
+  Future<void> expand(int id) async {
+    if (!_expanded.add(id)) return;
+    state = AsyncData(await _walk(ThreadFetch.cached));
+  }
+
   Future<List<ReplyNode>> _walk(ThreadFetch mode) async {
     final loaded = <int, List<Post>>{};
     _visited.clear();
@@ -90,9 +102,7 @@ class ThreadNotifier extends AutoDisposeFamilyAsyncNotifier<List<ReplyNode>, int
     var budget = maxThreadRequests;
 
     for (var depth = 0; depth < maxThreadDepth && frontier.isNotEmpty; depth++) {
-      final results = await Future.wait([
-        for (final id in frontier) _replies(id, mode: mode, budget: () => budget--),
-      ]);
+      final results = await _fetchLevel(frontier, mode, () => budget--);
 
       final next = <int>[];
       for (final (index, replies) in results.indexed) {
@@ -100,12 +110,32 @@ class ThreadNotifier extends AutoDisposeFamilyAsyncNotifier<List<ReplyNode>, int
         final id = frontier[index];
         loaded[id] = replies;
         _visited.add(id);
-        next.addAll(replies.where((post) => post.replyCount > 0).map((post) => post.id));
+        next.addAll(
+          replies
+              .where((post) => post.replyCount > 0 && _expanded.contains(post.id))
+              .map((post) => post.id),
+        );
       }
       frontier = next;
     }
 
     return assembleReplies(arg, loaded, maxDepth: maxThreadDepth);
+  }
+
+  /// A level, a few at a time. Cached nodes resolve immediately.
+  Future<List<List<Post>?>> _fetchLevel(
+    List<int> frontier,
+    ThreadFetch mode,
+    int Function() budget,
+  ) async {
+    final results = <List<Post>?>[];
+    for (var start = 0; start < frontier.length; start += maxThreadConcurrency) {
+      final slice = frontier.skip(start).take(maxThreadConcurrency);
+      results.addAll(
+        await Future.wait([for (final id in slice) _replies(id, mode: mode, budget: budget)]),
+      );
+    }
+    return results;
   }
 
   /// Returns null when the request budget is spent, so the caller can leave that

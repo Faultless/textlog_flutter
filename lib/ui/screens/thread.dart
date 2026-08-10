@@ -55,7 +55,7 @@ class ThreadScreen extends ConsumerWidget {
               ),
               AsyncData(:final value) => Padding(
                 padding: const EdgeInsets.only(bottom: space6),
-                child: ReplyBranch(value),
+                child: ReplyBranch(value, rootId: id),
               ),
               AsyncError(:final error) => StatusMessage(
                 messageFor(error),
