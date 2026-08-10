@@ -11,10 +11,11 @@ import '../screens/web_action.dart';
 import '../theme.dart';
 import 'compose_sheet.dart';
 import 'form_parts.dart';
+import 'pressable.dart';
 
-/// `reply`, plus `edit` and `delete` on your own posts and `report` on other people's.
-/// Returned as loose widgets so they sit on the same line as the handle and time, the
-/// way `.posttop` does on the site.
+/// `reply`, plus a menu holding whatever else this post allows: `edit` and `delete`
+/// on your own, `report` on other people's. Returned as loose widgets so they sit on
+/// the same line as the handle and time, the way `.posttop` does on the site.
 ///
 /// Without a session these fall back to opening textlog.cc, so the app still works
 /// against a server that has no write endpoints.
@@ -30,30 +31,84 @@ List<Widget> postActions(
   final session = ref.watch(sessionProvider).valueOrNull;
   final mine = session != null && session.account.handle == post.author.handle;
 
-  Widget action(String label, VoidCallback onTap, {Color? colour}) => GestureDetector(
-    onTap: onTap,
-    behavior: HitTestBehavior.opaque,
-    child: Text(label, style: meta.asLink(palette).copyWith(color: colour ?? palette.muted)),
-  );
-
   return [
-    action('reply', () async {
-      if (session == null) {
-        await openReply(ref, post.id);
-        return;
-      }
-      await showCompose(context, kind: ComposeKind.reply, target: post);
-    }),
-    if (mine) ...[
-      action('edit', () => showCompose(context, kind: ComposeKind.edit, target: post)),
-      action(
-        'delete',
-        () => _confirmDelete(context, ref, post, isSubject: isSubject),
-        colour: palette.errorInk,
+    Pressable(
+      onTap: () async {
+        if (session == null) {
+          await openReply(ref, post.id);
+          return;
+        }
+        await showCompose(context, kind: ComposeKind.reply, target: post);
+      },
+      builder: (context, pressed) => Text(
+        'reply',
+        style: meta.asLink(palette).copyWith(color: pressed ? palette.accent : palette.muted),
       ),
-    ] else if (session != null)
-      action('report', () => _report(context, ref, post)),
+    ),
+    if (mine)
+      PostMenu(
+        style: meta,
+        entries: [
+          MenuEntry('edit', () => showCompose(context, kind: ComposeKind.edit, target: post)),
+          MenuEntry(
+            'delete',
+            () => _confirmDelete(context, ref, post, isSubject: isSubject),
+            colour: palette.errorInk,
+          ),
+        ],
+      )
+    else if (session != null)
+      PostMenu(
+        style: meta,
+        entries: [MenuEntry('report', () => _report(context, ref, post))],
+      ),
   ];
+}
+
+final class MenuEntry {
+  const MenuEntry(this.label, this.onSelected, {this.colour});
+
+  final String label;
+  final VoidCallback onSelected;
+  final Color? colour;
+}
+
+/// The overflow. Everything but `reply` lives here, so a post's meta line stays one
+/// line instead of wrapping a red `delete` onto the next one.
+class PostMenu extends StatelessWidget {
+  const PostMenu({super.key, required this.entries, this.style});
+
+  final List<MenuEntry> entries;
+  final TextStyle? style;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final meta = style ?? Theme.of(context).textTheme.bodySmall!;
+
+    return PopupMenuButton<MenuEntry>(
+      tooltip: 'more actions',
+      color: palette.panel,
+      elevation: 3,
+      position: PopupMenuPosition.under,
+      padding: EdgeInsets.zero,
+      splashRadius: 0,
+      shape: RoundedRectangleBorder(side: BorderSide(color: palette.soft)),
+      onSelected: (entry) => entry.onSelected(),
+      itemBuilder: (context) => [
+        for (final entry in entries)
+          PopupMenuItem(
+            value: entry,
+            height: 36,
+            child: Text(entry.label, style: meta.copyWith(color: entry.colour ?? palette.ink)),
+          ),
+      ],
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: space2, vertical: space1),
+        child: Icon(Icons.more_horiz, size: 16, color: palette.muted),
+      ),
+    );
+  }
 }
 
 Future<void> _confirmDelete(
