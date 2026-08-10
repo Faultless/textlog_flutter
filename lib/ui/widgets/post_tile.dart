@@ -4,12 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/body_tokens.dart';
 import '../../core/models.dart';
 import '../theme.dart';
 import 'parent_quote.dart';
 import 'post_actions.dart';
 import 'post_body.dart';
+import 'post_meta.dart';
 
 /// `.post` — 24px/gutter padding, hairline top rule, `@handle` and an accent
 /// timestamp above the body, and the quoted parent beneath it when this is a reply.
@@ -56,19 +56,12 @@ class PostTile extends ConsumerWidget {
               runSpacing: space2,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                GestureDetector(
-                  onTap: () => context.push('/u/${post.author.handle}'),
-                  child: Text(
-                    '@${post.author.handle}',
-                    style: meta.asLink(palette).copyWith(color: palette.ink),
-                  ),
-                ),
-                Text(
-                  relativeTime(post.createdAt) +
-                      (post.replyCount > 0
-                          ? ' · ${post.replyCount} ${post.replyCount == 1 ? 'reply' : 'replies'}'
-                          : ''),
-                  style: meta.asLink(palette),
+                HandleLink(post.author.handle, style: meta),
+                PostMeta(
+                  createdAt: post.createdAt,
+                  replyCount: post.replyCount,
+                  style: meta,
+                  onTap: () => context.push('/post/${post.id}'),
                 ),
                 ...postActions(context, ref, post, style: meta, isSubject: isSubject),
               ],

@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/body_tokens.dart';
 import '../../state/providers.dart';
 import '../theme.dart';
 import 'post_body.dart';
+import 'post_meta.dart';
 
 /// `.parent-quote` — the post being replied to, quoted beneath the reply.
 ///
@@ -40,20 +40,18 @@ class ParentQuote extends ConsumerWidget {
                 textBaseline: TextBaseline.alphabetic,
                 children: [
                   Flexible(
-                    child: Text(
-                      '@${value.author.handle}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.labelSmall!.asLink(palette).copyWith(color: palette.quoteInk),
+                    child: HandleLink(
+                      value.author.handle,
+                      style: theme.labelSmall!,
+                      colour: palette.quoteInk,
                     ),
                   ),
                   const SizedBox(width: space3),
-                  Text(
-                    relativeTime(value.createdAt) +
-                        (value.replyCount > 0
-                            ? ' · ${value.replyCount} ${value.replyCount == 1 ? 'reply' : 'replies'}'
-                            : ''),
-                    style: theme.labelSmall!.asLink(palette),
+                  PostMeta(
+                    createdAt: value.createdAt,
+                    replyCount: value.replyCount,
+                    style: theme.labelSmall!,
+                    onTap: () => context.push('/post/$parentId'),
                   ),
                 ],
               ),
