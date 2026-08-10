@@ -84,6 +84,12 @@ Future<void> settle(WidgetTester tester) async {
   await tester.pump(const Duration(milliseconds: 350));
 }
 
+/// Opens the actions overflow, where everything but reply now lives.
+Future<void> openMenu(WidgetTester tester) async {
+  await tester.tap(find.byIcon(Icons.more_horiz));
+  await settle(tester);
+}
+
 /// A button that opens the sheet under test, so the sheet gets a real route.
 Widget opens(Future<void> Function(BuildContext) open) => Builder(
   builder: (context) => TextButton(onPressed: () => open(context), child: const Text('open')),
@@ -101,17 +107,19 @@ void main() {
       await settle(tester);
     }
 
+    // Signed out there is nothing to put in a menu, so there is no menu.
     await show(null, samplePost(handle: 'someone'));
     expect(find.text('reply'), findsOneWidget);
-    expect(find.text('report'), findsNothing);
-    expect(find.text('edit'), findsNothing);
-    expect(find.text('delete'), findsNothing);
+    expect(find.byIcon(Icons.more_horiz), findsNothing);
 
     await show(signedIn, samplePost(handle: 'someone'));
+    expect(find.text('report'), findsNothing, reason: 'not until the menu is opened');
+    await openMenu(tester);
     expect(find.text('report'), findsOneWidget);
     expect(find.text('edit'), findsNothing);
 
     await show(signedIn, samplePost(handle: 'me'));
+    await openMenu(tester);
     expect(find.text('edit'), findsOneWidget);
     expect(find.text('delete'), findsOneWidget);
     expect(find.text('report'), findsNothing);
@@ -221,6 +229,7 @@ void main() {
     );
     await settle(tester);
 
+    await openMenu(tester);
     await tester.tap(find.text('delete'));
     await settle(tester);
     expect(find.text('Delete this post'), findsOneWidget);
@@ -229,7 +238,8 @@ void main() {
     await settle(tester);
     expect(http.calls, isEmpty);
 
-    await tester.tap(find.text('delete').first);
+    await openMenu(tester);
+    await tester.tap(find.text('delete'));
     await settle(tester);
     await tester.tap(find.widgetWithText(TextButton, 'delete'));
     await settle(tester);
@@ -250,6 +260,7 @@ void main() {
     );
     await settle(tester);
 
+    await openMenu(tester);
     await tester.tap(find.text('report'));
     await settle(tester);
     expect(find.text('report @someone'), findsOneWidget);
