@@ -31,6 +31,7 @@ final class Palette extends ThemeExtension<Palette> {
     required this.unfollowBg,
     required this.disabledBg,
     required this.disabledInk,
+    required this.selfInk,
   });
 
   final String name;
@@ -52,6 +53,9 @@ final class Palette extends ThemeExtension<Palette> {
   final Color unfollowBg;
   final Color disabledBg;
   final Color disabledInk;
+
+  /// Your own handle, so you can tell at a glance which posts in a thread are yours.
+  final Color selfInk;
 
   /// Links are accent-coloured but underlined in a *quieter* colour — the detail
   /// that keeps a dense monospace feed from looking like a wall of one hue.
@@ -77,6 +81,7 @@ final class Palette extends ThemeExtension<Palette> {
     unfollowBg: Color(0xff65775e),
     disabledBg: Color(0xffd9dbd4),
     disabledInk: Color(0xff777d73),
+    selfInk: Color(0xff2f6f5f),
   );
 
   static const dark = Palette(
@@ -99,6 +104,7 @@ final class Palette extends ThemeExtension<Palette> {
     unfollowBg: Color(0xff58705a),
     disabledBg: Color(0xff292f29),
     disabledInk: Color(0xff747c72),
+    selfInk: Color(0xff7fd1bd),
   );
 
   /// Warm paper. Same bones as `light`, aged.
@@ -122,6 +128,7 @@ final class Palette extends ThemeExtension<Palette> {
     unfollowBg: Color(0xff8a7550),
     disabledBg: Color(0xffe0d4b8),
     disabledInk: Color(0xff8c7a5e),
+    selfInk: Color(0xff2f6f5f),
   );
 
   /// The canonical Dracula values, mapped onto textlog's roles.
@@ -145,6 +152,7 @@ final class Palette extends ThemeExtension<Palette> {
     unfollowBg: Color(0xff6272a4),
     disabledBg: Color(0xff343746),
     disabledInk: Color(0xff6272a4),
+    selfInk: Color(0xff50fa7b),
   );
 
   static const all = [light, dark, sepia, dracula];
@@ -188,6 +196,7 @@ final class Palette extends ThemeExtension<Palette> {
     unfollowBg: unfollowBg,
     disabledBg: disabledBg,
     disabledInk: disabledInk,
+    selfInk: selfInk,
   );
 
   @override
@@ -214,6 +223,7 @@ final class Palette extends ThemeExtension<Palette> {
       unfollowBg: mix(unfollowBg, other.unfollowBg),
       disabledBg: mix(disabledBg, other.disabledBg),
       disabledInk: mix(disabledInk, other.disabledInk),
+      selfInk: mix(selfInk, other.selfInk),
     );
   }
 }
@@ -330,6 +340,7 @@ extension LinkStyle on TextStyle {
     color: palette.accent,
     decoration: TextDecoration.underline,
     decorationColor: palette.linkBorder,
+    decorationThickness: 1,
   );
 }
 
