@@ -22,6 +22,9 @@ void cacheFor(Ref<Object?> ref, Duration duration) {
   });
 }
 
+/// Clock seam, so tests can age the cache without waiting.
+final nowProvider = Provider<DateTime Function()>((ref) => DateTime.now);
+
 const feedCacheDuration = Duration(minutes: 5);
 const postCacheDuration = Duration(minutes: 5);
 

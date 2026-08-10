@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/feed_source.dart';
 import '../core/models.dart';
 import 'cache.dart';
+import 'rate_limit.dart';
 import 'providers.dart';
 
 final class FeedState {
@@ -66,9 +67,17 @@ class FeedNotifier extends AutoDisposeFamilyAsyncNotifier<FeedState, FeedSource>
     return FeedState(posts: page.items, cursor: page.nextCursor);
   }
 
-  Future<void> loadMore() async {
+  /// [asked] means the reader tapped retry, the one case that ignores both the
+  /// last error and a tripped limit.
+  Future<void> loadMore({bool asked = false}) async {
     final current = state.valueOrNull;
     if (current == null || !current.hasMore || current.loadingMore) return;
+
+    if (!asked) {
+      // The scroll listener fires on every frame near the bottom.
+      if (current.loadMoreError != null) return;
+      if (ref.read(rateLimitProvider).isTripped(ref.read(nowProvider)())) return;
+    }
 
     state = AsyncData(current.copyWith(loadingMore: true));
     try {

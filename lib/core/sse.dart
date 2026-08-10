@@ -43,3 +43,17 @@ Stream<String> sseDataOf(Stream<String> lines, String eventName) async* {
     }
   }
 }
+
+/// The server answered the firehose with something other than a stream. Carries the
+/// status so the reconnect loop can tell "slow down" from "try again".
+final class FirehoseRefused implements Exception {
+  const FirehoseRefused(this.status, {this.retryAfter});
+
+  final int status;
+  final Duration? retryAfter;
+
+  bool get isRateLimited => status == 429;
+
+  @override
+  String toString() => 'firehose refused ($status)';
+}

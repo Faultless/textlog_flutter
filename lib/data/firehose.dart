@@ -20,6 +20,9 @@ const _reconnectDelay = Duration(seconds: 1);
 const _minBackoff = Duration(seconds: 2);
 const _maxBackoff = Duration(seconds: 30);
 
+/// Ceiling on an obeyed `Retry-After`, so the live tab always comes back.
+const _maxWait = Duration(minutes: 2);
+
 sealed class FirehoseEvent {
   const FirehoseEvent();
 }
@@ -40,6 +43,7 @@ Stream<FirehoseEvent> firehose() async* {
 
   while (true) {
     var connected = false;
+    Duration? askedToWait;
     try {
       await for (final frame in connectFirehose(apiBase.resolve('firehose'))) {
         switch (frame) {
@@ -51,11 +55,17 @@ Stream<FirehoseEvent> firehose() async* {
             yield FirehosePost(Post.fromJson(jsonDecode(json) as Map<String, dynamic>));
         }
       }
+    } on FirehoseRefused catch (refused) {
+      // A limit is the one refusal that says how long.
+      if (refused.isRateLimited) askedToWait = refused.retryAfter ?? _maxBackoff;
     } catch (_) {
       // Fall through: a dropped stream is expected here, not fatal.
     }
 
-    if (connected) {
+    if (askedToWait != null) {
+      await Future<void>.delayed(askedToWait > _maxWait ? _maxWait : askedToWait);
+      backoff = _minBackoff;
+    } else if (connected) {
       await Future<void>.delayed(_reconnectDelay);
     } else {
       await Future<void>.delayed(backoff);
