@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/body_tokens.dart';
 import '../../core/reply_tree.dart';
 import '../../state/thread.dart';
 import '../theme.dart';
 import 'post_actions.dart';
 import 'post_body.dart';
+import 'post_meta.dart';
+import 'pressable.dart';
 
 /// `.reply-branch` — siblings share one hairline rail, indented by a gutter.
 class ReplyBranch extends StatelessWidget {
@@ -55,7 +56,6 @@ class _NodeState extends ConsumerState<_Node> {
   @override
   Widget build(BuildContext context) {
     final node = widget.node;
-    final palette = context.palette;
     final theme = Theme.of(context).textTheme;
     final meta = theme.bodySmall!;
     final foldable = node.children.isNotEmpty;
@@ -79,41 +79,15 @@ class _NodeState extends ConsumerState<_Node> {
                 runSpacing: space2,
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  GestureDetector(
-                    onTap: () => context.push('/u/${node.post.author.handle}'),
-                    child: Text(
-                      '@${node.post.author.handle}',
-                      style: meta.asLink(palette).copyWith(color: palette.ink),
-                    ),
-                  ),
-                  GestureDetector(
+                  HandleLink(node.post.author.handle, style: meta),
+                  PostMeta(
+                    createdAt: node.post.createdAt,
+                    replyCount: 0,
+                    style: meta,
                     onTap: () => context.push('/post/${node.post.id}'),
-                    child: Text(relativeTime(node.post.createdAt), style: meta.asLink(palette)),
                   ),
                   ...postActions(context, ref, node.post, style: meta),
-                  if (foldable) ...[
-                    // `container: true` or Flutter merges this into the reply's
-                    // text and the control disappears for screen readers.
-                    Semantics(
-                      container: true,
-                      button: true,
-                      excludeSemantics: true,
-                      label: _folded ? 'expand replies' : 'fold replies',
-                      child: GestureDetector(
-                        onTap: () => setState(() => _folded = !_folded),
-                        behavior: HitTestBehavior.opaque,
-                        child: Padding(
-                          // A single glyph is far too small a target on a phone.
-                          padding: const EdgeInsets.symmetric(horizontal: space2),
-                          child: Text(
-                            // `−` open, `+` folded, as the site does.
-                            _folded ? '+' : '−',
-                            style: meta.copyWith(color: palette.muted),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+                  if (foldable) _Fold(_folded, () => setState(() => _folded = !_folded)),
                 ],
               ),
               const SizedBox(height: space2),
@@ -143,6 +117,44 @@ class _More extends ConsumerStatefulWidget {
   ConsumerState<_More> createState() => _MoreState();
 }
 
+/// `−` open, `+` folded, as the site does, boxed so it reads as a control rather
+/// than a stray character in the meta line.
+class _Fold extends StatelessWidget {
+  const _Fold(this.folded, this.onTap);
+
+  final bool folded;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final meta = Theme.of(context).textTheme.bodySmall!;
+
+    return Pressable(
+      onTap: onTap,
+      semanticLabel: folded ? 'expand replies' : 'fold replies',
+      builder: (context, pressed) => Container(
+        // Fixed, so `+` and `−` do not resize the control as it toggles.
+        width: 22,
+        height: 20,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: pressed ? palette.tagBg : Colors.transparent,
+          border: Border.all(color: pressed ? palette.accent : palette.soft),
+        ),
+        child: Text(
+          folded ? '+' : '−',
+          textAlign: TextAlign.center,
+          style: meta.copyWith(
+            color: pressed ? palette.accent : palette.muted,
+            height: 1,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _MoreState extends ConsumerState<_More> {
   var _loading = false;
 
@@ -164,16 +176,17 @@ class _MoreState extends ConsumerState<_More> {
 
     return Padding(
       padding: EdgeInsets.only(left: space3 + gutterOf(context), bottom: space4),
-      child: GestureDetector(
+      child: Pressable(
         onTap: _loading
             ? null
             : canLoadHere
             ? _load
             : () => context.push('/post/${widget.node.post.id}'),
-        behavior: HitTestBehavior.opaque,
-        child: Text(
+        builder: (context, pressed) => Text(
           _loading ? 'loading…' : '+ $replies',
-          style: Theme.of(context).textTheme.bodySmall!.asLink(palette),
+          style: Theme.of(context).textTheme.bodySmall!
+              .asLink(palette)
+              .copyWith(color: pressed ? palette.accentDark : null),
         ),
       ),
     );
