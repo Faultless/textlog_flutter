@@ -119,7 +119,10 @@ class _Footer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (state.loadMoreError != null) {
-      return StatusMessage(messageFor(state.loadMoreError!), onRetry: notifier.loadMore);
+      return StatusMessage(
+        messageFor(state.loadMoreError!),
+        onRetry: () => notifier.loadMore(asked: true),
+      );
     }
     if (state.hasMore) return const Spinner();
     return const SizedBox(height: space6);

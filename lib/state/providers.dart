@@ -6,6 +6,7 @@ import '../core/models.dart';
 import '../data/api.dart';
 import '../data/firehose.dart';
 import 'cache.dart';
+import 'rate_limit.dart';
 
 /// Override this in tests to run the whole app against a fake server.
 final httpClientProvider = Provider<http.Client>((ref) {
@@ -14,7 +15,20 @@ final httpClientProvider = Provider<http.Client>((ref) {
   return client;
 });
 
-final apiProvider = Provider<TextlogApi>((ref) => TextlogApi(ref.watch(httpClientProvider)));
+final apiProvider = Provider<TextlogApi>((ref) {
+  final gate = ref.watch(rateLimitProvider);
+  return TextlogApi(
+    ref.watch(httpClientProvider),
+    onResult: (failure) {
+      final now = ref.read(nowProvider)();
+      if (failure == null) {
+        gate.clear();
+      } else if (failure.isRateLimited) {
+        gate.trip(now, failure.retryAfter);
+      }
+    },
+  );
+});
 
 /// Served from [PostCache] when the post was already on screen, which is the usual
 /// case — you tapped it, or it is the parent of a reply you are looking at.

@@ -5,6 +5,10 @@ import '../core/models.dart';
 import '../core/reply_tree.dart';
 import 'cache.dart';
 import 'providers.dart';
+import 'rate_limit.dart';
+
+// Lived here first; kept exported so importers do not care that it moved.
+export 'cache.dart' show nowProvider;
 
 /// How many levels to nest before a branch becomes a "N more replies" link.
 const maxThreadDepth = 5;
@@ -27,9 +31,6 @@ enum ThreadFetch {
   /// one path where "nothing happened" is the wrong answer.
   force,
 }
-
-/// Clock seam, so tests can age the cache without waiting.
-final nowProvider = Provider<DateTime Function()>((ref) => DateTime.now);
 
 final threadProvider =
     AsyncNotifierProvider.autoDispose.family<ThreadNotifier, List<ReplyNode>, int>(
@@ -70,8 +71,11 @@ class ThreadNotifier extends AutoDisposeFamilyAsyncNotifier<List<ReplyNode>, int
   }
 
   bool _hasStaleEntries() {
-    final cache = ref.read(repliesCacheProvider);
     final now = ref.read(nowProvider)();
+    // Refreshing behind the reader is a courtesy, not worth the allowance.
+    if (ref.read(rateLimitProvider).isTripped(now)) return false;
+
+    final cache = ref.read(repliesCacheProvider);
     return _visited.any((id) => cache[id]?.isStale(now) ?? false);
   }
 

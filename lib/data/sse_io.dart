@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../core/sse.dart';
+import 'api.dart';
 
 /// Mobile/desktop transport: a long-lived streamed GET, split into lines.
 Stream<FirehoseFrame> connectFirehose(Uri url) async* {
@@ -11,7 +12,7 @@ Stream<FirehoseFrame> connectFirehose(Uri url) async* {
     final request = http.Request('GET', url)..headers['accept'] = 'text/event-stream';
     final response = await client.send(request);
     if (response.statusCode != 200) {
-      throw http.ClientException('firehose refused (${response.statusCode})', url);
+      throw FirehoseRefused(response.statusCode, retryAfter: retryAfterOf(response.headers));
     }
 
     yield const FirehoseOpened();
