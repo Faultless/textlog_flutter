@@ -8,6 +8,7 @@ import '../theme.dart';
 import 'post_actions.dart';
 import 'poll_view.dart';
 import 'post_body.dart';
+import 'post_tile.dart';
 import 'post_meta.dart';
 import 'pressable.dart';
 
@@ -186,6 +187,42 @@ class _MoreState extends ConsumerState<_More> {
               .copyWith(color: pressed ? palette.accentDark : null),
         ),
       ),
+    );
+  }
+}
+
+/// The same replies with the nesting dropped, in the order they were written.
+///
+/// The site offers this; on a phone it is arguably the better default for a deep
+/// thread, because five levels of rail leaves very little room for the words.
+class FlatReplies extends StatelessWidget {
+  const FlatReplies(this.nodes, {super.key, required this.rootId});
+
+  final List<ReplyNode> nodes;
+  final int rootId;
+
+  @override
+  Widget build(BuildContext context) {
+    final flattened = <ReplyNode>[];
+    void visit(List<ReplyNode> branch) {
+      for (final node in branch) {
+        flattened.add(node);
+        visit(node.children);
+      }
+    }
+    visit(nodes);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final node in flattened)
+          PostTile(
+            node.post,
+            // The parent is somewhere above in the list, so quoting it again would
+            // double every post on screen.
+            showParent: false,
+          ),
+      ],
     );
   }
 }

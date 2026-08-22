@@ -94,7 +94,7 @@ class _TextlogAppState extends ConsumerState<TextlogApp> with WidgetsBindingObse
       theme: light,
       darkTheme: dark,
       themeMode: mode,
-      routerConfig: router,
+      routerConfig: ref.watch(routerProvider),
     );
   }
 }

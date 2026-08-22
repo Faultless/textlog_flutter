@@ -6,6 +6,7 @@ import '../../core/models.dart';
 import '../../state/cache.dart';
 import '../../state/feed.dart';
 import '../../state/providers.dart';
+import '../../state/relationships.dart';
 import '../../state/session.dart';
 import '../screens/web_action.dart';
 import '../theme.dart';
@@ -174,7 +175,7 @@ Future<void> _confirmDelete(
       parent == null ? context.go('/') : context.go('/post/$parent');
     }
   } on ApiFailure catch (failure) {
-    if (context.mounted) _toast(context, failure.message);
+    if (context.mounted) toast(context, failure.message);
   }
 }
 
@@ -225,13 +226,13 @@ Future<void> _report(BuildContext context, WidgetRef ref, Post post) async {
   if (session == null) return;
   try {
     await ref.read(apiProvider).report(session.token, post.id, reason);
-    if (context.mounted) _toast(context, 'Reported. Thank you.');
+    if (context.mounted) toast(context, 'Reported. Thank you.');
   } on ApiFailure catch (failure) {
-    if (context.mounted) _toast(context, failure.message);
+    if (context.mounted) toast(context, failure.message);
   }
 }
 
-void _toast(BuildContext context, String message) {
+void toast(BuildContext context, String message) {
   final palette = context.palette;
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
@@ -247,6 +248,10 @@ void _toast(BuildContext context, String message) {
 }
 
 /// `.button` / `.button.unfollow-button` on a profile.
+///
+/// The state comes from your own following list rather than from the profile, which
+/// does not carry it. Until that list has answered, the button says `follow …` — it
+/// would rather admit it does not know than tell you the wrong thing.
 class FollowButton extends ConsumerStatefulWidget {
   const FollowButton(this.handle, {super.key});
 
@@ -257,24 +262,28 @@ class FollowButton extends ConsumerStatefulWidget {
 }
 
 class _FollowButtonState extends ConsumerState<FollowButton> {
-  bool? _following;
+  /// Set once we have acted, so the button never flickers back while the list catches up.
+  bool? _pending;
   var _busy = false;
 
-  Future<void> _toggle() async {
+  Future<void> _toggle(bool following) async {
     final session = ref.read(sessionProvider).valueOrNull;
     if (session == null || _busy) return;
-    final next = !(_following ?? false);
+    final next = !following;
 
     setState(() {
       _busy = true;
-      _following = next;
+      _pending = next;
     });
+    // Optimistic, and shared: every control showing this account agrees at once.
+    ref.read(relationshipsProvider.notifier).noteFollow(widget.handle, following: next);
     try {
       await ref.read(apiProvider).follow(session.token, widget.handle, following: next);
     } on ApiFailure catch (failure) {
+      ref.read(relationshipsProvider.notifier).noteFollow(widget.handle, following: following);
       if (mounted) {
-        setState(() => _following = !next);
-        _toast(context, failure.message);
+        setState(() => _pending = following);
+        toast(context, failure.message);
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -286,11 +295,90 @@ class _FollowButtonState extends ConsumerState<FollowButton> {
     final session = ref.watch(sessionProvider).valueOrNull;
     if (session == null || session.account.handle == widget.handle) return const SizedBox.shrink();
 
-    final following = _following ?? false;
+    final known = _pending ?? ref.watch(followsProvider(widget.handle));
+    final following = known ?? false;
     return TextlogButton(
-      following ? 'unfollow' : 'follow →',
+      // The arrow is the site's "this does something" marker, and it is held back
+      // until the answer is actually known — so a button that is about to say
+      // `unfollow` never first claims the opposite in the same words.
+      following ? 'unfollow' : (known == null ? 'follow' : 'follow →'),
       tone: following ? ButtonTone.unfollow : ButtonTone.primary,
-      onPressed: _busy ? null : _toggle,
+      // Following twice is idempotent on the server, so the tap works either way.
+      onPressed: _busy ? null : () => _toggle(following),
     );
   }
+}
+
+/// `block` / `unblock`, which the site keeps well away from `follow`.
+///
+/// Blocking is destructive enough to confirm, and it drops the follow with it — the
+/// server does that, so the local sets do too.
+class BlockAction extends ConsumerWidget {
+  const BlockAction(this.handle, {super.key, this.style, this.onChanged});
+
+  final String handle;
+  final TextStyle? style;
+
+  /// Called after a successful change, so a block list can drop the row in place.
+  final void Function(bool blocked)? onChanged;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = context.palette;
+    final theme = style ?? Theme.of(context).textTheme.bodySmall!;
+    final session = ref.watch(sessionProvider).valueOrNull;
+    if (session == null || session.account.handle == handle) return const SizedBox.shrink();
+
+    final blocked = ref.watch(blocksProvider(handle)) ?? false;
+
+    return Pressable(
+      onTap: () async {
+        if (!blocked && !await _confirmBlock(context, handle)) return;
+        ref.read(relationshipsProvider.notifier).noteBlock(handle, blocked: !blocked);
+        try {
+          await ref.read(apiProvider).block(session.token, handle, blocked: !blocked);
+          onChanged?.call(!blocked);
+        } on ApiFailure catch (failure) {
+          ref.read(relationshipsProvider.notifier).noteBlock(handle, blocked: blocked);
+          if (context.mounted) toast(context, failure.message);
+        }
+      },
+      builder: (context, pressed) => Text(
+        blocked ? 'unblock' : 'block',
+        style: theme.asLink(palette).copyWith(
+          color: pressed ? palette.accent : (blocked ? palette.muted : palette.errorInk),
+        ),
+      ),
+    );
+  }
+}
+
+Future<bool> _confirmBlock(BuildContext context, String handle) async {
+  final palette = context.palette;
+  final theme = Theme.of(context).textTheme;
+
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      backgroundColor: palette.panel,
+      shape: const RoundedRectangleBorder(),
+      title: Text('Block @$handle', style: theme.bodyMedium),
+      content: Text(
+        'You will not see their posts and they will not see yours. '
+        'If you follow them, that ends too.',
+        style: theme.bodySmall!.copyWith(color: palette.quoteInk, height: 1.55),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: Text('cancel', style: theme.bodySmall!.copyWith(color: palette.muted)),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context, true),
+          child: Text('block', style: theme.bodySmall!.copyWith(color: palette.errorInk)),
+        ),
+      ],
+    ),
+  );
+  return confirmed ?? false;
 }

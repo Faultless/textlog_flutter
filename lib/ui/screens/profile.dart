@@ -1,43 +1,114 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/feed_source.dart';
 import '../../core/models.dart';
-import '../../state/identity.dart';
-import '../../state/session.dart';
+import '../../state/people.dart';
 import '../../state/providers.dart';
+import '../../state/session.dart';
 import '../theme.dart';
+import '../widgets/bio_sheet.dart';
 import '../widgets/feed_view.dart';
-import '../widgets/shell.dart';
+import '../widgets/people_list.dart';
 import '../widgets/post_actions.dart';
+import '../widgets/post_body.dart';
+import '../widgets/shell.dart';
 import '../widgets/status.dart';
 import 'web_action.dart';
 
+/// The tabs the site puts on a profile. `tags` is ours: the server exposes the
+/// hashtags an account follows and the site only shows the count, but on a phone that
+/// list is a genuinely useful way to find your way around.
+enum ProfileTab {
+  notes('notes'),
+  replies('replies'),
+  following('following'),
+  followers('followers'),
+  tags('tags'),
+  blocked('blocked');
+
+  const ProfileTab(this.label);
+  final String label;
+
+  /// The block list is yours alone — the server returns 403 for anybody else's.
+  bool get selfOnly => this == ProfileTab.blocked;
+
+  static ProfileTab fromName(String? name) =>
+      values.where((tab) => tab.name == name).firstOrNull ?? ProfileTab.notes;
+}
+
 class ProfileScreen extends ConsumerWidget {
-  const ProfileScreen({super.key, required this.handle, this.isSelf = false});
+  const ProfileScreen({
+    super.key,
+    required this.handle,
+    this.isSelf = false,
+    this.tab = ProfileTab.notes,
+  });
 
   final String handle;
   final bool isSelf;
+  final ProfileTab tab;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profile = ref.watch(profileProvider(handle));
+    final mine = ref.watch(viewerHandleProvider) == handle;
+    final tabs = ProfileTab.values.where((entry) => mine || !entry.selfOnly).toList();
+    final active = tabs.contains(tab) ? tab : ProfileTab.notes;
+
+    final header = switch (profile) {
+      AsyncData(:final value) => _Header(value, isSelf: mine),
+      AsyncError(:final error) => StatusMessage(messageFor(error)),
+      _ => const Spinner(),
+    };
 
     return Scaffold(
       appBar: textlogAppBar(context, path: '/u/$handle', showBack: !isSelf),
-      body: FeedView(
-        NotesFeed(handle),
-        emptyMessage: 'No posts yet.',
-        header: SliverToBoxAdapter(
-          child: switch (profile) {
-            AsyncData(:final value) => _Header(value, isSelf: isSelf),
-            AsyncError(:final error) => StatusMessage(messageFor(error)),
-            _ => const Spinner(),
-          },
-        ),
+      body: Column(
+        children: [
+          // The header scrolls with the notes tab, where it reads as part of the page,
+          // and is pinned above the lists, where a header that scrolls away with a
+          // list of a thousand followers would be a nuisance.
+          if (active != ProfileTab.notes) header,
+          FeedTabs(
+            tabs: [for (final entry in tabs) TabSpec(entry.label, entry.name)],
+            active: tabs.indexOf(active),
+            onSelect: (index) => context.go(
+              '/u/$handle${tabs[index] == ProfileTab.notes ? '' : '?tab=${tabs[index].name}'}',
+            ),
+          ),
+          Expanded(child: _pane(active, header)),
+        ],
       ),
     );
   }
+
+  Widget _pane(ProfileTab tab, Widget header) => switch (tab) {
+    ProfileTab.notes => FeedView(
+      NotesFeed(handle),
+      emptyMessage: 'No notes yet.',
+      header: SliverToBoxAdapter(child: header),
+    ),
+    ProfileTab.replies => FeedView(
+      UserRepliesFeed(handle),
+      emptyMessage: 'No replies yet.',
+    ),
+    ProfileTab.following => PeopleList(
+      PeopleSource.following(handle),
+      emptyMessage: 'Not following anyone yet.',
+    ),
+    ProfileTab.followers => PeopleList(
+      PeopleSource.followers(handle),
+      emptyMessage: 'No followers yet.',
+    ),
+    ProfileTab.tags => FollowedTagsList(handle),
+    ProfileTab.blocked => PeopleList(
+      PeopleSource.blocks(handle),
+      emptyMessage: 'You have not blocked anyone.',
+      unblockable: true,
+    ),
+  };
 }
 
 class _Header extends ConsumerWidget {
@@ -57,48 +128,73 @@ class _Header extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
                 child: Text.rich(
                   TextSpan(
                     children: [
-                      TextSpan(
-                        text: '@',
-                        style: TextStyle(color: palette.accent),
-                      ),
+                      TextSpan(text: '@', style: TextStyle(color: palette.accent)),
                       TextSpan(text: profile.handle),
                     ],
                   ),
                   style: theme.titleLarge,
                 ),
               ),
-              if (isSelf) ...[
-                GestureDetector(
-                  onTap: () => openAccount(ref),
-                  child: Text('account', style: theme.bodySmall!.asLink(palette)),
+              if (isSelf)
+                Wrap(
+                  spacing: space4,
+                  children: [
+                    GestureDetector(
+                      onTap: () => showBioSheet(context),
+                      child: Text('edit bio', style: theme.bodySmall!.asLink(palette)),
+                    ),
+                    GestureDetector(
+                      onTap: () => openAccount(ref),
+                      child: Text('account', style: theme.bodySmall!.asLink(palette)),
+                    ),
+                  ],
+                )
+              else
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    FollowButton(profile.handle),
+                    const SizedBox(height: space2),
+                    BlockAction(profile.handle, style: theme.labelSmall!),
+                  ],
                 ),
-                const SizedBox(width: space4),
-                GestureDetector(
-                  onTap: () => _confirmSignOut(context, ref),
-                  child: Text('log out', style: theme.bodySmall!.asLink(palette)),
-                ),
-              ] else
-                FollowButton(profile.handle),
             ],
           ),
           const SizedBox(height: space3),
-          // Bios routinely contain ASCII art, so preserve the author's spacing.
-          Text(
-            profile.bio.trim().isEmpty ? 'No bio yet.' : profile.bio,
-            style: theme.bodyMedium!.copyWith(color: palette.quoteInk),
-          ),
+          // The site linkifies a bio, and bios are full of @mentions, #hashtags and
+          // links — rendering it as flat text threw all of that away.
+          if (profile.bio.trim().isEmpty)
+            Text(
+              'No bio yet.',
+              style: theme.bodyMedium!.copyWith(color: palette.quoteInk),
+            )
+          else
+            PostBody(
+              profile.bio,
+              quiet: true,
+              style: theme.bodyMedium!.copyWith(color: palette.quoteInk),
+            ),
           const SizedBox(height: space4),
-          Text(
-            '${profile.postCount} notes · ${profile.followingUserCount} following · '
-            '${profile.followerCount} ${profile.followerCount == 1 ? 'follower' : 'followers'}',
-            style: theme.labelSmall,
+          // Every one of these numbers is a field the profile endpoint gained; the
+          // app was showing a single `following` alias for two different counts.
+          Wrap(
+            spacing: space3,
+            runSpacing: space1,
+            children: [
+              _Count(profile.postCount, 'note', 'notes'),
+              _Count(profile.repliesCount, 'reply', 'replies'),
+              _Count(profile.followingUserCount, 'following', 'following'),
+              _Count(profile.followerCount, 'follower', 'followers'),
+              _Count(profile.followingTagCount, 'hashtag', 'hashtags'),
+              if (profile.blockedUserCount case final blocked?)
+                _Count(blocked, 'blocked', 'blocked'),
+            ],
           ),
         ],
       ),
@@ -106,46 +202,16 @@ class _Header extends ConsumerWidget {
   }
 }
 
-/// Signs the app out and forgets the handle. A browser session on textlog.cc is a
-/// separate thing, so say so rather than implying this ends both.
-Future<void> _confirmSignOut(BuildContext context, WidgetRef ref) async {
-  final palette = context.palette;
-  final theme = Theme.of(context).textTheme;
+class _Count extends StatelessWidget {
+  const _Count(this.value, this.one, this.many);
 
-  final signOut = await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      backgroundColor: palette.panel,
-      shape: const RoundedRectangleBorder(),
-      title: Text('Log out', style: theme.bodyMedium),
-      content: Text(
-        'This signs the app out and forgets your handle.\n\n'
-        'A browser session on textlog.cc stays signed in. End that from account '
-        'settings if you want to log out everywhere.',
-        style: theme.bodySmall!.copyWith(color: palette.quoteInk, height: 1.55),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context, false),
-          child: Text('cancel', style: theme.bodySmall!.copyWith(color: palette.muted)),
-        ),
-        TextButton(
-          onPressed: () {
-            Navigator.pop(context, false);
-            openSessions(ref);
-          },
-          child: Text('browser sessions', style: theme.bodySmall!.copyWith(color: palette.accent)),
-        ),
-        TextButton(
-          onPressed: () => Navigator.pop(context, true),
-          child: Text('forget', style: theme.bodySmall!.copyWith(color: palette.errorInk)),
-        ),
-      ],
-    ),
+  final int value;
+  final String one;
+  final String many;
+
+  @override
+  Widget build(BuildContext context) => Text(
+    '$value ${value == 1 ? one : many}',
+    style: Theme.of(context).textTheme.labelSmall,
   );
-
-  if (signOut ?? false) {
-    await ref.read(sessionProvider.notifier).signOut();
-    await ref.read(identityProvider.notifier).forget();
-  }
 }

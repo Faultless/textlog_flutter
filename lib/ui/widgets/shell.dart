@@ -53,6 +53,12 @@ AppBar textlogAppBar(BuildContext context, {String? path, bool showBack = false}
     automaticallyImplyLeading: false,
     title: const Brand(),
     actions: [
+      IconButton(
+        tooltip: 'search',
+        visualDensity: VisualDensity.compact,
+        icon: Icon(Icons.search, size: 18, color: palette.muted),
+        onPressed: () => context.push('/search'),
+      ),
       _You(path: path),
       IconButton(
         tooltip: 'appearance',
@@ -65,13 +71,69 @@ AppBar textlogAppBar(BuildContext context, {String? path, bool showBack = false}
   );
 }
 
-/// `.feed-tabs` — muted labels, the active one inked with a 2px accent underline.
-class FeedTabs extends StatelessWidget {
-  const FeedTabs({super.key, required this.tabs, required this.active, required this.onSelect});
+/// One entry in [FeedTabs].
+final class TabSpec {
+  const TabSpec(this.label, this.path, {this.marked = false});
 
-  final List<String> tabs;
+  final String label;
+  final String path;
+
+  /// An unread marker — `.unread-dot` on the site.
+  final bool marked;
+}
+
+/// `.feed-tabs` — muted labels, the active one inked with a 2px accent underline.
+///
+/// Scrolls sideways. The site has three tabs and room for them; signed in, the app
+/// has five, and on a narrow phone a row that clips is a row with unreachable tabs.
+class FeedTabs extends StatefulWidget {
+  const FeedTabs({
+    super.key,
+    required this.tabs,
+    required this.active,
+    required this.onSelect,
+    this.trailing,
+  });
+
+  final List<TabSpec> tabs;
   final int active;
   final ValueChanged<int> onSelect;
+
+  /// `mark all as read` and friends, pinned to the right of the row.
+  final Widget? trailing;
+
+  @override
+  State<FeedTabs> createState() => _FeedTabsState();
+}
+
+class _FeedTabsState extends State<FeedTabs> {
+  final _controller = ScrollController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(FeedTabs old) {
+    super.didUpdateWidget(old);
+    // Selecting a tab that is half off screen should bring it into view.
+    if (old.active != widget.active) _reveal();
+  }
+
+  void _reveal() {
+    if (!_controller.hasClients) return;
+    final fraction = widget.tabs.isEmpty ? 0.0 : widget.active / widget.tabs.length;
+    _controller.animateTo(
+      (_controller.position.maxScrollExtent * fraction).clamp(
+        0.0,
+        _controller.position.maxScrollExtent,
+      ),
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -79,31 +141,74 @@ class FeedTabs extends StatelessWidget {
     final style = Theme.of(context).textTheme.bodySmall!;
 
     return Container(
-      padding: EdgeInsets.fromLTRB(gutterOf(context) - space3, space4, 0, 0),
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: palette.soft)),
       ),
+      padding: EdgeInsets.only(top: space4),
       child: Row(
         children: [
-          for (final (index, label) in tabs.indexed)
-            GestureDetector(
-              onTap: () => onSelect(index),
-              behavior: HitTestBehavior.opaque,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: space3, vertical: space2),
-                decoration: BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(
-                      width: 2,
-                      color: index == active ? palette.accent : Colors.transparent,
+          Expanded(
+            child: SingleChildScrollView(
+              controller: _controller,
+              scrollDirection: Axis.horizontal,
+              padding: EdgeInsets.only(left: gutterOf(context) - space3),
+              child: Row(
+                children: [
+                  for (final (index, tab) in widget.tabs.indexed)
+                    Semantics(
+                      selected: index == widget.active,
+                      button: true,
+                      child: GestureDetector(
+                        onTap: () => widget.onSelect(index),
+                        behavior: HitTestBehavior.opaque,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: space3,
+                            vertical: space2,
+                          ),
+                          decoration: BoxDecoration(
+                            border: Border(
+                              bottom: BorderSide(
+                                width: 2,
+                                color: index == widget.active
+                                    ? palette.accent
+                                    : Colors.transparent,
+                              ),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Text(
+                                tab.label,
+                                style: style.copyWith(
+                                  color: index == widget.active ? palette.ink : palette.muted,
+                                ),
+                              ),
+                              if (tab.marked) ...[
+                                const SizedBox(width: space2),
+                                // `.unread-dot`
+                                Container(
+                                  width: 6,
+                                  height: 6,
+                                  decoration: BoxDecoration(
+                                    color: palette.accent,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-                child: Text(
-                  label,
-                  style: style.copyWith(color: index == active ? palette.ink : palette.muted),
-                ),
+                ],
               ),
+            ),
+          ),
+          if (widget.trailing case final trailing?)
+            Padding(
+              padding: EdgeInsets.only(left: space3, right: gutterOf(context), bottom: space2),
+              child: trailing,
             ),
         ],
       ),

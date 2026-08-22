@@ -72,6 +72,14 @@ class SessionNotifier extends AsyncNotifier<Session?> {
     }
   }
 
+  /// Write an account we just changed straight into the session, so the screen behind
+  /// a sheet is already correct when it closes rather than flickering through a refetch.
+  void noteAccount(Account account) {
+    final current = state.valueOrNull;
+    if (current == null) return;
+    state = AsyncData(current.withAccount(account));
+  }
+
   Future<void> refresh() async {
     final token = state.valueOrNull?.token;
     if (token == null) return;

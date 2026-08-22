@@ -11,11 +11,21 @@ import 'status.dart';
 /// The whole reading experience: give it a [FeedSource] and it paginates, refreshes
 /// and recovers on its own. [header] is an optional sliver pinned above the posts.
 class FeedView extends ConsumerStatefulWidget {
-  const FeedView(this.source, {super.key, this.header, this.emptyMessage = 'Nothing here yet.'});
+  const FeedView(
+    this.source, {
+    super.key,
+    this.header,
+    this.emptyMessage = 'Nothing here yet.',
+    this.allowFilter = true,
+  });
 
   final FeedSource source;
   final Widget? header;
   final String emptyMessage;
+
+  /// Off where a server-side query already narrowed the list; filtering the results
+  /// of a search reads as the search having broken.
+  final bool allowFilter;
 
   @override
   ConsumerState<FeedView> createState() => _FeedViewState();
@@ -69,7 +79,7 @@ class _FeedViewState extends ConsumerState<FeedView> {
               SliverToBoxAdapter(child: StatusMessage(widget.emptyMessage)),
             ],
             AsyncData(:final value) => () {
-              final query = _search.text;
+              final query = widget.allowFilter ? _search.text : '';
               final posts = searchPosts(value.posts, query);
               final filtering = query.trim().isNotEmpty;
               final filter = SliverToBoxAdapter(
@@ -85,7 +95,8 @@ class _FeedViewState extends ConsumerState<FeedView> {
                 ];
               }
               return [
-                if (filtering || value.posts.length >= _searchAfter) filter,
+                if (widget.allowFilter && (filtering || value.posts.length >= _searchAfter))
+                  filter,
                 SliverList.builder(
                   itemCount: posts.length,
                   itemBuilder: (context, index) => PostTile(

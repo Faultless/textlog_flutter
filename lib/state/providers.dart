@@ -50,6 +50,13 @@ final profileProvider = FutureProvider.autoDispose.family<Profile, String>((ref,
   return ref.watch(apiProvider).profile(handle);
 });
 
+/// A hashtag's counts. Cheap, cached for the session, and never worth an error
+/// screen — the notes under it are the page.
+final tagProvider = FutureProvider.autoDispose.family<TagDetails, String>((ref, tag) {
+  cacheFor(ref, postCacheDuration);
+  return ref.watch(apiProvider).tag(tag);
+});
+
 final firehoseProvider = StreamProvider.autoDispose<FirehoseEvent>((ref) => firehose());
 
 /// Newest-first buffer of posts seen on the live stream, bounded so a tab left

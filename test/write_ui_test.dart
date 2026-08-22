@@ -283,25 +283,28 @@ void main() {
     }
 
     await show(null, 'someone');
-    expect(find.text('follow →'), findsNothing);
+    expect(find.text('follow'), findsNothing);
 
     await show(signedIn, 'me');
-    expect(find.text('follow →'), findsNothing);
+    expect(find.text('follow'), findsNothing);
 
+    // The API puts no follow state on a profile, so until our own following list
+    // answers the button holds back its arrow rather than claiming to know.
     await show(signedIn, 'someone');
-    expect(find.text('follow →'), findsOneWidget);
+    expect(find.text('follow'), findsOneWidget);
 
-    await tester.tap(find.text('follow →'));
+    await tester.tap(find.text('follow'));
     await settle(tester);
     expect(find.text('unfollow'), findsOneWidget);
 
     await tester.tap(find.text('unfollow'));
     await settle(tester);
+    // Now it is known: we just unfollowed, whatever the list walk managed.
     expect(find.text('follow →'), findsOneWidget);
-    expect(http.calls, [
-      'POST /api/v1/users/someone/follow',
-      'DELETE /api/v1/users/someone/follow',
-    ]);
+    expect(
+      http.calls.where((call) => call.endsWith('/follow')),
+      ['POST /api/v1/users/someone/follow', 'DELETE /api/v1/users/someone/follow'],
+    );
   });
 }
 
