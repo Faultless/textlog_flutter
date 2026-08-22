@@ -42,7 +42,11 @@ final class PostCache {
 
   void remember(Iterable<Post> posts) {
     for (final post in posts) {
-      _posts[post.id] = post;
+      _write(post);
+      // The server inlines the quoted parent on every post it returns. Keeping it
+      // here is what makes tapping a quote free, and it gives the quote's own meta
+      // line a chance to name who *it* was replying to.
+      if (post.parent case final parent?) _write(parent);
     }
     // Dart maps keep insertion order, so the oldest entries are simply the first.
     if (_posts.length > _limit) {
@@ -58,6 +62,16 @@ final class PostCache {
   /// Write a post we just changed straight into the cache, so the screen behind a
   /// sheet is already correct when it closes rather than flickering through a refetch.
   void replace(Post post) => _posts[post.id] = post;
+
+  /// A quoted copy carries no parent of its own, so taking it wholesale over a full
+  /// copy would lose a quote we already had. Take the fresher body and count, keep
+  /// whichever parent is actually known.
+  void _write(Post post) {
+    final held = _posts[post.id];
+    _posts[post.id] = post.parent == null && held?.parent != null
+        ? post.copyWith(parent: held!.parent)
+        : post;
+  }
 }
 
 final postCacheProvider = Provider<PostCache>((ref) => PostCache());
@@ -76,8 +90,23 @@ final class CachedReplies {
   bool isStale(DateTime now) => now.difference(fetchedAt) > repliesTtl;
 }
 
-/// Replies fetched per node. The API allows 100.
-const repliesPerNode = 50;
+/// Replies fetched per request. The API allows 100, and a depth request pulls a
+/// whole subtree, so ask for the lot.
+const repliesPerNode = 100;
+
+/// A subtree we fetched in one request, and how deep it went.
+///
+/// The per-parent lists below are what the tree is *assembled* from; this records
+/// what a single request already covered, so reopening a thread does not pay for it
+/// again — and so a deeper open than the cache holds still refetches.
+final class CachedSubtree {
+  const CachedSubtree(this.depth, this.fetchedAt);
+
+  final int depth;
+  final DateTime fetchedAt;
+
+  bool isStale(DateTime now) => now.difference(fetchedAt) > repliesTtl;
+}
 
 /// Replies keyed by the post they belong to, kept for the whole session rather than
 /// per screen.
@@ -90,6 +119,7 @@ final class RepliesCache {
   static const _limit = 200;
 
   final _byParent = <int, CachedReplies>{};
+  final _subtrees = <int, CachedSubtree>{};
   final _inFlight = <int, Future<List<Post>>>{};
 
   /// Drop cached replies that the server has since contradicted.
@@ -106,7 +136,9 @@ final class RepliesCache {
     for (final post in posts) {
       final cached = _byParent[post.id];
       if (cached == null || cached.posts.length >= repliesPerNode) continue;
-      if (post.replyCount != cached.posts.length) _byParent.remove(post.id);
+      // forget, not a bare remove: the subtree mark rooted here claimed to cover
+      // these replies, and it no longer does.
+      if (post.replyCount != cached.posts.length) forget(post.id);
     }
   }
 
@@ -135,7 +167,53 @@ final class RepliesCache {
     }
   }
 
-  void forget(int parentId) => _byParent.remove(parentId);
+  void forget(int parentId) {
+    _byParent.remove(parentId);
+    // The subtree rooted here no longer covers what it claimed. Subtrees rooted
+    // *above* this node keep their mark: assembling from them will find no entry
+    // for this parent and advertise its replies as unloaded, which is the honest
+    // answer and costs one tap rather than a refetch of the whole thread.
+    _subtrees.remove(parentId);
+  }
+
+  /// How deep the subtree rooted at [rootId] was fetched, or null if never.
+  CachedSubtree? subtree(int rootId) => _subtrees[rootId];
+
+  /// Record a one-request subtree fetch, and what each node inside it covers.
+  ///
+  /// A node three levels down a five-level fetch has two levels below it, so it is
+  /// marked as covered to depth two. That is what stops opening that node from
+  /// showing a shallower tree than a fresh request would.
+  void rememberSubtree(int rootId, int depth, DateTime now, Map<int, List<Post>> loaded) {
+    _mark(rootId, depth, now);
+    for (final entry in loaded.entries) {
+      remember(entry.key, entry.value, now);
+    }
+    // Walk down from the root, spending a level at each step.
+    var frontier = [rootId];
+    for (var remaining = depth - 1; remaining > 0 && frontier.isNotEmpty; remaining--) {
+      final next = <int>[];
+      for (final id in frontier) {
+        for (final post in loaded[id] ?? const <Post>[]) {
+          _mark(post.id, remaining, now);
+          next.add(post.id);
+        }
+      }
+      frontier = next;
+    }
+  }
+
+  void _mark(int rootId, int depth, DateTime now) {
+    final existing = _subtrees[rootId];
+    // Never downgrade: a deeper fetch already covers a shallower one.
+    if (existing != null && existing.depth >= depth && !existing.isStale(now)) return;
+    _subtrees[rootId] = CachedSubtree(depth, now);
+    if (_subtrees.length > _limit) {
+      for (final id in _subtrees.keys.take(_subtrees.length - _limit).toList()) {
+        _subtrees.remove(id);
+      }
+    }
+  }
 
   /// Apply a local change to every cached reply list holding this post. Used after an
   /// edit or a delete so threads update without waiting on the network.
