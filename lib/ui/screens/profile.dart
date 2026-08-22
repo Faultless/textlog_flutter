@@ -66,21 +66,23 @@ class ProfileScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: textlogAppBar(context, path: '/u/$handle', showBack: !isSelf),
-      body: Column(
-        children: [
-          // The header scrolls with the notes tab, where it reads as part of the page,
-          // and is pinned above the lists, where a header that scrolls away with a
-          // list of a thousand followers would be a nuisance.
-          if (active != ProfileTab.notes) header,
-          FeedTabs(
-            tabs: [for (final entry in tabs) TabSpec(entry.label, entry.name)],
-            active: tabs.indexOf(active),
-            onSelect: (index) => context.go(
-              '/u/$handle${tabs[index] == ProfileTab.notes ? '' : '?tab=${tabs[index].name}'}',
+      body: ReadingColumn(
+        child: Column(
+          children: [
+            // The header scrolls with the notes tab, where it reads as part of the
+            // page, and is pinned above the lists, where a header that scrolled away
+            // with a list of a thousand followers would be a nuisance.
+            if (active != ProfileTab.notes) header,
+            FeedTabs(
+              tabs: [for (final entry in tabs) TabSpec(entry.label, entry.name)],
+              active: tabs.indexOf(active),
+              onSelect: (index) => context.go(
+                '/u/$handle${tabs[index] == ProfileTab.notes ? '' : '?tab=${tabs[index].name}'}',
+              ),
             ),
-          ),
-          Expanded(child: _pane(active, header)),
-        ],
+            Expanded(child: _pane(active, header)),
+          ],
+        ),
       ),
     );
   }

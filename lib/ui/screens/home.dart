@@ -99,40 +99,43 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               tooltip: 'write a post',
               child: const Icon(Icons.edit, size: 16),
             ),
-      body: Column(
-        children: [
-          FeedTabs(
-            tabs: [
-              for (final entry in tabs)
-                TabSpec(
-                  entry.label,
-                  entry.path,
-                  marked: switch (entry) {
-                    HomeTab.forYou => ref.watch(activityUnreadProvider(ActivityScope.forYou)),
-                    HomeTab.toMe => ref.watch(activityUnreadProvider(ActivityScope.toMe)),
-                    _ => false,
-                  },
-                ),
-            ],
-            active: tabs.indexOf(tab),
-            onSelect: (index) => context.go(tabs[index].path),
-            trailing: switch (tab) {
-              HomeTab.forYou => const _MarkAllRead(ActivityScope.forYou),
-              HomeTab.toMe => const _MarkAllRead(ActivityScope.toMe),
-              _ => null,
-            },
-          ),
-          Expanded(
-            child: IndexedStack(
-              index: tabs.indexOf(tab),
-              sizing: StackFit.expand,
-              children: [
+      body: ReadingColumn(
+        child: Column(
+          children: [
+            FeedTabs(
+              tabs: [
                 for (final entry in tabs)
-                  if (_visited.contains(entry)) _pane(entry) else const SizedBox.shrink(),
+                  TabSpec(
+                    entry.label,
+                    entry.path,
+                    marked: switch (entry) {
+                      HomeTab.forYou =>
+                        ref.watch(activityUnreadProvider(ActivityScope.forYou)),
+                      HomeTab.toMe => ref.watch(activityUnreadProvider(ActivityScope.toMe)),
+                      _ => false,
+                    },
+                  ),
               ],
+              active: tabs.indexOf(tab),
+              onSelect: (index) => context.go(tabs[index].path),
+              trailing: switch (tab) {
+                HomeTab.forYou => const _MarkAllRead(ActivityScope.forYou),
+                HomeTab.toMe => const _MarkAllRead(ActivityScope.toMe),
+                _ => null,
+              },
             ),
-          ),
-        ],
+            Expanded(
+              child: IndexedStack(
+                index: tabs.indexOf(tab),
+                sizing: StackFit.expand,
+                children: [
+                  for (final entry in tabs)
+                    if (_visited.contains(entry)) _pane(entry) else const SizedBox.shrink(),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

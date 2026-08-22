@@ -28,8 +28,9 @@ class TagScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: textlogAppBar(context, path: '/tag/$tag', showBack: true),
-      body: FeedView(
-        TagFeed(tag),
+      body: ReadingColumn(
+        child: FeedView(
+          TagFeed(tag),
         emptyMessage: 'Nothing tagged #$tag yet.',
         header: SliverToBoxAdapter(
           child: Padding(
@@ -73,7 +74,8 @@ class TagScreen extends ConsumerWidget {
                     ],
                   ),
                 ],
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -91,9 +93,10 @@ class TagFollowersScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: textlogAppBar(context, path: '/tag/$tag', showBack: true),
-    body: Column(
-      children: [
-        Padding(
+    body: ReadingColumn(
+      child: Column(
+        children: [
+          Padding(
           padding: EdgeInsets.symmetric(horizontal: gutterOf(context), vertical: space4),
           child: Row(
             children: [
@@ -109,13 +112,14 @@ class TagFollowersScreen extends StatelessWidget {
             ],
           ),
         ),
-        Expanded(
-          child: PeopleList(
-            PeopleSource.tagFollowers(tag),
-            emptyMessage: 'Nobody follows #$tag yet.',
+          Expanded(
+            child: PeopleList(
+              PeopleSource.tagFollowers(tag),
+              emptyMessage: 'Nobody follows #$tag yet.',
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     ),
   );
 }

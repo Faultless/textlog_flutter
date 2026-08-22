@@ -32,7 +32,8 @@ class ThreadScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: textlogAppBar(context, path: '/post/$id', showBack: true),
-      body: RefreshIndicator(
+      body: ReadingColumn(
+        child: RefreshIndicator(
         color: palette.accent,
         backgroundColor: palette.panel,
         onRefresh: () async {
@@ -79,8 +80,9 @@ class ThreadScreen extends ConsumerWidget {
                 onRetry: () => ref.invalidate(threadProvider(id)),
               ),
               _ => const Spinner(),
-            },
-          ],
+              },
+            ],
+          ),
         ),
       ),
     );

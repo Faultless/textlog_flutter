@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../state/settings.dart';
 import '../theme.dart';
 import 'glyph.dart';
+import 'pressable.dart';
 
 /// A bottom sheet rather than a screen: appearance is a two-tap decision, and it
 /// should not take you out of what you were reading.
@@ -207,6 +208,27 @@ class _Chip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
+    final theme = Theme.of(context).textTheme.bodySmall!;
+
+    // Barebones: a filled pill is exactly the sort of thing this mode exists to
+    // remove, so selection is shown the way a terminal would show it.
+    if (context.chrome.plain) {
+      return Pressable(
+        onTap: onTap,
+        hitPadding: const EdgeInsets.symmetric(horizontal: space2, vertical: space3),
+        builder: (context, pressed) => Text(
+          selected ? '[*] $label' : '[ ] $label',
+          style: theme.copyWith(
+            color: pressed
+                ? palette.accent
+                : selected
+                ? palette.ink
+                : palette.muted,
+          ),
+        ),
+      );
+    }
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -217,9 +239,7 @@ class _Chip extends StatelessWidget {
         ),
         child: Text(
           label,
-          style: Theme.of(context).textTheme.bodySmall!.copyWith(
-            color: selected ? palette.bg : palette.muted,
-          ),
+          style: theme.copyWith(color: selected ? palette.bg : palette.muted),
         ),
       ),
     );
@@ -238,6 +258,7 @@ class _Swatch extends StatelessWidget {
     final palette = context.palette;
     // `theme` means "whatever this palette already uses", so show that.
     final colour = choice.forBrightness(palette.brightness) ?? palette.accent;
+    final plain = context.chrome.plain;
 
     return Semantics(
       label: choice.id,
@@ -246,10 +267,12 @@ class _Swatch extends StatelessWidget {
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          width: 30,
-          height: 30,
+          width: 34,
+          height: 34,
           decoration: BoxDecoration(
-            shape: BoxShape.circle,
+            // Barebones squares everything off; a circle is a shape the site never
+            // draws.
+            shape: plain ? BoxShape.rectangle : BoxShape.circle,
             // A ring rather than a thicker border, so the swatch colour does not
             // change size when you pick it.
             border: Border.all(
@@ -261,7 +284,10 @@ class _Swatch extends StatelessWidget {
             child: Container(
               width: selected ? 18 : 22,
               height: selected ? 18 : 22,
-              decoration: BoxDecoration(color: colour, shape: BoxShape.circle),
+              decoration: BoxDecoration(
+                color: colour,
+                shape: plain ? BoxShape.rectangle : BoxShape.circle,
+              ),
             ),
           ),
         ),

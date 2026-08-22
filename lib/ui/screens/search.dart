@@ -65,8 +65,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
     return Scaffold(
       appBar: textlogAppBar(context, path: '/search', showBack: true),
-      body: Column(
-        children: [
+      body: ReadingColumn(
+        child: Column(
+          children: [
           Container(
             padding: EdgeInsets.symmetric(horizontal: gutterOf(context), vertical: space3),
             decoration: BoxDecoration(
@@ -111,20 +112,21 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               ],
             ),
           ),
-          Expanded(
-            child: _submitted.isEmpty
-                ? const StatusMessage(
-                    'Search posts by any words in them, a handle, or a #hashtag.',
-                  )
-                : FeedView(
-                    SearchFeed(_submitted),
-                    // Server-side search already narrowed this; a second filter on
-                    // top of it would only be confusing.
-                    allowFilter: false,
-                    emptyMessage: 'Nothing matches that.',
-                  ),
-          ),
-        ],
+            Expanded(
+              child: _submitted.isEmpty
+                  ? const StatusMessage(
+                      'Search posts by any words in them, a handle, or a #hashtag.',
+                    )
+                  : FeedView(
+                      SearchFeed(_submitted),
+                      // Server-side search already narrowed this; a second filter on
+                      // top of it would only be confusing.
+                      allowFilter: false,
+                      emptyMessage: 'Nothing matches that.',
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }

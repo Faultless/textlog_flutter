@@ -28,7 +28,7 @@ class MeScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: textlogAppBar(context, path: '/enter', showBack: true),
-      body: const SingleChildScrollView(child: SignInCard()),
+      body: const ReadingColumn(child: SingleChildScrollView(child: SignInCard())),
     );
   }
 }

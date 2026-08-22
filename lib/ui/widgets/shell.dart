@@ -27,19 +27,49 @@ class Brand extends StatelessWidget {
             // The prompt glyph from textlog.svg, drawn as type so there is no
             // SVG dependency for a two-character mark.
             TextSpan(
-              text: '>_ ',
+              text: '>_',
               style: TextStyle(color: context.palette.accent),
             ),
-            const TextSpan(text: 'textlog'),
+            // On the narrowest phones the mark alone is better than half a word:
+            // the controls on the right matter more than the wordmark.
+            if (MediaQuery.sizeOf(context).width >= 360)
+              const TextSpan(text: ' textlog'),
           ],
         ),
         style: style,
+        maxLines: 1,
+        overflow: TextOverflow.clip,
+        softWrap: false,
       ),
     );
   }
 }
 
-/// The site header: wordmark left, a link out to the web app right.
+/// `header, main, .site-footer { max-width: 760px; width: 100%; margin: auto }`
+///
+/// Without this the app filled whatever width it was given, so on a laptop a post
+/// body ran a thousand pixels wide and was genuinely hard to read. The site has
+/// always had a measure; this is it.
+class ReadingColumn extends StatelessWidget {
+  const ReadingColumn({super.key, required this.child});
+
+  final Widget child;
+
+  static const maxWidth = 760.0;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: maxWidth),
+      child: child,
+    ),
+  );
+}
+
+/// The site header: wordmark left, the account and the controls right.
+///
+/// The whole row lives inside the reading column, so the wordmark lines up with the
+/// posts underneath it rather than drifting to the corner of a wide window.
 AppBar textlogAppBar(BuildContext context, {String? path, bool showBack = false}) {
   final palette = context.palette;
   return AppBar(
@@ -47,35 +77,43 @@ AppBar textlogAppBar(BuildContext context, {String? path, bool showBack = false}
     surfaceTintColor: Colors.transparent,
     elevation: 0,
     scrolledUnderElevation: 0,
-    titleSpacing: showBack ? 0 : gutterOf(context),
-    leading: showBack
-        ? IconButton(
-            tooltip: 'back',
-            icon: Glyph(Glyphs.back.$2, Glyphs.back.$1, size: 18, colour: palette.ink),
-            onPressed: () => context.canPop() ? context.pop() : context.go('/'),
-          )
-        : null,
+    titleSpacing: 0,
     automaticallyImplyLeading: false,
-    title: const Brand(),
-    actions: [
-      // Barebones has no floating button, so writing lives here — which also means
-      // it is reachable from a thread or a profile rather than only from a feed.
-      if (context.chrome.plain) const _WriteAction(),
-      IconButton(
-        tooltip: 'search',
-        visualDensity: VisualDensity.compact,
-        icon: Glyph(Glyphs.search.$2, Glyphs.search.$1, size: 18),
-        onPressed: () => context.push('/search'),
+    title: ReadingColumn(
+      child: Row(
+        children: [
+          if (showBack)
+            IconButton(
+              tooltip: 'back',
+              icon: Glyph(Glyphs.back.$2, Glyphs.back.$1, size: 18, colour: palette.ink),
+              onPressed: () => context.canPop() ? context.pop() : context.go('/'),
+            )
+          else
+            SizedBox(width: gutterOf(context)),
+          // Flexible, so on a narrow phone the wordmark gives up room rather than
+          // pushing the controls off the right edge — which is what it did at 320px.
+          const Flexible(child: Brand()),
+          const Spacer(),
+          // Barebones has no floating button, so writing lives here — which also
+          // means it is reachable from a thread or a profile, not only from a feed.
+          if (context.chrome.plain) const _WriteAction(),
+          IconButton(
+            tooltip: 'search',
+            visualDensity: VisualDensity.compact,
+            icon: Glyph(Glyphs.search.$2, Glyphs.search.$1, size: 18),
+            onPressed: () => context.push('/search'),
+          ),
+          _You(path: path),
+          IconButton(
+            tooltip: 'appearance',
+            visualDensity: VisualDensity.compact,
+            icon: Glyph(Glyphs.appearance.$2, Glyphs.appearance.$1),
+            onPressed: () => showSettings(context),
+          ),
+          SizedBox(width: gutterOf(context) - space3),
+        ],
       ),
-      _You(path: path),
-      IconButton(
-        tooltip: 'appearance',
-        visualDensity: VisualDensity.compact,
-        icon: Glyph(Glyphs.appearance.$2, Glyphs.appearance.$1),
-        onPressed: () => showSettings(context),
-      ),
-      SizedBox(width: gutterOf(context) - space3),
-    ],
+    ),
   );
 }
 
@@ -241,7 +279,8 @@ class _WriteAction extends ConsumerWidget {
         await showCompose(context);
       },
       builder: (context, pressed) => Text(
-        '+ write',
+        // Just the plus once the row is tight.
+        MediaQuery.sizeOf(context).width < 380 ? '+' : '+ write',
         style: Theme.of(context).textTheme.bodySmall!.asLink(palette).copyWith(
           color: pressed ? palette.accent : null,
         ),
@@ -267,9 +306,16 @@ class _You extends ConsumerWidget {
       child: Padding(
         // Vertical room too: in the app bar this was a 16px-tall target.
         padding: const EdgeInsets.symmetric(horizontal: space2, vertical: space3),
-        child: Text(
-          handle == null ? 'sign in' : '@$handle',
-          style: Theme.of(context).textTheme.bodySmall!.asLink(context.palette),
+        child: ConstrainedBox(
+          // Handles run to 24 characters, which at this size is most of a phone's
+          // header. Truncate rather than let it shove the controls off screen.
+          constraints: const BoxConstraints(maxWidth: 96),
+          child: Text(
+            handle == null ? 'sign in' : '@$handle',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodySmall!.asLink(context.palette),
+          ),
         ),
       ),
     );
