@@ -6,6 +6,7 @@ import '../../core/reply_tree.dart';
 import '../../state/thread.dart';
 import '../theme.dart';
 import 'post_actions.dart';
+import 'poll_view.dart';
 import 'post_body.dart';
 import 'post_meta.dart';
 import 'pressable.dart';
@@ -74,24 +75,20 @@ class _NodeState extends ConsumerState<_Node> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Wrap(
-                spacing: space3,
-                runSpacing: space2,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  HandleLink(node.post.author.handle, style: meta),
-                  PostMeta(
-                    createdAt: node.post.createdAt,
-                    replyCount: 0,
-                    style: meta,
-                    onTap: () => context.push('/post/${node.post.id}'),
-                  ),
-                  ...postActions(context, ref, node.post, style: meta),
+              PostContextLine(
+                post: node.post,
+                style: meta,
+                showReplyCount: false,
+                onTap: () => context.push('/post/${node.post.id}'),
+                trailing: [
                   if (foldable) _Fold(_folded, () => setState(() => _folded = !_folded)),
                 ],
               ),
               const SizedBox(height: space2),
               PostBody(node.post.body),
+              PollView(node.post),
+              const SizedBox(height: space3),
+              Row(children: postActions(context, ref, node.post, style: meta)),
             ],
           ),
         ),

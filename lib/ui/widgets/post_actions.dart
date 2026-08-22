@@ -41,10 +41,17 @@ List<Widget> postActions(
         await showCompose(context, kind: ComposeKind.reply, target: post);
       },
       builder: (context, pressed) => Text(
-        'reply',
+        // The site says `continue` when you are replying to yourself, and says so
+        // before you have signed in rather than offering an action that cannot work.
+        session == null
+            ? 'sign in to reply'
+            : mine
+            ? 'continue'
+            : 'reply',
         style: meta.asLink(palette).copyWith(color: pressed ? palette.accent : palette.muted),
       ),
     ),
+    const Spacer(),
     if (mine)
       PostMenu(
         style: meta,

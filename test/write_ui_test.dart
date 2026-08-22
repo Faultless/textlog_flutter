@@ -107,18 +107,22 @@ void main() {
       await settle(tester);
     }
 
-    // Signed out there is nothing to put in a menu, so there is no menu.
+    // Signed out there is nothing to put in a menu, so there is no menu — and the
+    // action says what it will actually do, as the site's `enter to reply` does.
     await show(null, samplePost(handle: 'someone'));
-    expect(find.text('reply'), findsOneWidget);
+    expect(find.text('sign in to reply'), findsOneWidget);
     expect(find.byIcon(Icons.more_horiz), findsNothing);
 
     await show(signedIn, samplePost(handle: 'someone'));
+    expect(find.text('reply'), findsOneWidget);
     expect(find.text('report'), findsNothing, reason: 'not until the menu is opened');
     await openMenu(tester);
     expect(find.text('report'), findsOneWidget);
     expect(find.text('edit'), findsNothing);
 
     await show(signedIn, samplePost(handle: 'me'));
+    // Replying to yourself is a continuation, and the site words it that way.
+    expect(find.text('continue'), findsOneWidget);
     await openMenu(tester);
     expect(find.text('edit'), findsOneWidget);
     expect(find.text('delete'), findsOneWidget);

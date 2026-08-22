@@ -9,7 +9,7 @@ final class Author {
 
   /// The server hands out `deleted-<id>` for an account that has been removed. The
   /// site renders those as `(deleted account)` rather than a link to nothing.
-  bool get isDeleted => _deletedHandle.hasMatch(handle);
+  bool get isDeleted => isDeletedHandle(handle);
 
   factory Author.fromJson(Map<String, dynamic> json) => Author(
     handle: (json['handle'] as String).toLowerCase(),
@@ -18,6 +18,10 @@ final class Author {
 }
 
 final _deletedHandle = RegExp(r'^deleted-\d+$');
+
+/// The server hands out `deleted-<id>` once an account is removed. Nothing links to
+/// one, and the site prints `(deleted account)` where the handle would go.
+bool isDeletedHandle(String handle) => _deletedHandle.hasMatch(handle);
 
 final class Post {
   const Post({

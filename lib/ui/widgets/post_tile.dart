@@ -7,12 +7,17 @@ import 'package:go_router/go_router.dart';
 import '../../core/models.dart';
 import '../theme.dart';
 import 'parent_quote.dart';
+import 'poll_view.dart';
 import 'post_actions.dart';
 import 'post_body.dart';
 import 'post_meta.dart';
 
-/// `.post` — 24px/gutter padding, hairline top rule, `@handle` and an accent
-/// timestamp above the body, and the quoted parent beneath it when this is a reply.
+/// `.post` — 24px/gutter padding, hairline top rule, the meta line in words above
+/// the body, the quoted parent beneath it, and the reply action at the foot.
+///
+/// The reply link sits at the bottom because that is where the site moved it: with a
+/// quoted parent in between, an action at the top acts on something you have not
+/// read yet.
 class PostTile extends ConsumerWidget {
   const PostTile(
     this.post, {
@@ -20,6 +25,7 @@ class PostTile extends ConsumerWidget {
     this.showTopBorder = true,
     this.large = false,
     this.isSubject = false,
+    this.showParent = true,
   });
 
   final Post post;
@@ -31,6 +37,9 @@ class PostTile extends ConsumerWidget {
   /// True when this page is about this post, which is the only case where deleting
   /// it has to navigate somewhere.
   final bool isSubject;
+
+  /// Off inside a thread, where the parent is the post above.
+  final bool showParent;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -50,21 +59,10 @@ class PostTile extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // `.posttop` — handle, time and the actions all on one line.
-            Wrap(
-              spacing: space4,
-              runSpacing: space2,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                HandleLink(post.author.handle, style: meta),
-                PostMeta(
-                  createdAt: post.createdAt,
-                  replyCount: post.replyCount,
-                  style: meta,
-                  onTap: () => context.push('/post/${post.id}'),
-                ),
-                ...postActions(context, ref, post, style: meta, isSubject: isSubject),
-              ],
+            PostContextLine(
+              post: post,
+              style: meta,
+              onTap: () => context.push('/post/${post.id}'),
             ),
             const SizedBox(height: space3),
             PostBody(
@@ -77,7 +75,15 @@ class PostTile extends ConsumerWidget {
                     )
                   : null,
             ),
-            if (post.parentId case final parentId?) ParentQuote(parentId),
+            PollView(post),
+            if (showParent)
+              if (post.parentId case final int parentId)
+                ParentQuote(parentId: parentId, parent: post.parent),
+            const SizedBox(height: space3),
+            // `.postfoot`
+            Row(
+              children: postActions(context, ref, post, style: meta, isSubject: isSubject),
+            ),
           ],
         ),
       ),
