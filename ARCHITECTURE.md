@@ -17,13 +17,21 @@ We did, in [stagas/textlog#3](https://github.com/stagas/textlog/pull/3), and it 
 Bearer tokens, `POST`/`PATCH`/`DELETE` on posts, and follow, block and report all live under
 `/api/v1/` now, so writing is native.
 
+The API has kept growing since, and the four screens this document used to list as blocked
+on the server — the personalised feed, activity, follower lists and a block list — are all
+built now. Two of the newer fields changed how the app *fetches* rather than what it shows,
+and they are the most consequential things in here: posts inline their quoted `parent`, and
+`/posts/{id}/replies` takes a `depth`. See [Quoted parents](#quoted-parents) and
+[Nested threads](#nested-threads).
+
 Two things survive from the old shape, and neither is a workaround:
 
 - **Signing up is still a browser tab.** The API refuses to create accounts, deliberately.
   That is where the server puts its abuse controls, and an app that routed around them would
   be the thing everyone was worried about.
 - **The layering held.** Adding writes touched `data/api.dart` and added `state/session.dart`.
-  Nothing in the reader assumed read-only, so nothing in the reader changed.
+  Adding four new screens touched `data/api.dart`, added three notifiers under `state/`, and
+  changed nothing about how a feed or a thread works.
 
 ## Layers
 
@@ -31,7 +39,8 @@ Dependencies point one way only — `ui` → `state` → `data` → `core`.
 
 ```
 core/    pure Dart. No Flutter, no I/O, no packages.
-         models, FeedSource, body tokenizer, SSE parser, relative time.
+         models, FeedSource, body tokenizer, block markdown, polls, post context,
+         SSE parser, relative time, the TLD table the autolinker needs.
 data/    the only code that talks to the network. api.dart + firehose transports.
 state/   Riverpod providers. Thin — they wire data into the widget tree. Session lives here.
 ui/      widgets. Pure functions of state.
@@ -43,27 +52,36 @@ tree or a server. That is most of `test/core_test.dart`, and it runs in millisec
 
 ## The keystone: `FeedSource`
 
-Every scrollable list in the app is one of five sources:
+Every scrollable list of posts in the app is one of these:
 
 ```dart
 sealed class FeedSource {}
-  LatestFeed()          -> feeds/latest
-  HotFeed()             -> feeds/hot
-  UserFeed(handle)      -> users/{handle}/posts
-  TagFeed(tag)          -> tags/{tag}/posts
-  RepliesFeed(postId)   -> posts/{id}/replies
+  LatestFeed()                    -> feeds/latest
+  HotFeed()                       -> feeds/hot
+  NotesFeed(handle)               -> users/{handle}/notes
+  UserRepliesFeed(handle)         -> users/{handle}/replies
+  TagFeed(tag)                    -> tags/{tag}/posts
+  RepliesFeed(postId, depth: n)   -> posts/{id}/replies?depth=n
+  SearchFeed(query)               -> search?q=…
 ```
 
-The server returns the same envelope for all five, so one notifier
+The server returns the same envelope for all of them, so one notifier
 (`state/feed.dart`) and one widget (`ui/widgets/feed_view.dart`) serve every feed —
 pagination, pull-to-refresh, empty states and error recovery included.
 
-**To add a sixth feed:** add the class, add its case to `pathOf`, done. The exhaustive
-`switch` in `pathOf` means the compiler tells you if you forget. No new notifier, no new
-list widget, no new error handling.
+**To add another:** add the class, add its case to `pathOf` and, if it needs query
+parameters of its own, to `queryOf`. Done. The exhaustive `switch` in both means the
+compiler tells you if you forget. No new notifier, no new list widget, no new error
+handling.
 
 `FeedSource` implements `==`/`hashCode` because it is a Riverpod family key — two
-`TagFeed('dart')` values must resolve to the same cached provider.
+`TagFeed('dart')` values must resolve to the same cached provider, and `RepliesFeed(1)`
+and `RepliesFeed(1, depth: 5)` must not.
+
+The activity feeds and the relationship lists are *not* `FeedSource`, because they return
+different shapes: `state/activity.dart` handles `{data, has_unread, pagination}` and
+`state/people.dart` handles lists of `{handle, url}`. Forcing them through one abstraction
+would have meant a `Page<dynamic>` and casts at every use.
 
 ## Conventions
 
@@ -111,21 +129,48 @@ The body tokenizer in `core/body_tokens.dart` is a direct port of the server's `
 (`src/utils.ts`), including the rule that trailing sentence punctuation stays outside a
 URL. Bodies render identically to the website.
 
-## Markdown
+## Bodies
 
-Off by default, and that default is the point: textlog escapes everything except URLs,
-mentions and hashtags, so `**bold**` really is asterisks on the site. Rendering it here
-means showing formatting the author never got, and the setting says so in as many words.
+`core/body_tokens.dart` is a port of the server's `linkTokens` / `linkify`, and
+`core/content.dart` a port of its `content.ts`. Between them they decide what a body *is*:
+which hashtags count (unicode, capped at five, ignoring anything inside code or a URL),
+whether it is ASCII art, and where a spoiler splits it.
 
-`core/markdown.dart` layers on the plain tokenizer rather than replacing it. A line is
-classified (heading / bullet / paragraph), markdown links are pulled out **first** — else
-the plain tokenizer would link the bare URL inside `[label](url)` and lose the label — and
-whatever stays plain is then scanned for emphasis. That ordering is why `**@someone**` still
-resolves to a mention.
+The split that matters is **what is always rendered versus what is opt-in**:
 
-Scope is deliberately small: bold, italic, strikethrough, links, bullets, headings. No
-nesting, no tables, no code fences. A test asserts that both paths link the same mentions,
-tags and URLs, so turning the setting on can never lose the behaviour the site has.
+- **Always**, because textlog.cc renders it, and leaving it out would show the reader
+  something the author did not write: inline `` `code` ``, ``` fences, `$x$` and `$$x$$`
+  LaTeX, `[label](url)`, `~strikethrough~` (one tilde, not just two), bare and schemeless
+  URLs, mentions, hashtags, spoilers, and polls.
+- **Behind the `markdown` setting**, because the site keeps a post body flat: headings,
+  emphasis, ordered and unordered lists, task lists, blockquotes, tables and rules.
+
+LaTeX renders through `flutter_math_fork` — TeX to Flutter widgets, no webview, works on
+web. An expression it cannot parse falls back to the source in a code run, which is what the
+site does when MathJax refuses it.
+
+Ordering inside the tokenizer is load-bearing and mirrors the server's own precedence: a
+fence beats inline code beats maths beats a markdown link beats strikethrough beats a URL
+beats a reference. Markdown links are pulled out before bare URLs or the label would be
+lost; maths is scanned outside code spans or `` `$x$` `` would render as maths. A test
+asserts that turning the setting on never changes what gets linked.
+
+Polls live in the body — a line ending `#poll`, then the options — so `core/polls.dart`
+parses them and `pollDisplayBody` strips the option lines before rendering. Without that
+the options render as ordinary text. Voting is not in the API, so an option opens the post
+on textlog.cc rather than pretending.
+
+## What a post's meta line says
+
+`core/post_context.dart` decides whether a post `wrote`, `continued`, `replied to you`,
+`replied to @someone` or `created a poll`, and whether to append `and mentioned you`. All of
+it is derivable from what the post already carries — the inlined parent and the `mentions`
+array — so the words cost nothing.
+
+A quoted parent is the one case with less to go on: the API gives a quote no parent of its
+own, so the grandparent's handle is unknown. `quotedContextOf` takes a lookup and consults
+the local post cache, which very often has it because the grandparent was just on screen.
+When it does not, the quote says less rather than costing a request.
 
 ## Live tab
 
@@ -164,9 +209,17 @@ the gap, and they never arrive. There is a test for exactly that.
 
 ## Routing
 
-Routes mirror the website (`/`, `/hot`, `/live`, `/post/:id`, `/u/:handle`, `/tag/:tag`),
-so on web every screen has a shareable URL and "open on textlog.cc" is a straight
-passthrough.
+Routes mirror the website — `/for-you`, `/to-me`, `/hot`, `/latest`, `/live`, `/search`,
+`/post/:id`, `/u/:handle?tab=…`, `/tag/:tag` — so on web every screen has a shareable URL
+and "open on textlog.cc" is a straight passthrough. `/live` is the one path the site does
+not have.
+
+`/` redirects rather than rendering: the site sends an anonymous reader to `hot` and a
+signed-in one to their own feed, so the router is built from a `Ref` and reads the session
+to answer it.
+
+Deep links need a server rewrite, which GitHub Pages does not do — the deploy workflow
+copies `index.html` to `404.html`, and that is what makes a cold load of `/post/328` work.
 
 Two web-only settings in `main.dart` earn their keep. `usePathUrlStrategy()` — without it
 web URLs are hash-based and `/tag/open_source` never reaches the router.
@@ -245,88 +298,90 @@ a test for exactly that.
 
 ## Nested threads
 
-`/posts/{id}/replies` returns **direct children only** — every item comes back with
-`parent_id` equal to the id you asked for. A nested thread is therefore assembled from one
-request per branching node; the data is not already there for free.
+`/posts/{id}/replies` takes a `depth` of 1 to 20 and returns the **whole subtree, flat** —
+every reply carrying its own `depth` and `parent_id`. So a thread is one request, and
+`state/thread.dart` groups the response by parent and hands it to the pure assembler in
+`core/reply_tree.dart`.
 
-What makes that affordable is `reply_count`: every post says how many replies it has, so we
-know which nodes are worth a request and, for the ones we skip, exactly how many are still
-down there. Nothing is silently dropped — an unvisited branch shows `+ N more replies`.
+It did not used to be. The endpoint returned direct children only, so a nested thread cost a
+request per branching node: `maxThreadRequests` was 8, the walk was breadth-first and
+concurrent, and a wide thread still ran out of budget. All of that machinery is gone.
 
-`state/thread.dart` walks breadth-first, fetching each level in parallel. A five-deep thread
-is five round trips, not one per node in series. Two ceilings keep it bounded:
-`maxThreadDepth` (5 levels, then the branch becomes a link) and `maxThreadRequests` (24, so
-a very wide thread cannot make the reader wait on dozens of calls).
+What remains is the part that was always the good idea: **`reply_count` is the change
+signal.** Every post says how many replies it has, so a node whose children the response
+could not reach — because it sat past `maxThreadDepth`, or because the 100-post page cut it
+off — shows `+ N more replies` rather than a silently short branch. Tapping it is one more
+request for that subtree.
 
-Assembly itself is pure — `core/reply_tree.dart` takes the fetched pages as a map and
-returns the tree, so the depth cap, the budget overflow and a stale `reply_count` are all
-covered by plain unit tests.
+Two subtleties in the grouping, both covered by tests:
 
-### Not spamming the replies endpoint
+- The server returns the **newest** N of the subtree. A newest-N slice can contain a reply
+  whose parent was cut off, and such an orphan cannot be placed anywhere sensible — so it is
+  dropped and its ancestor advertises the gap instead.
+- Replies come back newest-first; a thread reads oldest-first. Sorting by id ascending also
+  guarantees a parent is seen before its children, which is what makes the single grouping
+  pass work.
 
-The server allows 120 JSON requests a minute. One thread costs a request per branching
-node, so the naive version — refetch the tree every time a thread opens — rate-limits a
-reader who does nothing more unusual than browsing.
+### Not refetching what we already have
 
-`RepliesCache` holds reply pages for the whole session, keyed by the post they belong to,
-outliving the provider that fetched them. It changes the arithmetic completely: reopening
-a thread costs nothing, and following a `+ N more replies` link into a node the parent
-thread already walked costs nothing either, because those levels are already in hand.
-Measured against a real five-level thread: 10 requests cold, 0 on reopen, 0 for the
-sub-thread.
+`RepliesCache` holds two things: the direct children of each parent, and a mark recording
+that a *subtree* rooted at some id was fetched to some depth. The children are what the tree
+is assembled from; the mark is what stops reopening a thread paying for it again.
 
-Freshness is per node, not per thread, and there are three modes (`ThreadFetch`):
+The depth is recorded per node, not just per request: a node three levels into a five-level
+fetch has two levels below it, so it is marked as covered to depth two. Without that,
+opening that node's own page would reuse the cache and show a shallower tree than a fresh
+request would.
 
-- **cached** — a normal open. Reuse anything held, fetch only what is missing.
-- **revalidate** — the automatic pass on opening a thread that has aged past `repliesTtl`.
-  Refetches only the entries that are actually stale.
-- **force** — pull-to-refresh. Refetches everything.
-
-That last one exists because the first version got it wrong: refresh ran in *revalidate*
-mode, so pulling on a thread cached two minutes ago did nothing whatsoever. Someone who
-pulls has usually just been told there is a new reply, and "nothing has expired yet" is
-never the answer they wanted.
-
-### Knowing a thread changed without asking
-
-A TTL is a guess. `reply_count` is a fact, and every post carries one — feeds, the firehose
-and a single-post fetch all return a current value. `RepliesCache.noticeCounts` compares it
-against what we hold: if a post claims more replies than we have, our copy is provably out
-of date and gets dropped, so the next read refetches. No polling, and no waiting out a TTL.
-
-Nodes holding a full page are skipped, because there a disagreement could equally be
-truncation rather than staleness.
-
-The live stream gives a second, sharper signal. A post arriving on the firehose with a
-`parent_id` says that thread changed, even though the payload carries no count for the
-parent — so the parent's cached replies are dropped outright.
-
-Stale content is shown immediately and updated behind the reader rather than replaced by a
-spinner. On a micro-blog a thread that was quiet five minutes ago is almost certainly still
-quiet, and being a few seconds behind costs nothing.
-
-`fetchOnce` collapses concurrent fetches of the same node. A thread screen can build more
-than once during a route transition, and without it both builds miss the cache and both hit
-the network — which is exactly what the request log showed before it was added.
-
-The rendering mirrors the site's `.reply-branch`: siblings share one hairline rail indented
-by a gutter, and nodes with children carry the same `−` / `+` fold control. The fold needs
-`excludeSemantics: true` or Flutter merges the label into the reply's text and the control
-vanishes for screen readers.
+Invalidation is deliberately asymmetric. `forget(id)` drops that parent's children *and* the
+subtree mark rooted there, but leaves marks rooted **above** it alone — assembling from one
+of those will find no entry for the forgotten parent and advertise its replies as unloaded,
+which is the honest answer and costs one tap rather than refetching a whole thread. A
+`reply_count` that disagrees with what we hold goes through the same path.
 
 ## Quoted parents
 
-A reply renders the post it answers in a tinted box beneath it, as the site does. The feed
-endpoints return `parent_id` but not the parent, so `ParentQuote` fetches it via
-`postProvider`. Riverpod caches by id, so replies sharing a parent fetch it once, and only
-tiles that actually build ask for one. A quote is decoration: while it loads, or if the
-parent is gone, it renders nothing rather than a spinner mid-feed.
+A reply renders the post it answers in a tinted box beneath it, as the site does. **The
+server inlines it**: every post-bearing response carries its `parent`, so a feed of fifty
+replies costs one request where it used to cost fifty-one.
+
+`PostCache.remember` writes inlined parents in as well, which is what makes tapping a quote
+free. It merges rather than overwrites: a quoted copy carries no parent of its own, so
+taking it wholesale over a fuller copy would lose a grandparent we already knew.
+
+A `parent_id` with no `parent` means the parent is gone. The site prints `(deleted post)`
+and links to it; so does this.
 
 ## Known gaps
 
-- **Explore / followers / following.** HTML-only on the server; no API equivalent.
-- **Feeds refetch rather than cache across navigations.** `autoDispose` drops a feed when
-  you leave it. `ref.keepAlive()` with a disposal timer in `FeedNotifier.build` is the
-  standard fix if it starts to bite.
-- **Reply counts on quoted parents** come from the parent fetch, so a quote can briefly
-  show a count that is one behind the feed it appears in.
+- **Link previews and images.** The server stores and renders both; neither is on the API's
+  post shape, so the app cannot show them without scraping markup.
+- **Voting in a poll.** No poll endpoint in the public API — the site votes by form POST.
+  The poll is shown; an option opens the post on textlog.cc.
+- **A truncated following list.** `Relationships` walks at most five pages, and an account
+  missing from a truncated list is reported as *unknown* rather than absent — so a follow
+  button says `follow` without the arrow instead of claiming you do not follow someone you
+  do. Acting on an account settles it either way.
+- **A thread wider or deeper than one page.** 100 posts at depth 5 covers virtually
+  everything; past that, branches advertise what is missing.
+
+## Where the app deliberately differs from the site
+
+Following the site is the default, and every departure is commented at the point it happens.
+The list lives in [ROADMAP.md](ROADMAP.md#where-the-app-deliberately-differs-from-the-site);
+the short version is that a phone needs a thumb-sized tap target, a tighter reply indent, a
+flat thread view, a reading measure on a wide window, and a tab row that scrolls.
+
+## Barebones mode
+
+`Chrome` is a second `ThemeExtension` next to `Palette`, carrying `plain` and a text `scale`.
+It rides in the theme rather than being read from settings at each call site, so a plain
+`StatelessWidget` deep in the tree can ask `context.chrome.plain` without being handed a ref.
+
+Every icon in the app goes through `Glyph(icon, plain)`, so there is one place that decides
+whether you get an `Icon` or a character. Buttons, switches and spinners branch the same way.
+
+One wrinkle worth knowing: a `ThemeExtension`'s `lerp` is not consulted at `t == 0` —
+`Tween.transform` short-circuits and returns the old value — so a theme swap always costs an
+animation frame. Barebones therefore also sets `themeAnimationDuration` to zero, which is
+the behaviour that mode wants regardless.

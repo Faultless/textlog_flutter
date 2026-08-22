@@ -8,6 +8,10 @@ in that feels like it belongs on the device: native scrolling, a live feed of ne
 threads you can follow with your thumb, and posts that look exactly like they do on the
 web. Nothing more. No algorithm, no metrics, no accounts of its own.
 
+It follows the site closely and departs from it only where a phone asks for something
+different — a flat thread view, a tap target a thumb can actually hit, a reading measure on a
+wide window. Those departures are marked as such in the code.
+
 <p>
   <img width="200" alt="A nested reply thread in the sepia theme, with the post being replied to quoted beneath" src="docs/sepia-thread.jpg" />
   <img width="200" alt="The appearance menu in the dracula theme, showing theme, accent and markdown settings" src="docs/dracula-appearance.jpg" />
@@ -49,32 +53,34 @@ see [Building it for your own iPhone](#building-it-for-your-own-iphone).
 
 Read the whole thing in [ROADMAP.md](ROADMAP.md). In short:
 
-**Working today (v0.0.8)**
-- Latest and hot feeds, infinite scroll
-- Live tab — new posts stream in as they are written, and nothing is lost when the server drops the connection
-- Nested reply threads you can fold, profiles, hashtag feeds
-- Sign in with a code sent to your email, then post, reply, edit, delete, follow and report
-- Filter a loaded timeline as you type, instantly and without a request
-- Light, dark, sepia and dracula themes with a choice of accent colour
-- Optional markdown rendering, off by default
-- A choice of monospace font, and ASCII art that renders the way the site draws it
-- Threads cached for the session, so reopening one costs no requests at all
+**Working today (v0.1.0)**
+- Feeds the site has: **for you**, **to me**, hot and latest — plus a **live** tab, which the
+  website cannot have, streaming new posts as they are written
+- **Search** across every note, server side
+- Nested reply threads you can fold, with a **flat** view for when five levels of indent is
+  four too many on a phone
+- Profiles with notes, replies, following, followers and followed hashtags; hashtag pages
+  with their own counts and followers
+- Sign in with a code sent to your email, then post, reply, edit, delete, follow, block,
+  report, and edit your bio
+- Posts render the way the site renders them: inline and fenced code, **LaTeX**, markdown
+  links, strikethrough, spoilers, polls, and ASCII art on its own line grid
+- Optional block markdown on top — headings, lists, task lists, tables, quotes
+- **Barebones mode**: characters instead of icons, no ripples, no animation
+- Light, dark, sepia and dracula themes, a choice of accent, monospace face and text size
+- A whole thread in one request, quoted parents with no request at all, and threads cached
+  for the session
 
-**Next — read polish**
-- Inline code and quote spans
-- Share a post or profile
-
-**Then — the rest of accounts**
-- Block, and a list of who you have blocked
-- Signing up stays in a browser on purpose, because that is where the server puts its abuse controls
+**Next**
+- Share a post or profile through the system share sheet
+- A `for you` unread jump, the way the site's "first unread" link works
 
 **Then — distribution (v0.2.0)**
 - Automated builds attached to each release
 - iOS, once there is a way to ship it that people can actually install
 
-**Someday (v1.0.0)**
-- The personalised feed, activity, and follower lists. Each needs an endpoint textlog does
-  not have yet.
+**Signing up stays in a browser on purpose**, because that is where the server puts its
+abuse controls, and the API deliberately refuses to be a way around them.
 
 ## Development
 
