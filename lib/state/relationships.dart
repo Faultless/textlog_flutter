@@ -74,7 +74,9 @@ final relationshipsProvider =
 class RelationshipsNotifier extends AsyncNotifier<Relationships> {
   @override
   Future<Relationships> build() async {
-    final session = ref.watch(sessionProvider).valueOrNull;
+    // Awaited, not read: a session still loading is not the same as no session, and
+    // answering "not following" on the strength of that would be a wrong answer.
+    final session = await ref.watch(sessionProvider.future);
     if (session == null) return Relationships.unknown;
 
     // Failing to load these must not break a screen: without them the buttons behave

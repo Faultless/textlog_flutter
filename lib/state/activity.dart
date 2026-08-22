@@ -63,7 +63,11 @@ class ActivityNotifier
   @override
   Future<ActivityState> build(ActivityScope arg) async {
     cacheFor(ref, feedCacheDuration);
-    final token = ref.watch(sessionProvider).valueOrNull?.token;
+    // Await the session rather than reading whatever it holds right now. On a cold
+    // start it is still loading, and treating that as "not signed in" would show an
+    // empty feed for a moment and then rebuild — which also meant this provider was
+    // torn down mid-flight the first time round.
+    final token = (await ref.watch(sessionProvider.future))?.token;
     if (token == null) return const ActivityState(items: []);
 
     final page = await ref.watch(apiProvider).activities(token, arg);
