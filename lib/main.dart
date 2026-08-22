@@ -67,6 +67,7 @@ class _TextlogAppState extends ConsumerState<TextlogApp> with WidgetsBindingObse
     ThemeData themed(Palette palette) => textlogTheme(
       palette.withAccent(settings.accent.forBrightness(palette.brightness)),
       settings.font,
+      settings.chrome,
     );
 
     // `system` hands the light/dark decision to Flutter so it tracks the device
@@ -94,6 +95,9 @@ class _TextlogAppState extends ConsumerState<TextlogApp> with WidgetsBindingObse
       theme: light,
       darkTheme: dark,
       themeMode: mode,
+      // Barebones means no animation, and a theme is not an exception: crossfading
+      // into a mode whose whole point is that nothing moves would be a contradiction.
+      themeAnimationDuration: settings.barebones ? Duration.zero : kThemeAnimationDuration,
       routerConfig: ref.watch(routerProvider),
     );
   }

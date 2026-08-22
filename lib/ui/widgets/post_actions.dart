@@ -12,6 +12,7 @@ import '../screens/web_action.dart';
 import '../theme.dart';
 import 'compose_sheet.dart';
 import 'form_parts.dart';
+import 'glyph.dart';
 import 'pressable.dart';
 
 /// `reply`, plus a menu holding whatever else this post allows: `edit` and `delete`
@@ -112,8 +113,9 @@ class PostMenu extends StatelessWidget {
           ),
       ],
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: space2, vertical: space1),
-        child: Icon(Icons.more_horiz, size: 16, color: palette.muted),
+        // Room for a thumb; the glyph inside stays small.
+        padding: const EdgeInsets.symmetric(horizontal: space3, vertical: space2),
+        child: Glyph(Glyphs.more.$2, Glyphs.more.$1),
       ),
     );
   }
@@ -209,7 +211,7 @@ Future<void> _report(BuildContext context, WidgetRef ref, Post post) async {
                   onTap: () => Navigator.pop(context, value),
                   behavior: HitTestBehavior.opaque,
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: space3),
+                    padding: const EdgeInsets.symmetric(vertical: space4),
                     child: Text(value, style: theme.bodyMedium!.asLink(palette)),
                   ),
                 ),

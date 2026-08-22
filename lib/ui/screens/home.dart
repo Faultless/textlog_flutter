@@ -75,22 +75,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final tab = tabs.contains(widget.tab) ? widget.tab : HomeTab.hot;
     _visited.add(tab);
 
+    Future<void> write() async {
+      if (session == null) {
+        await openCompose(ref);
+        return;
+      }
+      await showCompose(context);
+    }
+
+    final plain = context.chrome.plain;
+
     return Scaffold(
       appBar: textlogAppBar(context, path: tab.path),
-      floatingActionButton: FloatingActionButton.small(
-        onPressed: () async {
-          if (session == null) {
-            await openCompose(ref);
-            return;
-          }
-          await showCompose(context);
-        },
-        backgroundColor: context.palette.accent,
-        foregroundColor: context.palette.bg,
-        elevation: 0,
-        tooltip: 'write a post',
-        child: const Icon(Icons.edit, size: 16),
-      ),
+      // A floating circle is the single most Material thing in the app, so barebones
+      // trades it for a `+ write` link in the tab row.
+      floatingActionButton: plain
+          ? null
+          : FloatingActionButton.small(
+              onPressed: write,
+              backgroundColor: context.palette.accent,
+              foregroundColor: context.palette.bg,
+              elevation: 0,
+              tooltip: 'write a post',
+              child: const Icon(Icons.edit, size: 16),
+            ),
       body: Column(
         children: [
           FeedTabs(

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../state/settings.dart';
 import '../theme.dart';
+import 'glyph.dart';
 
 /// A bottom sheet rather than a screen: appearance is a two-tap decision, and it
 /// should not take you out of what you were reading.
@@ -51,7 +52,7 @@ class _Settings extends ConsumerWidget {
                   IconButton(
                     tooltip: 'done',
                     visualDensity: VisualDensity.compact,
-                    icon: Icon(Icons.close, size: 18, color: palette.muted),
+                    icon: Glyph(Glyphs.close.$2, Glyphs.close.$1, size: 18),
                     onPressed: () => Navigator.of(context).pop(),
                   ),
                 ],
@@ -120,15 +121,39 @@ class _Settings extends ConsumerWidget {
                     style: theme.bodySmall!.copyWith(color: palette.quoteInk),
                   ),
                   const SizedBox(height: space5),
+                  _Label('text size'),
+                  const SizedBox(height: space3),
+                  Wrap(
+                    spacing: space2,
+                    runSpacing: space2,
+                    children: [
+                      for (final choice in TextSize.values)
+                        _Chip(
+                          label: choice.id,
+                          selected: settings.textSize == choice,
+                          onTap: () => notifier.setTextSize(choice),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: space5),
                   _Label('reading'),
                   const SizedBox(height: space2),
                   _Toggle(
                     title: 'render markdown',
-                    // Say what the trade-off is instead of leaving people to
-                    // wonder why a post looks different here than on the site.
-                    note: 'textlog.cc shows posts as plain text',
+                    // Say what the trade-off is rather than leaving people to wonder
+                    // why a post looks different here than on the site. Code, TeX,
+                    // links and strikethrough are not part of this — the site does
+                    // those, so the app always does too.
+                    note: 'headings, lists and tables, which textlog.cc keeps flat',
                     value: settings.markdown,
                     onChanged: notifier.setMarkdown,
+                  ),
+                  const SizedBox(height: space4),
+                  _Toggle(
+                    title: 'barebones',
+                    note: 'characters instead of icons, no ripples, no animation',
+                    value: settings.barebones,
+                    onChanged: notifier.setBarebones,
                   ),
                   ],
                 ),
@@ -149,11 +174,12 @@ class _Handle extends StatelessWidget {
   Widget build(BuildContext context) => Center(
     child: Container(
       width: 36,
-      height: 4,
+      height: context.chrome.plain ? 1 : 4,
       margin: const EdgeInsets.symmetric(vertical: space3),
       decoration: BoxDecoration(
         color: context.palette.soft,
-        borderRadius: BorderRadius.circular(2),
+        // A rounded pill is a Material affordance; barebones gets a rule.
+        borderRadius: context.chrome.plain ? null : BorderRadius.circular(2),
       ),
     ),
   );
@@ -278,15 +304,7 @@ class _Toggle extends StatelessWidget {
               ],
             ),
           ),
-          Switch(
-            value: value,
-            onChanged: onChanged,
-            activeThumbColor: palette.bg,
-            activeTrackColor: palette.accent,
-            inactiveThumbColor: palette.muted,
-            inactiveTrackColor: palette.bg,
-            trackOutlineColor: WidgetStatePropertyAll(palette.soft),
-          ),
+          PlainCheck(value: value, onChanged: onChanged),
         ],
       ),
     );

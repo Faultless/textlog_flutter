@@ -12,7 +12,14 @@ import 'pressable.dart';
 /// `@handle`, in its own colour when it is yours, and `you` when the site would say
 /// `you` — which it does for your own posts, so a thread reads as a conversation.
 class HandleLink extends ConsumerWidget {
-  const HandleLink(this.handle, {super.key, this.style, this.colour, this.asYou = false});
+  const HandleLink(
+    this.handle, {
+    super.key,
+    this.style,
+    this.colour,
+    this.asYou = false,
+    this.hitPadding,
+  });
 
   final String handle;
   final TextStyle? style;
@@ -22,6 +29,10 @@ class HandleLink extends ConsumerWidget {
 
   /// Render your own handle as `you`, unlinked, the way the site does.
   final bool asYou;
+
+  /// Overrides [Pressable]'s default hit box. The meta line trims the side the
+  /// punctuation sits on, so `@bob:` does not render as `@bob :`.
+  final EdgeInsets? hitPadding;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -39,6 +50,7 @@ class HandleLink extends ConsumerWidget {
 
     final ink = mine ? palette.selfInk : (colour ?? palette.ink);
     return Pressable(
+      hitPadding: hitPadding ?? const EdgeInsets.symmetric(horizontal: space1, vertical: space2),
       onTap: () => context.push('/u/$handle'),
       builder: (context, pressed) => Text(
         '@$handle',
@@ -150,8 +162,9 @@ class PostContextLine extends ConsumerWidget {
     final relation = context$ ?? postContextOf(post, viewerHandle: viewer);
 
     return Wrap(
-      spacing: space2,
-      runSpacing: space1,
+      // Each tappable chip brings its own padding now, so the gaps come from that.
+      spacing: space1,
+      runSpacing: 0,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         if (showAuthor)
@@ -160,6 +173,8 @@ class PostContextLine extends ConsumerWidget {
             style: base,
             colour: quoted ? palette.quoteInk : null,
             asYou: true,
+            // No left padding: the first chip has to line up with the body below it.
+            hitPadding: const EdgeInsets.only(right: space1, top: space2, bottom: space2),
           ),
         if (relation.hasLabel)
           if (relation.target case final target?) ...[
@@ -173,6 +188,8 @@ class PostContextLine extends ConsumerWidget {
                   style: base,
                   colour: quoted ? palette.quoteInk : null,
                   asYou: true,
+                  // The punctuation follows immediately, so nothing on the right.
+                  hitPadding: const EdgeInsets.only(left: space1, top: space2, bottom: space2),
                 ),
                 Text(_tail(relation), style: quiet),
               ],

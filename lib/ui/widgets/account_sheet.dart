@@ -37,7 +37,7 @@ class _Account extends ConsumerWidget {
       },
       behavior: HitTestBehavior.opaque,
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: space3),
+        padding: const EdgeInsets.symmetric(vertical: space4),
         child: Text(label, style: theme.bodyMedium!.asLink(palette).copyWith(color: colour)),
       ),
     );

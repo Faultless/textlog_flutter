@@ -6,6 +6,10 @@ import '../../state/identity.dart';
 import '../../state/session.dart';
 import '../theme.dart';
 import 'account_sheet.dart';
+import '../screens/web_action.dart';
+import 'compose_sheet.dart';
+import 'glyph.dart';
+import 'pressable.dart';
 import 'settings_sheet.dart';
 
 /// `.brand` — the wordmark, with the accent full stop.
@@ -46,24 +50,28 @@ AppBar textlogAppBar(BuildContext context, {String? path, bool showBack = false}
     titleSpacing: showBack ? 0 : gutterOf(context),
     leading: showBack
         ? IconButton(
-            icon: Icon(Icons.arrow_back, size: 18, color: palette.ink),
+            tooltip: 'back',
+            icon: Glyph(Glyphs.back.$2, Glyphs.back.$1, size: 18, colour: palette.ink),
             onPressed: () => context.canPop() ? context.pop() : context.go('/'),
           )
         : null,
     automaticallyImplyLeading: false,
     title: const Brand(),
     actions: [
+      // Barebones has no floating button, so writing lives here — which also means
+      // it is reachable from a thread or a profile rather than only from a feed.
+      if (context.chrome.plain) const _WriteAction(),
       IconButton(
         tooltip: 'search',
         visualDensity: VisualDensity.compact,
-        icon: Icon(Icons.search, size: 18, color: palette.muted),
+        icon: Glyph(Glyphs.search.$2, Glyphs.search.$1, size: 18),
         onPressed: () => context.push('/search'),
       ),
       _You(path: path),
       IconButton(
         tooltip: 'appearance',
         visualDensity: VisualDensity.compact,
-        icon: Icon(Icons.tune, size: 16, color: palette.muted),
+        icon: Glyph(Glyphs.appearance.$2, Glyphs.appearance.$1),
         onPressed: () => showSettings(context),
       ),
       SizedBox(width: gutterOf(context) - space3),
@@ -216,6 +224,32 @@ class _FeedTabsState extends State<FeedTabs> {
   }
 }
 
+/// `+ write`, the barebones stand-in for the floating button.
+class _WriteAction extends ConsumerWidget {
+  const _WriteAction();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = context.palette;
+    return Pressable(
+      hitPadding: const EdgeInsets.symmetric(horizontal: space2, vertical: space3),
+      onTap: () async {
+        if (ref.read(sessionProvider).valueOrNull == null) {
+          await openCompose(ref);
+          return;
+        }
+        await showCompose(context);
+      },
+      builder: (context, pressed) => Text(
+        '+ write',
+        style: Theme.of(context).textTheme.bodySmall!.asLink(palette).copyWith(
+          color: pressed ? palette.accent : null,
+        ),
+      ),
+    );
+  }
+}
+
 /// `@handle` once you have told the app who you are, `sign in` before that.
 class _You extends ConsumerWidget {
   const _You({this.path});
@@ -231,7 +265,8 @@ class _You extends ConsumerWidget {
     return GestureDetector(
       onTap: () => showAccount(context, path: path),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: space2),
+        // Vertical room too: in the app bar this was a 16px-tall target.
+        padding: const EdgeInsets.symmetric(horizontal: space2, vertical: space3),
         child: Text(
           handle == null ? 'sign in' : '@$handle',
           style: Theme.of(context).textTheme.bodySmall!.asLink(context.palette),

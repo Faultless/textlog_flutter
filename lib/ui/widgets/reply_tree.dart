@@ -29,7 +29,7 @@ class ReplyBranch extends StatelessWidget {
     if (nodes.isEmpty) return const SizedBox.shrink();
 
     return Container(
-      margin: EdgeInsets.only(left: gutterOf(context)),
+      margin: EdgeInsets.only(left: replyIndentOf(context)),
       decoration: BoxDecoration(
         border: Border(left: BorderSide(color: context.palette.soft)),
       ),
@@ -68,10 +68,10 @@ class _NodeState extends ConsumerState<_Node> {
         // `.reply-node > .post`
         Padding(
           padding: EdgeInsets.only(
-            left: space3,
+            left: space2,
             right: gutterOf(context),
-            top: space3,
-            bottom: space4,
+            top: space2,
+            bottom: space3,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -133,8 +133,8 @@ class _Fold extends StatelessWidget {
       semanticLabel: folded ? 'expand replies' : 'fold replies',
       builder: (context, pressed) => Container(
         // Fixed, so `+` and `−` do not resize the control as it toggles.
-        width: 22,
-        height: 20,
+        width: 24,
+        height: 22,
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: pressed ? palette.tagBg : Colors.transparent,
@@ -173,7 +173,7 @@ class _MoreState extends ConsumerState<_More> {
     final canLoadHere = widget.depth < maxThreadDepth;
 
     return Padding(
-      padding: EdgeInsets.only(left: space3 + gutterOf(context), bottom: space4),
+      padding: EdgeInsets.only(left: space2 + replyIndentOf(context), bottom: space3),
       child: Pressable(
         onTap: _loading
             ? null

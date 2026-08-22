@@ -21,8 +21,32 @@ class TextlogButton extends StatelessWidget {
       ButtonTone.danger => palette.errorInk,
     };
 
+    // Barebones: a filled block is the most app-like thing on a page of text, so it
+    // becomes the bracketed label the site's own ASCII would have used.
+    if (context.chrome.plain) {
+      return Pressable(
+        onTap: onPressed,
+        hitPadding: const EdgeInsets.symmetric(horizontal: space2, vertical: space3),
+        builder: (context, pressed) => Text(
+          '[ $label ]',
+          style: Theme.of(context).textTheme.bodySmall!.copyWith(
+            color: !enabled
+                ? palette.disabledInk
+                : pressed
+                ? palette.accent
+                : switch (tone) {
+                    ButtonTone.primary => palette.ink,
+                    ButtonTone.unfollow => palette.muted,
+                    ButtonTone.danger => palette.errorInk,
+                  },
+          ),
+        ),
+      );
+    }
+
     return Pressable(
       onTap: onPressed,
+      hitPadding: EdgeInsets.zero,
       builder: (context, pressed) => Container(
         padding: const EdgeInsets.symmetric(horizontal: space4, vertical: space3),
         color: enabled

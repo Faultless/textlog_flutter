@@ -228,6 +228,60 @@ final class Palette extends ThemeExtension<Palette> {
   }
 }
 
+/// How much Material to draw.
+///
+/// This rides in the theme rather than being read from settings at every call site,
+/// so a plain `StatelessWidget` deep in the tree can ask without being handed a ref.
+@immutable
+final class Chrome extends ThemeExtension<Chrome> {
+  const Chrome({this.plain = false, this.scale = 1.0});
+
+  /// Barebones mode. Icons become characters, filled buttons become `[ label ]`,
+  /// switches become `[x]`, spinners become words, and nothing ripples or slides.
+  ///
+  /// Deliberately *not* included: pull to refresh. It is a gesture rather than
+  /// chrome, and taking a standard mobile affordance away would make the app worse
+  /// rather than more spartan.
+  final bool plain;
+
+  /// Text size multiplier, from the reading setting.
+  final double scale;
+
+  @override
+  Chrome copyWith({bool? plain, double? scale}) =>
+      Chrome(plain: plain ?? this.plain, scale: scale ?? this.scale);
+
+  /// A boolean has no midpoint, so it flips at the animation's halfway mark.
+  ///
+  /// This cannot be made instant from here — `Tween.transform` short-circuits at
+  /// `t == 0` and hands back the old theme without consulting `lerp` at all. Turning
+  /// barebones *on* skips the crossfade a different way: the app drops the theme
+  /// animation to zero while it is on, which is the behaviour that mode wants anyway.
+  @override
+  Chrome lerp(ThemeExtension<Chrome>? other, double t) =>
+      other is Chrome && t >= 0.5 ? other : this;
+}
+
+extension ChromeOf on BuildContext {
+  Chrome get chrome => Theme.of(this).extension<Chrome>() ?? const Chrome();
+}
+
+/// How big the body text runs. The site offers the same four.
+enum TextSize {
+  small('small', 0.9),
+  regular('regular', 1.0),
+  large('large', 1.15),
+  larger('larger', 1.3);
+
+  const TextSize(this.id, this.scale);
+
+  final String id;
+  final double scale;
+
+  static TextSize fromId(String? id) =>
+      values.firstWhere((choice) => choice.id == id, orElse: () => TextSize.regular);
+}
+
 /// Which palette to use. `system` follows the device between [Palette.light] and
 /// [Palette.dark]; the rest are fixed.
 enum ThemeChoice {
@@ -330,6 +384,20 @@ double quoteIndentOf(BuildContext context) =>
 double gutterOf(BuildContext context) =>
     math.min(28.0, math.max(18.0, MediaQuery.sizeOf(context).width * 0.03));
 
+/// What one level of reply nesting costs.
+///
+/// The site indents by a gutter per level, which is fine at desktop width. On a
+/// 390px phone five levels of that is a quarter of the screen gone before a word is
+/// drawn, and the deepest replies read as a column two words wide. So the indent
+/// scales with the room available: tight on a phone, the site's own gutter once
+/// there is space for it.
+double replyIndentOf(BuildContext context) {
+  final width = MediaQuery.sizeOf(context).width;
+  if (width < 420) return 11;
+  if (width < 700) return 16;
+  return gutterOf(context);
+}
+
 extension PaletteOf on BuildContext {
   Palette get palette => Theme.of(this).extension<Palette>() ?? Palette.light;
 }
@@ -344,14 +412,18 @@ extension LinkStyle on TextStyle {
   );
 }
 
-ThemeData textlogTheme(Palette palette, [FontChoice font = FontChoice.jetbrains]) {
+ThemeData textlogTheme(
+  Palette palette, [
+  FontChoice font = FontChoice.jetbrains,
+  Chrome chrome = const Chrome(),
+]) {
   // These ship as variable fonts, so weight has to be set as an axis as well —
   // fontWeight alone leaves them at 400.
   TextStyle mono(double size, {FontWeight? weight, double? height, Color? color}) => TextStyle(
     fontFamily: font.fontFamily,
     fontFamilyFallback: font.fallback,
     fontFeatures: font.features,
-    fontSize: size,
+    fontSize: size * chrome.scale,
     fontWeight: weight,
     fontVariations: weight == null
         ? null
@@ -369,8 +441,24 @@ ThemeData textlogTheme(Palette palette, [FontChoice font = FontChoice.jetbrains]
       surface: palette.bg,
     ),
     dividerColor: palette.soft,
-    extensions: [palette],
+    extensions: [palette, chrome],
     textSelectionTheme: TextSelectionThemeData(selectionColor: palette.accent),
+    // Barebones: no ripple, no highlight wash, and no page slide. What is left is
+    // the press feedback the app draws itself, which is a colour change on the text.
+    splashFactory: chrome.plain ? NoSplash.splashFactory : null,
+    highlightColor: chrome.plain ? Colors.transparent : null,
+    pageTransitionsTheme: chrome.plain
+        ? const PageTransitionsTheme(
+            builders: {
+              TargetPlatform.android: _NoTransition(),
+              TargetPlatform.iOS: _NoTransition(),
+              TargetPlatform.macOS: _NoTransition(),
+              TargetPlatform.linux: _NoTransition(),
+              TargetPlatform.windows: _NoTransition(),
+              TargetPlatform.fuchsia: _NoTransition(),
+            },
+          )
+        : null,
     // `.post p` is 13px/1.65; `.posttop` and nav are 12px; `.feedhead` is 11px.
     textTheme: TextTheme(
       titleLarge: mono(20, weight: FontWeight.w800, height: 1),
@@ -379,4 +467,18 @@ ThemeData textlogTheme(Palette palette, [FontChoice font = FontChoice.jetbrains]
       labelSmall: mono(11, color: palette.muted),
     ),
   );
+}
+
+/// A route change with no animation at all.
+final class _NoTransition extends PageTransitionsBuilder {
+  const _NoTransition();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T>? route,
+    BuildContext? context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget? child,
+  ) => child!;
 }

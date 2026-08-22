@@ -13,6 +13,7 @@ import '../widgets/feed_view.dart';
 import '../widgets/people_list.dart';
 import '../widgets/post_actions.dart';
 import '../widgets/post_body.dart';
+import '../widgets/pressable.dart';
 import '../widgets/shell.dart';
 import '../widgets/status.dart';
 import 'web_action.dart';
@@ -143,15 +144,25 @@ class _Header extends ConsumerWidget {
               ),
               if (isSelf)
                 Wrap(
-                  spacing: space4,
+                  spacing: space2,
                   children: [
-                    GestureDetector(
+                    Pressable(
                       onTap: () => showBioSheet(context),
-                      child: Text('edit bio', style: theme.bodySmall!.asLink(palette)),
+                      builder: (context, pressed) => Text(
+                        'edit bio',
+                        style: theme.bodySmall!.asLink(palette).copyWith(
+                          color: pressed ? palette.accent : null,
+                        ),
+                      ),
                     ),
-                    GestureDetector(
+                    Pressable(
                       onTap: () => openAccount(ref),
-                      child: Text('account', style: theme.bodySmall!.asLink(palette)),
+                      builder: (context, pressed) => Text(
+                        'account',
+                        style: theme.bodySmall!.asLink(palette).copyWith(
+                          color: pressed ? palette.accent : null,
+                        ),
+                      ),
                     ),
                   ],
                 )

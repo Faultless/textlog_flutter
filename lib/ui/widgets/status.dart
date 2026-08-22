@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/models.dart';
 import '../theme.dart';
+import 'form_parts.dart';
 
 String messageFor(Object error) => switch (error) {
   ApiFailure(isNotFound: true) => 'Not found.',
@@ -42,11 +43,7 @@ class StatusMessage extends StatelessWidget {
           ),
           if (onRetry != null) ...[
             const SizedBox(height: space4),
-            TextButton(
-              onPressed: onRetry,
-              style: TextButton.styleFrom(foregroundColor: palette.accent),
-              child: Text('retry', style: Theme.of(context).textTheme.bodySmall),
-            ),
+            TextlogButton('retry', onPressed: onRetry),
           ],
         ],
       ),
@@ -61,11 +58,23 @@ class Spinner extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.all(space6),
     child: Center(
-      child: SizedBox(
-        width: 16,
-        height: 16,
-        child: CircularProgressIndicator(strokeWidth: 1.5, color: context.palette.muted),
-      ),
+      child: context.chrome.plain
+          // A spinning arc is the most Material thing on the screen. In barebones
+          // mode it says so in words instead.
+          ? Text(
+              'loading…',
+              style: Theme.of(context).textTheme.bodySmall!.copyWith(
+                color: context.palette.muted,
+              ),
+            )
+          : SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 1.5,
+                color: context.palette.muted,
+              ),
+            ),
     ),
   );
 }

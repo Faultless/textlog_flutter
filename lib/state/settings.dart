@@ -9,26 +9,41 @@ final class Settings {
     this.accent = AccentChoice.theme,
     this.markdown = false,
     this.font = FontChoice.jetbrains,
+    this.textSize = TextSize.regular,
+    this.barebones = false,
   });
 
   final ThemeChoice theme;
   final AccentChoice accent;
 
-  /// Off by default, because textlog.cc itself renders bodies as plain text — on
-  /// means the app shows formatting the author did not necessarily get.
+  /// Extra block markdown — headings, lists, tables, quotes. Off by default because
+  /// textlog.cc keeps a post body flat, so on means the app shows structure the
+  /// author did not necessarily get. Code, TeX, links and strikethrough are not
+  /// covered by this: the site renders those, so the app always does too.
   final bool markdown;
   final FontChoice font;
+  final TextSize textSize;
+
+  /// Strip the app back to characters and rules: no icons, no ripples, no filled
+  /// buttons, no switches, no spinners, no page slides.
+  final bool barebones;
+
+  Chrome get chrome => Chrome(plain: barebones, scale: textSize.scale);
 
   Settings copyWith({
     ThemeChoice? theme,
     AccentChoice? accent,
     bool? markdown,
     FontChoice? font,
+    TextSize? textSize,
+    bool? barebones,
   }) => Settings(
     theme: theme ?? this.theme,
     accent: accent ?? this.accent,
     markdown: markdown ?? this.markdown,
     font: font ?? this.font,
+    textSize: textSize ?? this.textSize,
+    barebones: barebones ?? this.barebones,
   );
 }
 
@@ -41,6 +56,8 @@ class SettingsNotifier extends AsyncNotifier<Settings> {
   static const _accentKey = 'accent';
   static const _markdownKey = 'markdown';
   static const _fontKey = 'font';
+  static const _textSizeKey = 'text_size';
+  static const _barebonesKey = 'barebones';
 
   @override
   Future<Settings> build() async {
@@ -53,6 +70,8 @@ class SettingsNotifier extends AsyncNotifier<Settings> {
         accent: AccentChoice.fromId(preferences.getString(_accentKey)),
         markdown: preferences.getBool(_markdownKey) ?? false,
         font: FontChoice.fromId(preferences.getString(_fontKey)),
+        textSize: TextSize.fromId(preferences.getString(_textSizeKey)),
+        barebones: preferences.getBool(_barebonesKey) ?? false,
       );
     } catch (_) {
       return const Settings();
@@ -74,11 +93,25 @@ class SettingsNotifier extends AsyncNotifier<Settings> {
     await _write(_fontKey, font.id);
   }
 
+  Future<void> setTextSize(TextSize size) async {
+    state = AsyncData((state.valueOrNull ?? const Settings()).copyWith(textSize: size));
+    await _write(_textSizeKey, size.id);
+  }
+
   Future<void> setMarkdown(bool enabled) async {
     state = AsyncData((state.valueOrNull ?? const Settings()).copyWith(markdown: enabled));
+    await _writeFlag(_markdownKey, enabled);
+  }
+
+  Future<void> setBarebones(bool enabled) async {
+    state = AsyncData((state.valueOrNull ?? const Settings()).copyWith(barebones: enabled));
+    await _writeFlag(_barebonesKey, enabled);
+  }
+
+  Future<void> _writeFlag(String key, bool value) async {
     try {
       final preferences = await SharedPreferences.getInstance();
-      await preferences.setBool(_markdownKey, enabled);
+      await preferences.setBool(key, value);
     } catch (_) {
       // Applies for this session regardless; persisting is best effort.
     }
