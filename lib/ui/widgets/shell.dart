@@ -12,37 +12,50 @@ import 'glyph.dart';
 import 'pressable.dart';
 import 'settings_sheet.dart';
 
-/// `.brand` — the wordmark, with the accent full stop.
+/// `.brand` — the wordmark, with the accent prompt glyph.
+///
+/// Drops to just `>_` when the header has no room for the whole word. That decision
+/// is made by *measuring*, not by a width breakpoint: how much room is left depends
+/// on how long the reader's handle is, whether barebones mode has added `+ write`,
+/// and what text size they chose — a breakpoint gets all three wrong, and the
+/// wordmark was being silently clipped as a result.
 class Brand extends StatelessWidget {
   const Brand({super.key});
 
   @override
   Widget build(BuildContext context) {
     final style = Theme.of(context).textTheme.titleLarge!.copyWith(letterSpacing: -1);
+    // The prompt glyph from textlog.svg, drawn as type so there is no SVG
+    // dependency for a two-character mark.
+    final caret = TextSpan(text: '>_', style: TextStyle(color: context.palette.accent));
+    final mark = TextSpan(style: style, children: [caret]);
+    final full = TextSpan(style: style, children: [caret, const TextSpan(text: ' textlog')]);
+
     return GestureDetector(
       onTap: () => context.go('/'),
-      child: Text.rich(
-        TextSpan(
-          children: [
-            // The prompt glyph from textlog.svg, drawn as type so there is no
-            // SVG dependency for a two-character mark.
-            TextSpan(
-              text: '>_',
-              style: TextStyle(color: context.palette.accent),
-            ),
-            // On the narrowest phones the mark alone is better than half a word:
-            // the controls on the right matter more than the wordmark.
-            if (MediaQuery.sizeOf(context).width >= 360)
-              const TextSpan(text: ' textlog'),
-          ],
+      child: LayoutBuilder(
+        builder: (context, constraints) => Text.rich(
+          _fits(context, full, constraints.maxWidth) ? full : mark,
+          maxLines: 1,
+          softWrap: false,
         ),
-        style: style,
-        maxLines: 1,
-        overflow: TextOverflow.clip,
-        softWrap: false,
       ),
     );
   }
+}
+
+/// Whether [span] renders inside [available] without being cut off.
+bool _fits(BuildContext context, TextSpan span, double available) {
+  if (!available.isFinite) return true;
+  final painter = TextPainter(
+    text: span,
+    textDirection: Directionality.of(context),
+    textScaler: MediaQuery.textScalerOf(context),
+    maxLines: 1,
+  )..layout();
+  final width = painter.width;
+  painter.dispose();
+  return width <= available;
 }
 
 /// `header, main, .site-footer { max-width: 760px; width: 100%; margin: auto }`
@@ -90,10 +103,12 @@ AppBar textlogAppBar(BuildContext context, {String? path, bool showBack = false}
             )
           else
             SizedBox(width: gutterOf(context)),
-          // Flexible, so on a narrow phone the wordmark gives up room rather than
-          // pushing the controls off the right edge — which is what it did at 320px.
-          const Flexible(child: Brand()),
-          const Spacer(),
+          // One flex child, not two. With a Spacer beside it the wordmark took half
+          // the slack rather than what it needed, so a long handle clipped it while
+          // dead space sat next to it. The Align is the spacer.
+          const Flexible(
+            child: Align(alignment: Alignment.centerLeft, child: Brand()),
+          ),
           // Barebones has no floating button, so writing lives here — which also
           // means it is reachable from a thread or a profile, not only from a feed.
           if (context.chrome.plain) const _WriteAction(),
@@ -146,7 +161,11 @@ class FeedTabs extends StatefulWidget {
   final ValueChanged<int> onSelect;
 
   /// `mark all as read` and friends, pinned to the right of the row.
-  final Widget? trailing;
+  ///
+  /// A builder rather than a widget, because whether there is room for the long
+  /// wording depends on how wide this row actually is — and the row is inside a
+  /// reading column, so the window width is the wrong thing to ask.
+  final Widget Function(bool compact)? trailing;
 
   @override
   State<FeedTabs> createState() => _FeedTabsState();
@@ -181,6 +200,12 @@ class _FeedTabsState extends State<FeedTabs> {
     );
   }
 
+  /// Below this the row cannot afford a long status line beside five tabs.
+  ///
+  /// Measured rather than guessed: at 390px `you've seen it all` was 207px of the
+  /// row, leaving the tabs 153px — four of the five off screen before you started.
+  static const _roomForWords = 520.0;
+
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
@@ -191,72 +216,93 @@ class _FeedTabsState extends State<FeedTabs> {
         border: Border(bottom: BorderSide(color: palette.soft)),
       ),
       padding: EdgeInsets.only(top: space4),
-      child: Row(
-        children: [
-          Expanded(
-            child: SingleChildScrollView(
-              controller: _controller,
-              scrollDirection: Axis.horizontal,
-              padding: EdgeInsets.only(left: gutterOf(context) - space3),
-              child: Row(
-                children: [
-                  for (final (index, tab) in widget.tabs.indexed)
-                    Semantics(
-                      selected: index == widget.active,
-                      button: true,
-                      child: GestureDetector(
-                        onTap: () => widget.onSelect(index),
-                        behavior: HitTestBehavior.opaque,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: space3,
-                            vertical: space2,
-                          ),
-                          decoration: BoxDecoration(
-                            border: Border(
-                              bottom: BorderSide(
-                                width: 2,
-                                color: index == widget.active
-                                    ? palette.accent
-                                    : Colors.transparent,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < _roomForWords;
+          final trailing = widget.trailing?.call(compact);
+
+          return Row(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  controller: _controller,
+                  scrollDirection: Axis.horizontal,
+                  padding: EdgeInsets.only(left: gutterOf(context) - space3),
+                  child: Row(
+                    children: [
+                      for (final (index, tab) in widget.tabs.indexed)
+                        Semantics(
+                          selected: index == widget.active,
+                          button: true,
+                          child: GestureDetector(
+                            onTap: () => widget.onSelect(index),
+                            behavior: HitTestBehavior.opaque,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: space3,
+                                vertical: space2,
+                              ),
+                              decoration: BoxDecoration(
+                                border: Border(
+                                  bottom: BorderSide(
+                                    width: 2,
+                                    color: index == widget.active
+                                        ? palette.accent
+                                        : Colors.transparent,
+                                  ),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Text(
+                                    tab.label,
+                                    style: style.copyWith(
+                                      color: index == widget.active
+                                          ? palette.ink
+                                          : palette.muted,
+                                    ),
+                                  ),
+                                  if (tab.marked) ...[
+                                    const SizedBox(width: space2),
+                                    // `.unread-dot`
+                                    Container(
+                                      width: 6,
+                                      height: 6,
+                                      decoration: BoxDecoration(
+                                        color: palette.accent,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
                             ),
                           ),
-                          child: Row(
-                            children: [
-                              Text(
-                                tab.label,
-                                style: style.copyWith(
-                                  color: index == widget.active ? palette.ink : palette.muted,
-                                ),
-                              ),
-                              if (tab.marked) ...[
-                                const SizedBox(width: space2),
-                                // `.unread-dot`
-                                Container(
-                                  width: 6,
-                                  height: 6,
-                                  decoration: BoxDecoration(
-                                    color: palette.accent,
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
                         ),
-                      ),
-                    ),
-                ],
+                    ],
+                  ),
+                ),
               ),
-            ),
-          ),
-          if (widget.trailing case final trailing?)
-            Padding(
-              padding: EdgeInsets.only(left: space3, right: gutterOf(context), bottom: space2),
-              child: trailing,
-            ),
-        ],
+              if (trailing != null)
+                // Bounded rather than flexible. A Flexible here would compete with
+                // the Expanded above and pin the tabs to half the row even when the
+                // action needs a fraction of that; a ceiling lets the tabs have
+                // everything the action does not actually use, and stops an
+                // OS-level text scale from pushing it past the edge.
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: constraints.maxWidth * 0.4),
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      left: space3,
+                      right: gutterOf(context),
+                      bottom: space2,
+                    ),
+                    child: trailing,
+                  ),
+                ),
+            ],
+          );
+        },
       ),
     );
   }

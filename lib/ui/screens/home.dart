@@ -119,8 +119,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               active: tabs.indexOf(tab),
               onSelect: (index) => context.go(tabs[index].path),
               trailing: switch (tab) {
-                HomeTab.forYou => const _MarkAllRead(ActivityScope.forYou),
-                HomeTab.toMe => const _MarkAllRead(ActivityScope.toMe),
+                HomeTab.forYou => (compact) =>
+                  _MarkAllRead(ActivityScope.forYou, compact: compact),
+                HomeTab.toMe => (compact) =>
+                  _MarkAllRead(ActivityScope.toMe, compact: compact),
                 _ => null,
               },
             ),
@@ -150,10 +152,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 }
 
 /// `mark all as read`, which the site puts in the same corner.
+///
+/// On a narrow row it shortens, and the "nothing left to read" status disappears
+/// entirely — it is information, not an action, and it was costing more than half
+/// the tab row to say something the absent unread dots already say.
 class _MarkAllRead extends ConsumerWidget {
-  const _MarkAllRead(this.scope);
+  const _MarkAllRead(this.scope, {required this.compact});
 
   final ActivityScope scope;
+  final bool compact;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -162,12 +169,21 @@ class _MarkAllRead extends ConsumerWidget {
     final unread = ref.watch(activityUnreadProvider(scope));
 
     if (!unread) {
-      return Text("you've seen it all", style: theme.copyWith(color: palette.muted));
+      if (compact) return const SizedBox.shrink();
+      return Text(
+        "you've seen it all",
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: theme.copyWith(color: palette.muted),
+      );
     }
     return Pressable(
       onTap: () => ref.read(activityProvider(scope).notifier).markAllRead(),
+      semanticLabel: 'mark all as read',
       builder: (context, pressed) => Text(
-        'mark all as read',
+        compact ? 'mark read' : 'mark all as read',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: theme.asLink(palette).copyWith(color: pressed ? palette.accent : null),
       ),
     );
