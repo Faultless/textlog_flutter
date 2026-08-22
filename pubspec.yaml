@@ -1,7 +1,7 @@
 name: textlog
 description: A community-built mobile client for textlog.cc
 publish_to: 'none'
-version: 0.1.0+14
+version: 0.1.1+15
 
 environment:
   sdk: ^3.11.3

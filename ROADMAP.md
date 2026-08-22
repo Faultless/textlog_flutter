@@ -1,6 +1,6 @@
 # Roadmap
 
-## Where we are — v0.1.0
+## Where we are — v0.1.1
 
 | Area | State |
 |---|---|
