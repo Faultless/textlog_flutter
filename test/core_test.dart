@@ -65,9 +65,19 @@ void main() {
     test('maps every source to its documented endpoint', () {
       expect(pathOf(const LatestFeed()), 'feeds/latest');
       expect(pathOf(const HotFeed()), 'feeds/hot');
-      expect(pathOf(const UserFeed('stagas')), 'users/stagas/posts');
+      expect(pathOf(const NotesFeed('stagas')), 'users/stagas/notes');
+      expect(pathOf(const UserRepliesFeed('stagas')), 'users/stagas/replies');
       expect(pathOf(const TagFeed('open_source')), 'tags/open_source/posts');
       expect(pathOf(const RepliesFeed(274)), 'posts/274/replies');
+      expect(pathOf(const SearchFeed('ascii')), 'search');
+    });
+
+    test('carries the parameters a source needs beyond limit and cursor', () {
+      expect(queryOf(const LatestFeed()), isEmpty);
+      // Depth is what turns a whole thread into one request.
+      expect(queryOf(const RepliesFeed(274)), isEmpty);
+      expect(queryOf(const RepliesFeed(274, depth: 5)), {'depth': '5'});
+      expect(queryOf(const SearchFeed('ascii art')), {'q': 'ascii art'});
     });
   });
 

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../core/body_tokens.dart' show linkOrigin;
 import '../core/feed_source.dart';
 import '../core/models.dart';
 
@@ -16,15 +17,25 @@ final apiBase = Uri.parse('$textlogOrigin/api/v1/');
 /// The only class in the app that performs I/O. Everything downstream of it is
 /// pure, which is what makes the rest testable without a server.
 final class TextlogApi {
-  const TextlogApi(this._client, {this.onResult});
+  TextlogApi(this._client, {this.onResult}) {
+    // So a link back to this instance renders as a path rather than a full URL,
+    // the way the site labels its own links.
+    linkOrigin = textlogOrigin;
+  }
 
   final http.Client _client;
 
   /// Every answer, so one place can notice a 429.
   final void Function(ApiFailure? failure)? onResult;
 
+  // -- reads -----------------------------------------------------------------
+
   Future<Page<Post>> feed(FeedSource source, {String? cursor, int limit = 20}) async {
-    final json = await _get(pathOf(source), {'limit': '$limit', 'cursor': ?cursor});
+    final json = await _get(pathOf(source), {
+      'limit': '$limit',
+      'cursor': ?cursor,
+      ...queryOf(source),
+    });
     return Page.fromJson(json, Post.fromJson);
   }
 
@@ -33,10 +44,81 @@ final class TextlogApi {
     return Post.fromJson(json['data'] as Map<String, dynamic>);
   }
 
-  Future<Profile> profile(String handle) async {
-    final json = await _get('users/${Uri.encodeComponent(handle)}');
+  Future<Profile> profile(String handle, {String? token}) async {
+    final json = await _send('GET', 'users/${Uri.encodeComponent(handle)}', token: token);
     return Profile.fromJson(json['data'] as Map<String, dynamic>);
   }
+
+  Future<TagDetails> tag(String tag) async {
+    final json = await _get('tags/${Uri.encodeComponent(tag)}');
+    return TagDetails.fromJson(json['data'] as Map<String, dynamic>);
+  }
+
+  /// Who follows whom. [kind] is one of the relationship paths below.
+  Future<Page<UserRef>> people(
+    String handle,
+    PeopleKind kind, {
+    String? cursor,
+    int limit = 50,
+    String? token,
+  }) async {
+    final json = await _send(
+      'GET',
+      'users/${Uri.encodeComponent(handle)}/${kind.path}',
+      query: {'limit': '$limit', 'cursor': ?cursor},
+      // Only `blocks` needs it, but sending it never hurts and it keeps the
+      // caller from having to know which one is private.
+      token: token,
+    );
+    return Page.fromJson(json, UserRef.fromJson);
+  }
+
+  Future<Page<UserRef>> tagFollowers(String tag, {String? cursor, int limit = 50}) async {
+    final json = await _get('tags/${Uri.encodeComponent(tag)}/followers', {
+      'limit': '$limit',
+      'cursor': ?cursor,
+    });
+    return Page.fromJson(json, UserRef.fromJson);
+  }
+
+  Future<Page<TagDetails>> followedTags(
+    String handle, {
+    String? cursor,
+    int limit = 50,
+  }) async {
+    final json = await _get('users/${Uri.encodeComponent(handle)}/following/tags', {
+      'limit': '$limit',
+      'cursor': ?cursor,
+    });
+    return Page.fromJson(json, TagDetails.fromJson);
+  }
+
+  /// `/activities/for-you` or `/activities/to-me`. Both need a token.
+  Future<Page<Activity>> activities(
+    String token,
+    ActivityScope scope, {
+    String? cursor,
+    int limit = 20,
+  }) async {
+    final json = await _send(
+      'GET',
+      'activities/${scope.path}',
+      query: {'limit': '$limit', 'cursor': ?cursor},
+      token: token,
+    );
+    return Page.fromJson(json, Activity.fromJson);
+  }
+
+  /// Mark specific rows read. The server takes 1–100 ids at a time.
+  Future<void> markRead(String token, ActivityScope scope, List<String> ids) =>
+      _send('POST', 'activities/${scope.path}/read', token: token, body: {
+        'activity_ids': ids,
+      });
+
+  Future<void> markAllRead(String token, ActivityScope scope) =>
+      _send('POST', 'activities/${scope.path}/read-all', token: token);
+
+  // -- auth and account ------------------------------------------------------
 
   /// Ask the server to email a sign-in code. Answers the same whether or not the
   /// address has an account.
@@ -54,6 +136,13 @@ final class TextlogApi {
     final json = await _send('GET', 'me', token: token);
     return Account.fromJson(json['data'] as Map<String, dynamic>);
   }
+
+  Future<Account> editBio(String token, String bio) async {
+    final json = await _send('PATCH', 'me', token: token, body: {'bio': bio});
+    return Account.fromJson(json['data'] as Map<String, dynamic>);
+  }
+
+  // -- writes ----------------------------------------------------------------
 
   Future<Post> createPost(String token, String body, {int? parentId}) async {
     final json = await _send('POST', 'posts', token: token, body: {
@@ -84,6 +173,8 @@ final class TextlogApi {
 
   Future<void> report(String token, int id, String reason) =>
       _send('POST', 'posts/$id/report', token: token, body: {'reason': reason});
+
+  // -- plumbing --------------------------------------------------------------
 
   Future<Map<String, dynamic>> _get(String path, [Map<String, String>? query]) =>
       _send('GET', path, query: query);
@@ -125,6 +216,26 @@ final class TextlogApi {
     onResult?.call(null);
     return decoded;
   }
+}
+
+/// The relationship lists a profile can show.
+enum PeopleKind {
+  followers('followers'),
+  following('following/users'),
+  blocks('blocks');
+
+  const PeopleKind(this.path);
+  final String path;
+}
+
+/// The two activity feeds. `forYou` is everything from accounts and tags you follow;
+/// `toMe` is the subset aimed at you — replies and mentions.
+enum ActivityScope {
+  forYou('for-you'),
+  toMe('to-me');
+
+  const ActivityScope(this.path);
+  final String path;
 }
 
 /// Long enough for a bad connection, short enough to fail rather than hang.

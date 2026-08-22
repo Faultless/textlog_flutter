@@ -26,7 +26,7 @@ class ProfileScreen extends ConsumerWidget {
     return Scaffold(
       appBar: textlogAppBar(context, path: '/u/$handle', showBack: !isSelf),
       body: FeedView(
-        UserFeed(handle),
+        NotesFeed(handle),
         emptyMessage: 'No posts yet.',
         header: SliverToBoxAdapter(
           child: switch (profile) {
@@ -96,7 +96,7 @@ class _Header extends ConsumerWidget {
           ),
           const SizedBox(height: space4),
           Text(
-            '${profile.postCount} notes · ${profile.followingCount} following · '
+            '${profile.postCount} notes · ${profile.followingUserCount} following · '
             '${profile.followerCount} ${profile.followerCount == 1 ? 'follower' : 'followers'}',
             style: theme.labelSmall,
           ),
