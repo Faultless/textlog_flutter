@@ -48,3 +48,6 @@ app.*.map.json
 android/key.properties
 *.jks
 *.keystore
+
+# Playwright MCP scratch output from a responsiveness pass.
+.playwright-mcp/
