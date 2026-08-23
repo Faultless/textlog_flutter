@@ -13,12 +13,20 @@ version: 0.0.1+1
 
 ## 2. Build
 
+**Build both.** The split builds are what people actually download — a universal APK
+carries every architecture, so it is roughly three times the size of the one your phone can
+use, and attaching only that one wastes most of every download.
+
 ```sh
-flutter build apk --release                  # universal, ~48MB
-flutter build apk --release --split-per-abi  # per-device, ~15-18MB each
+flutter build apk --release                  # universal, ~55MB
+flutter build apk --release --split-per-abi  # per-device, ~18-20MB each
 ```
 
 Output: `build/app/outputs/flutter-apk/`
+
+The split builds get an ABI-prefixed `versionCode` — `2019` for arm64, `1019` for v7a from a
+pubspec `+19`. That is Flutter's doing and it is correct: it keeps a device from installing
+the wrong slice over the right one.
 
 Verify before shipping — a release APK without `INTERNET` reaches nothing and every screen
 errors, and the Flutter template only grants it in the debug manifest:
@@ -37,11 +45,25 @@ git tag v0.0.1
 git push origin v0.0.1
 ```
 
-Then on GitHub: **Releases → Draft a new release → pick tag `v0.0.1`**, attach
-`app-release.apk`, and tick **"This is a pre-release"**.
+Then on GitHub: **Releases → Draft a new release → pick tag `v0.0.1`**, and tick **"This is
+a pre-release"**.
 
-Rename the file to `textlog-0.0.1.apk` when attaching, so people can tell versions apart in
-their downloads folder.
+**Four assets, renamed so a downloads folder still makes sense a version later:**
+
+| Build | Attach as |
+|---|---|
+| `app-arm64-v8a-release.apk` | `textlog-0.0.1-arm64-v8a.apk` |
+| `app-armeabi-v7a-release.apk` | `textlog-0.0.1-armeabi-v7a.apk` |
+| `app-release.apk` | `textlog-0.0.1.apk` |
+| the disk image below | `textlog-0.0.1-macos.dmg` |
+
+`app-x86_64-release.apk` is emulator-only — do not attach it. Say in the notes which file to
+pick, or everyone takes the universal one because it has the shortest name.
+
+```sh
+gh release create v0.0.1 textlog-0.0.1*.apk textlog-0.0.1-macos.dmg \
+  --title "v0.0.1 — …" --notes-file notes.md --prerelease
+```
 
 ## Installing (for testers)
 
