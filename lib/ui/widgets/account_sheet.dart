@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../data/api.dart';
+import '../../state/drafts.dart';
 import '../../state/identity.dart';
 import '../../state/session.dart';
 import '../screens/web_action.dart';
@@ -75,6 +76,16 @@ class _Account extends ConsumerWidget {
               const SizedBox(height: space3),
               if (handle != null) item('your profile', () => context.push('/me')),
               if (handle == null) item('sign in', () => context.push('/me')),
+              item('explore', () => context.push('/explore')),
+              if (session != null)
+                item(
+                  // Says how many, because an empty list is not worth the trip.
+                  switch (ref.watch(draftCountProvider)) {
+                    0 => 'drafts',
+                    final count => 'drafts ($count)',
+                  },
+                  () => context.push('/drafts'),
+                ),
               item('account settings', () => openAccount(ref)),
               item('browser sessions', () => openSessions(ref)),
               item(

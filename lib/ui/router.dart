@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../state/session.dart';
+import 'screens/drafts.dart';
+import 'screens/explore.dart';
 import 'screens/home.dart';
 import 'screens/me.dart';
 import 'screens/profile.dart';
@@ -26,6 +28,8 @@ GoRouter buildRouter(Ref ref) => GoRouter(
     for (final tab in HomeTab.values)
       GoRoute(path: tab.path, builder: (_, _) => HomeScreen(tab: tab)),
     GoRoute(path: '/me', builder: (_, _) => const MeScreen()),
+    GoRoute(path: '/drafts', builder: (_, _) => const DraftsScreen()),
+    GoRoute(path: '/explore', builder: (_, _) => const ExploreScreen()),
     GoRoute(
       path: '/search',
       builder: (_, state) => SearchScreen(initialQuery: state.uri.queryParameters['q']),

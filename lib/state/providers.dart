@@ -7,6 +7,7 @@ import '../data/api.dart';
 import '../data/firehose.dart';
 import 'cache.dart';
 import 'rate_limit.dart';
+import 'session.dart';
 
 /// Override this in tests to run the whole app against a fake server.
 final httpClientProvider = Provider<http.Client>((ref) {
@@ -55,6 +56,14 @@ final profileProvider = FutureProvider.autoDispose.family<Profile, String>((ref,
 final tagProvider = FutureProvider.autoDispose.family<TagDetails, String>((ref, tag) {
   cacheFor(ref, postCacheDuration);
   return ref.watch(apiProvider).tag(tag);
+});
+
+/// `/explore` — people and hashtags to follow. Cached for the session: it is a
+/// starting point, not something that needs to be current to the minute.
+final exploreProvider = FutureProvider.autoDispose<Explore>((ref) {
+  cacheFor(ref, feedCacheDuration);
+  final token = ref.watch(sessionProvider).valueOrNull?.token;
+  return ref.watch(apiProvider).explore(token: token);
 });
 
 final firehoseProvider = StreamProvider.autoDispose<FirehoseEvent>((ref) => firehose());

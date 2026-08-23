@@ -7,9 +7,11 @@ import '../../state/cache.dart';
 import '../../state/feed.dart';
 import '../../state/providers.dart';
 import '../../state/thread.dart';
+import '../../state/drafts.dart';
 import '../../state/session.dart';
 import '../theme.dart';
 import 'form_parts.dart';
+import 'pressable.dart';
 import 'status.dart';
 
 /// The server's `POST_MAX`, raised from 280.
@@ -23,6 +25,7 @@ Future<bool> showCompose(
   BuildContext context, {
   ComposeKind kind = ComposeKind.post,
   Post? target,
+  Draft? draft,
 }) async {
   final posted = await showModalBottomSheet<bool>(
     context: context,
@@ -33,17 +36,21 @@ Future<bool> showCompose(
     // up, nothing here rebuilds, and the field you are typing into stays behind it.
     builder: (context) => Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
-      child: _Compose(kind: kind, target: target),
+      child: _Compose(kind: kind, target: target, draft: draft),
     ),
   );
   return posted ?? false;
 }
 
 class _Compose extends ConsumerStatefulWidget {
-  const _Compose({required this.kind, this.target});
+  const _Compose({required this.kind, this.target, this.draft});
 
   final ComposeKind kind;
   final Post? target;
+
+  /// Opened from a draft: posting publishes it, saving updates it, and either way it
+  /// stops being a draft rather than leaving a copy behind.
+  final Draft? draft;
 
   @override
   ConsumerState<_Compose> createState() => _ComposeState();
@@ -51,7 +58,8 @@ class _Compose extends ConsumerStatefulWidget {
 
 class _ComposeState extends ConsumerState<_Compose> {
   late final TextEditingController _controller = TextEditingController(
-    text: widget.kind == ComposeKind.edit ? widget.target?.body ?? '' : '',
+    text: widget.draft?.body ??
+        (widget.kind == ComposeKind.edit ? widget.target?.body ?? '' : ''),
   );
   String? _error;
   var _sending = false;
@@ -90,6 +98,15 @@ class _ComposeState extends ConsumerState<_Compose> {
 
     try {
       final api = ref.read(apiProvider);
+      // A draft is published rather than posted, so the server consumes it instead
+      // of leaving a copy behind next to the post it became.
+      if (widget.draft case final draft?) {
+        await ref.read(draftsProvider.notifier).edit(draft.id, body);
+        final post = await ref.read(draftsProvider.notifier).publish(draft.id);
+        if (post != null) ref.invalidate(feedProvider(const LatestFeed()));
+        if (mounted) Navigator.of(context).pop(true);
+        return;
+      }
       switch (widget.kind) {
         case ComposeKind.post:
           await api.createPost(session.token, body);
@@ -129,6 +146,36 @@ class _ComposeState extends ConsumerState<_Compose> {
     ref.read(repliesCacheProvider).apply(updated.id, updated);
     applyToLiveFeeds(updated.id, updated);
     ref.invalidate(postProvider(updated.id));
+  }
+
+  /// Keep it without posting it. Editing an existing post is not a draft — there is
+  /// already a published thing to change — so it is only offered for new writing.
+  bool get _canDraft =>
+      widget.kind != ComposeKind.edit && ref.read(sessionProvider).valueOrNull != null;
+
+  Future<void> _saveDraft() async {
+    final body = _controller.text;
+    if (body.trim().isEmpty) {
+      setState(() => _error = 'Nothing to save yet.');
+      return;
+    }
+    setState(() {
+      _sending = true;
+      _error = null;
+    });
+    try {
+      final drafts = ref.read(draftsProvider.notifier);
+      if (widget.draft case final existing?) {
+        await drafts.edit(existing.id, body);
+      } else {
+        await drafts.save(body, parentId: widget.target?.id);
+      }
+      if (mounted) Navigator.of(context).pop(false);
+    } on ApiFailure catch (failure) {
+      if (mounted) setState(() => _error = failure.message);
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
   }
 
   @override
@@ -184,10 +231,23 @@ class _ComposeState extends ConsumerState<_Compose> {
                       style: theme.labelSmall!.copyWith(color: palette.muted),
                     ),
                   ),
-                  const SizedBox(width: space4),
+                  const SizedBox(width: space3),
                   if (_sending)
                     const Spinner()
-                  else
+                  else ...[
+                    if (_canDraft)
+                      Padding(
+                        padding: const EdgeInsets.only(right: space3),
+                        child: Pressable(
+                          onTap: _saveDraft,
+                          builder: (context, pressed) => Text(
+                            'save draft',
+                            style: theme.bodySmall!.asLink(palette).copyWith(
+                              color: pressed ? palette.accent : palette.muted,
+                            ),
+                          ),
+                        ),
+                      ),
                     TextlogButton(
                       switch (widget.kind) {
                         ComposeKind.post => 'post →',
@@ -196,6 +256,7 @@ class _ComposeState extends ConsumerState<_Compose> {
                       },
                       onPressed: _send,
                     ),
+                  ],
                 ],
               ),
             ],
