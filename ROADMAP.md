@@ -1,6 +1,6 @@
 # Roadmap
 
-## Where we are — v0.2.0
+## Where we are — v0.3.0
 
 | Area | State |
 |---|---|
@@ -19,13 +19,19 @@
 | Bio | native, `PATCH /me` |
 | Sign up | browser tab onto textlog.cc, on purpose |
 | Filter a loaded timeline | native, client-side |
-| Bodies | code, fences, LaTeX, markdown links, strikethrough, spoilers, polls, ASCII art |
+| Bodies | code, fences, LaTeX, markdown links, bold, underline, strikethrough, spoilers, ASCII art |
 | Block markdown | opt-in: headings, lists, task lists, tables, quotes, rules |
 | Fonts | JetBrains Mono, Fira Code or system, four sizes |
 | Themes | light, dark, sepia, dracula + accent |
 | Barebones mode | characters instead of icons, no ripples, no animation |
 | Feeds | replies join their parent on the page, so a conversation is not repeated |
 | Notifications | replies, mentions and follows; quick reply and mark-read from the shade |
+| Polls | real options and tally from the API, and voting |
+| Link previews | thumbnail and text, or compact text where there is no image |
+| Checklists | `#todo` lists, ticked by the author |
+| Drafts | server-side, shared with the website |
+| Explore | people and hashtags to follow |
+| Hashtags | follow and block, as well as read |
 
 ---
 
@@ -71,6 +77,47 @@ removed account's handle would go. All of that is derivable from the inlined par
 ⚠️ **Deliberately not doing:** scraping textlog.cc's HTML for anything the API does not
 serve. Parsing markup means the app breaks on any markup change on the server, which is
 exactly the fragility this project avoided on day one.
+
+---
+
+## v0.3.0 — everything that was waiting on the server
+
+Every row of the "what would need the server" table from v0.2.0 is gone. textlog put all
+four on the API in one go, and the app uses them:
+
+| Was waiting on | Now |
+|---|---|
+| `link_previews` on the post shape | there — thumbnail beside the text, compact text where there is no image |
+| a poll endpoint | `POST /posts/{id}/poll/votes`, and the poll itself is on the post |
+| `/api/v1/drafts` | full CRUD and publish, so a draft crosses between web and app |
+| an FCM or APNs endpoint | **still missing** — see below |
+
+…plus `POST`/`DELETE /tags/{tag}/follow` and `/block`, and `GET /explore`.
+
+**Checklists** are new upstream and new here: a `#todo` line and `[ ]` / `[x]` items.
+There is deliberately no endpoint for ticking one — a checklist *is* the body, so a tick
+is an edit, which means only its author can tick it. The same rule the site has.
+
+**Bold and underline** are rendered unconditionally now. `*x*` is bold and `_x_` is
+underline — not italics, and not behind the markdown setting. The app had them the other
+way round on both counts, which meant showing the reader something the author did not
+write.
+
+**The character limit is 500**, up from 280. The bio limit was also wrong, in the other
+direction: the app allowed 280 where the server caps at 160, so it accepted bios the
+server then refused.
+
+**Still to do**
+- Share a post or a profile through the system share sheet.
+- Group the activity feeds into threads, as the post feeds already are.
+- The site's unread tracking for the latest feed (`/feeds/latest/read`).
+
+### The one thing still waiting on the server
+
+Instant notifications need an endpoint under `/api/v1/` that takes an FCM or APNs device
+token. textlog's push is Web Push under `/account/`, cookie-authenticated, expecting a
+browser endpoint — none of which an app can use. Until then the app polls, and Android
+will not run periodic work more often than every fifteen minutes.
 
 ---
 

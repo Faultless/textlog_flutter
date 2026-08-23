@@ -53,7 +53,7 @@ see [Building it for your own iPhone](#building-it-for-your-own-iphone).
 
 Read the whole thing in [ROADMAP.md](ROADMAP.md). In short:
 
-**Working today (v0.2.0)**
+**Working today (v0.3.0)**
 - Feeds the site has: **for you**, **to me**, hot and latest — plus a **live** tab, which the
   website cannot have, streaming new posts as they are written
 - **Search** across every note, server side
@@ -64,7 +64,10 @@ Read the whole thing in [ROADMAP.md](ROADMAP.md). In short:
 - Sign in with a code sent to your email, then post, reply, edit, delete, follow, block,
   report, and edit your bio
 - Posts render the way the site renders them: inline and fenced code, **LaTeX**, markdown
-  links, strikethrough, spoilers, polls, and ASCII art on its own line grid
+  links, bold, underline, strikethrough, spoilers, and ASCII art on its own line grid
+- **Polls** you can vote in, **link previews**, and **`#todo` checklists**
+- **Drafts** kept on the server, so one started on the website is here and vice versa
+- **Explore** — people and hashtags to follow — and hashtags you can follow or block
 - Optional block markdown on top — headings, lists, task lists, tables, quotes
 - **Barebones mode**: characters instead of icons, no ripples, no animation
 - Light, dark, sepia and dracula themes, a choice of accent, monospace face and text size
@@ -78,7 +81,7 @@ Read the whole thing in [ROADMAP.md](ROADMAP.md). In short:
 **Next**
 - Share a post or profile through the system share sheet
 - A `for you` unread jump, the way the site's "first unread" link works
-- Link previews, drafts and poll voting — all waiting on textlog to put them in the API
+- Instant notifications, which need an FCM or APNs endpoint textlog does not have yet
 
 **Then — distribution (v0.2.0)**
 - Automated builds attached to each release

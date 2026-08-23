@@ -39,9 +39,9 @@ Dependencies point one way only — `ui` → `state` → `data` → `core`.
 
 ```
 core/    pure Dart. No Flutter, no I/O, no packages.
-         models, FeedSource, body tokenizer, block markdown, polls, post context,
-         feed threading, notification planning, SSE parser, relative time, the TLD
-         table the autolinker needs.
+         models, FeedSource, body tokenizer, block markdown, polls, checklists,
+         post context, feed threading, notification planning, the memoised body
+         analysis, SSE parser, relative time, the TLD table the autolinker needs.
 data/    the only code that talks to the network, plus the OS bridges.
          api.dart, firehose transports, notifications, the background poll, and
          local_store.dart — which owns every SharedPreferences key, because the
@@ -413,16 +413,58 @@ and links to it; so does this.
 
 ## Known gaps
 
-- **Link previews and images.** The server stores and renders both; neither is on the API's
-  post shape, so the app cannot show them without scraping markup.
-- **Voting in a poll.** No poll endpoint in the public API — the site votes by form POST.
-  The poll is shown; an option opens the post on textlog.cc.
+- **Images in a post body.** The server degrades these to a link; the app does the same.
 - **A truncated following list.** `Relationships` walks at most five pages, and an account
   missing from a truncated list is reported as *unknown* rather than absent — so a follow
   button says `follow` without the arrow instead of claiming you do not follow someone you
   do. Acting on an account settles it either way.
 - **A thread wider or deeper than one page.** 100 posts at depth 5 covers virtually
   everything; past that, branches advertise what is missing.
+
+## Polls, checklists and link previews
+
+All three used to be impossible and are not any more, and each landed differently.
+
+**Polls** are on the post shape now, so the app stopped parsing them out of the body —
+except for one thing: the option lines are still *part* of the body, so they have to be
+stripped from what renders above the poll. The tally is withheld by the server until the
+poll closes or you have voted, which is why `votes` is nullable rather than zero, and why
+that is a state the UI has to draw rather than an error.
+
+**Checklists** are the opposite: entirely in the body, with no endpoint. Ticking one
+rewrites the body and saves it as an edit, so only the author can tick their own list.
+That is the site's rule and a consequence of the design, not a gap in the client.
+
+**Link previews** are on the post shape too, and the images are textlog's own — it fetches
+and stores them itself, so showing one reveals nothing to the linked site. That is exactly
+why this waited: unfurling client side would have meant a request per link to a third
+party and every reader's address handed to every site anyone linked.
+
+Two things about drawing them, both found on a device:
+
+- **A thumbnail, not a hero.** One preview on textlog is 1191×1684; at its own aspect that
+  is 475px of a phone screen, burying the post that linked it. A fixed square crop beside
+  the text is predictable whatever the source shape, and a preview with no image is a
+  compact line rather than a card with a hole in it.
+- **Never `CrossAxisAlignment.stretch`.** It resolves against the incoming maximum
+  cross-axis extent, which inside a scrollable is unbounded — so it throws
+  "BoxConstraints forces an infinite height" and takes the whole list down with it.
+- **No images on the web build.** textlog serves preview images from a host that sends no
+  `Access-Control-Allow-Origin` at all, and Flutter's canvas renderer fetches images with
+  XHR. Rendering an `<img>` element instead escapes Flutter's layout and fills the screen,
+  which is worse than not having the picture — so web gets the compact form.
+
+## Parsing a body once
+
+Rendering a body asks a lot of questions about it — poll, checklist, spoiler, ASCII art,
+links, mentions, blocks — and each is a pass over the string. `build` runs on every frame
+a tile is scrolled through, and that measured at around 300µs per body per build on a
+desktop. On a debug build on a mid-range phone it was enough to hang the app outright.
+
+A body is an immutable string, so `core/body_analysis.dart` works all of it out once and
+keeps the answer in a bounded, insertion-ordered map. A rebuild is a lookup. The test
+asserts the cached answer is *identical*, not merely equal, and that it agrees with parsing
+by hand — a cache that changes the answer is worse than no cache.
 
 ## Notifications
 
