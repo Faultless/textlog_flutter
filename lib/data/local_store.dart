@@ -18,6 +18,7 @@ abstract final class LocalStore {
   static const _notifyEnabled = 'notify_enabled';
   static const _notifyKinds = 'notify_kinds';
   static const _announced = 'notify_announced';
+  static const _primed = 'notify_primed';
 
   /// How many announced ids to remember. A poll only ever sees one page of activity,
   /// so this is comfortably more than enough to stop a repeat, and it is bounded so a
@@ -95,6 +96,19 @@ abstract final class LocalStore {
 
   /// Forget the lot — on sign out, so signing back in does not replay a backlog.
   static Future<void> forgetAnnounced() async {
-    await (await _open())?.remove(_announced);
+    final preferences = await _open();
+    await preferences?.remove(_announced);
+    await preferences?.remove(_primed);
+  }
+
+  /// Whether a baseline has been taken.
+  ///
+  /// The first poll after switching notifications on has to decide what "new" means.
+  /// Without this it means "everything unread", which on an account that has been read
+  /// on the website is a burst of notifications about things already seen.
+  static Future<bool> primed() async => (await _open())?.getBool(_primed) ?? false;
+
+  static Future<void> markPrimed() async {
+    await (await _open())?.setBool(_primed, true);
   }
 }

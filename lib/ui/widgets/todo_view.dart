@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/models.dart';
+import '../../core/body_analysis.dart';
 import '../../core/todos.dart';
 import '../../state/cache.dart';
 import '../../state/feed.dart';
@@ -65,7 +66,7 @@ class _TodoViewState extends ConsumerState<TodoView> {
 
   @override
   Widget build(BuildContext context) {
-    final todo = parseTodo(_body);
+    final todo = analyseTodo(_body);
     if (todo == null) return const SizedBox.shrink();
 
     final palette = context.palette;

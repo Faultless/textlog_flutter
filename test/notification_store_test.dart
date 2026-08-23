@@ -101,4 +101,21 @@ void main() {
       expect(await LocalStore.announced(), isEmpty);
     });
   });
+
+  group('the baseline', () {
+    test('is not taken until it is taken', () async {
+      expect(await LocalStore.primed(), isFalse);
+      await LocalStore.markPrimed();
+      expect(await LocalStore.primed(), isTrue);
+    });
+
+    test('is cleared on sign out, so signing back in starts from then', () async {
+      // Otherwise a return after a week announces the week.
+      await LocalStore.markPrimed();
+      await LocalStore.remember({'a'});
+      await LocalStore.forgetAnnounced();
+      expect(await LocalStore.primed(), isFalse);
+      expect(await LocalStore.announced(), isEmpty);
+    });
+  });
 }

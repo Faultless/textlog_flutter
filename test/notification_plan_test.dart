@@ -193,4 +193,26 @@ void main() {
     expect(NotifyKind.fromId('nonsense'), isNull);
     expect(NotifyKind.fromId(null), isNull);
   });
+
+  group('the first poll', () {
+    test('remembers everything so nothing is announced twice', () async {
+      // The baseline is the poll deciding what "new" means. Everything unread when
+      // notifications were switched on has already been seen somewhere, most likely
+      // on the website, so the plan records it and the caller declines to show it.
+      final backlog = [
+        for (var i = 0; i < 8; i++) activity('r$i', withPost: post(i + 2)),
+      ];
+      final result = plan(backlog);
+
+      expect(result.announced, hasLength(8), reason: 'the whole page is remembered');
+
+      // …so the next poll, with only one new arrival, announces exactly that one.
+      final next = plan(
+        [activity('new', withPost: post(99)), ...backlog],
+        announced: result.announced,
+      );
+      expect(next.notifications, hasLength(1));
+      expect(next.notifications.single.activityId, 'new');
+    });
+  });
 }

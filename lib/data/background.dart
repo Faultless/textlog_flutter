@@ -90,6 +90,15 @@ abstract final class Background {
       // announcing at all, and a crash between the two should fail quiet.
       await LocalStore.remember(plan.announced);
 
+      // The first poll takes a baseline instead of announcing one. Everything
+      // unread at the moment you switched notifications on has already been seen
+      // somewhere, most likely on the website — telling you about it is noise, and
+      // it is the *next* reply you actually want to hear about.
+      if (!await LocalStore.primed()) {
+        await LocalStore.markPrimed();
+        return true;
+      }
+
       for (final notification in plan.notifications) {
         await Notifications.show(notification);
       }

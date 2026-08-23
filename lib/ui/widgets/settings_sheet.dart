@@ -202,9 +202,10 @@ class _Notifications extends ConsumerWidget {
         _Toggle(
           title: 'notify me',
           // Say what it actually does. textlog has no push endpoint an app can
-          // reach, so this is a background check rather than instant delivery, and
-          // pretending otherwise would just look broken.
-          note: 'checked in the background every 15 minutes or so',
+          // reach, so this is a background check rather than instant delivery.
+          // Fifteen minutes is Android's floor for periodic work and it batches
+          // further while the phone is idle, so "at least" is the honest word.
+          note: 'checked in the background, at least 15 minutes apart',
           value: preferences.enabled,
           onChanged: (wanted) async {
             final granted = await notifier.setEnabled(wanted);

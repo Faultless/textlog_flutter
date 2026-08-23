@@ -45,6 +45,11 @@ class NotifyNotifier extends AsyncNotifier<NotifyPreferences> {
     // A first turn-on gets everything; a later one keeps what was chosen before.
     final kinds = current.kinds.isEmpty ? NotifyPreferences.defaults.kinds : current.kinds;
     await _save(NotifyPreferences(enabled: true, kinds: kinds));
+
+    // Take the baseline now rather than whenever the OS first gets round to the
+    // periodic task — which can be a quarter of an hour, and it would take that
+    // baseline *then*, quietly swallowing anything that arrived in between.
+    await Background.poll();
     await Background.schedule();
     return true;
   }
@@ -67,6 +72,8 @@ class NotifyNotifier extends AsyncNotifier<NotifyPreferences> {
     await _save((state.valueOrNull ?? NotifyPreferences.off).copyWith(enabled: false));
     await Background.cancel();
     await Notifications.clearAll();
+    // Clears the baseline too, so signing back in starts from then rather than
+    // replaying whatever accumulated while you were away.
     await LocalStore.forgetAnnounced();
   }
 }

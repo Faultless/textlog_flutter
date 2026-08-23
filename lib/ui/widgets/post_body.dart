@@ -5,10 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/body_analysis.dart';
 import '../../core/body_tokens.dart';
 import '../../core/markdown.dart';
-import '../../core/polls.dart';
-import '../../core/todos.dart';
 import '../../state/settings.dart';
 import '../theme.dart';
 
@@ -61,27 +60,22 @@ class _PostBodyState extends ConsumerState<PostBody> {
 
     final palette = context.palette;
     final plain = widget.style ?? Theme.of(context).textTheme.bodyMedium!;
-    // The option and item lines belong to the poll or the checklist below, not to
-    // the body above them.
-    final body = todoDisplayBody(pollDisplayBody(widget.body));
-    final art = containsAsciiArt(body);
-    // `.post p.ascii-art { line-height: 1.15 }`
-    final base = art ? plain.copyWith(height: 1.15) : plain;
-    // Never run markdown over ASCII art. Beyond the spacing, art is full of `_`,
-    // `*` and `~`, which the emphasis rules would happily eat out of a drawing.
-    final extended =
-        (ref.watch(settingsProvider).valueOrNull?.markdown ?? false) && !art;
+    // Never run the opt-in markdown over ASCII art. Beyond the spacing, art is full
+    // of `_`, `*` and `~`, which the emphasis rules would happily eat out of a drawing.
+    final wanted = ref.watch(settingsProvider).valueOrNull?.markdown ?? false;
 
-    final spoiler = splitSpoilerBody(body);
+    // One pass over the body, kept: this runs on every frame a tile scrolls through.
+    final analysis = analyseBody(widget.body, extended: wanted);
+    // `.post p.ascii-art { line-height: 1.15 }`
+    final base = analysis.asciiArt ? plain.copyWith(height: 1.15) : plain;
+
     final visible = _Rendered(
-      spoiler.visible,
+      analysis.visible,
       base: base,
-      art: art,
-      extended: extended,
       onTap: _onTap,
       quiet: widget.quiet,
     );
-    if (!spoiler.hasSpoiler) return visible;
+    if (!analysis.spoiler.hasSpoiler) return visible;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -89,14 +83,7 @@ class _PostBodyState extends ConsumerState<PostBody> {
         visible,
         const SizedBox(height: space2),
         if (_revealed)
-          _Rendered(
-            spoiler.hidden,
-            base: base,
-            art: art,
-            extended: extended,
-            onTap: _onTap,
-            quiet: widget.quiet,
-          )
+          _Rendered(analysis.hidden, base: base, onTap: _onTap, quiet: widget.quiet)
         else
           // `<details><summary>reveal</summary>` — the reader opts in.
           GestureDetector(
@@ -116,29 +103,20 @@ class _PostBodyState extends ConsumerState<PostBody> {
 /// One run of body text, split into blocks and drawn.
 class _Rendered extends StatelessWidget {
   const _Rendered(
-    this.body, {
+    this.blocks, {
     required this.base,
-    required this.art,
-    required this.extended,
     required this.onTap,
     required this.quiet,
   });
 
-  final String body;
+  final List<BodyBlock> blocks;
   final TextStyle base;
-  final bool art;
-  final bool extended;
   final TapGestureRecognizer Function(VoidCallback) onTap;
   final bool quiet;
 
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
-    final blocks = art
-        // Art is literal. Only references stay tappable, which is what the site's
-        // `linkifyAsciiReferences` does.
-        ? [ParagraphBlock(tokenizeBody(body))]
-        : markdownBlocks(body, extended: extended);
 
     if (blocks.length == 1 && blocks.first is ParagraphBlock) {
       return _paragraph(context, blocks.first as ParagraphBlock, palette);
