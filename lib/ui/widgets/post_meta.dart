@@ -19,6 +19,7 @@ class HandleLink extends ConsumerWidget {
     this.colour,
     this.asYou = false,
     this.hitPadding,
+    this.ellipsize = false,
   });
 
   final String handle;
@@ -33,6 +34,9 @@ class HandleLink extends ConsumerWidget {
   /// Overrides [Pressable]'s default hit box. The meta line trims the side the
   /// punctuation sits on, so `@bob:` does not render as `@bob :`.
   final EdgeInsets? hitPadding;
+
+  /// Abbreviate rather than wrap when there is not room for the whole handle.
+  final bool ellipsize;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -54,6 +58,9 @@ class HandleLink extends ConsumerWidget {
       onTap: () => context.push('/u/$handle'),
       builder: (context, pressed) => Text(
         '@$handle',
+        maxLines: ellipsize ? 1 : null,
+        overflow: ellipsize ? TextOverflow.ellipsis : null,
+        softWrap: !ellipsize,
         style: base.asLink(palette).copyWith(color: pressed ? palette.accent : ink),
       ),
     );
@@ -127,6 +134,7 @@ class PostContextLine extends ConsumerWidget {
     this.showAuthor = true,
     this.quoted = false,
     this.showReplyCount = true,
+    this.singleLine = false,
     this.context$,
     this.trailing = const [],
   });
@@ -146,6 +154,13 @@ class PostContextLine extends ConsumerWidget {
   /// count next to them says nothing the reader cannot see.
   final bool showReplyCount;
 
+  /// Keep the whole line on one row, abbreviating a handle that will not fit.
+  ///
+  /// On for anything with a control on the line — a fold toggle, a `top` link. Those
+  /// are the header of an accordion, and a header that reflows drops its own control
+  /// onto a second row and reads as broken.
+  final bool singleLine;
+
   /// Precomputed relation, when the caller has a better idea than the post alone —
   /// a quote that found its grandparent in the cache, for instance.
   final PostContext? context$;
@@ -161,47 +176,78 @@ class PostContextLine extends ConsumerWidget {
     final viewer = ref.watch(viewerHandleProvider);
     final relation = context$ ?? postContextOf(post, viewerHandle: viewer);
 
-    return Wrap(
-      // Each tappable chip brings its own padding now, so the gaps come from that.
-      spacing: space1,
-      runSpacing: 0,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        if (showAuthor)
-          HandleLink(
-            post.author.handle,
-            style: base,
-            colour: quoted ? palette.quoteInk : null,
-            asYou: true,
-            // No left padding: the first chip has to line up with the body below it.
-            hitPadding: const EdgeInsets.only(right: space1, top: space2, bottom: space2),
-          ),
-        if (relation.hasLabel)
-          if (relation.target case final target?) ...[
-            Text(relation.label!, style: quiet),
-            // The punctuation has to hug the handle, or the line reads "@bob :".
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                HandleLink(
-                  target.handle,
-                  style: base,
-                  colour: quoted ? palette.quoteInk : null,
-                  asYou: true,
-                  // The punctuation follows immediately, so nothing on the right.
-                  hitPadding: const EdgeInsets.only(left: space1, top: space2, bottom: space2),
-                ),
-                Text(_tail(relation), style: quiet),
-              ],
+    // A handle can be twenty-four characters, so on a single-line row it is the
+    // part that gives way: wrapped in Flexible with an ellipsis, while the stamp
+    // and any control keep their full width.
+    final author = HandleLink(
+      post.author.handle,
+      style: base,
+      colour: quoted ? palette.quoteInk : null,
+      asYou: true,
+      // No left padding: the first chip has to line up with the body below it.
+      hitPadding: const EdgeInsets.only(right: space1, top: space2, bottom: space2),
+      ellipsize: singleLine,
+    );
+
+    final label = switch (relation) {
+      PostContext(hasLabel: false) => null,
+      PostContext(target: final target?) => (
+        Text(relation.label!, style: quiet, maxLines: 1),
+        // The punctuation has to hug the handle, or the line reads "@bob :".
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Flexible(
+              child: HandleLink(
+                target.handle,
+                style: base,
+                colour: quoted ? palette.quoteInk : null,
+                asYou: true,
+                // The punctuation follows immediately, so nothing on the right.
+                hitPadding: const EdgeInsets.only(left: space1, top: space2, bottom: space2),
+                ellipsize: singleLine,
+              ),
             ),
-          ] else
-            Text('${relation.label!}${_tail(relation)}', style: quiet),
-        PostMeta(
-          createdAt: post.createdAt,
-          replyCount: showReplyCount ? post.replyCount : 0,
-          style: base,
-          onTap: onTap,
+            Text(_tail(relation), style: quiet, maxLines: 1),
+          ],
         ),
+      ),
+      _ => (Text('${relation.label!}${_tail(relation)}', style: quiet, maxLines: 1), null),
+    };
+
+    final meta = PostMeta(
+      createdAt: post.createdAt,
+      replyCount: showReplyCount ? post.replyCount : 0,
+      style: base,
+      onTap: onTap,
+    );
+
+    if (!singleLine) {
+      return Wrap(
+        // Each tappable chip brings its own padding now, so the gaps come from that.
+        spacing: space1,
+        runSpacing: 0,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          if (showAuthor) author,
+          if (label case (final word, final target?)) ...[word, target],
+          if (label case (final word, null)) word,
+          meta,
+          ...trailing,
+        ],
+      );
+    }
+
+    return Row(
+      children: [
+        if (showAuthor) Flexible(child: author),
+        if (label case (final word, final target?)) ...[
+          Flexible(child: word),
+          Flexible(child: target),
+        ],
+        if (label case (final word, null)) Flexible(child: word),
+        // The stamp and the controls keep their room; the handles above give way.
+        meta,
         ...trailing,
       ],
     );

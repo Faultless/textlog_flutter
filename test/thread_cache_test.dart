@@ -129,11 +129,16 @@ void main() {
 
   test('a reply_count that disagrees with the cache invalidates it', () async {
     final t = setUp$();
+    // The root's own count comes from the post cache: it never appears in its own
+    // replies, so without having seen it there is nothing to compare against.
+    t.container.read(postCacheProvider).remember([
+      Post.fromJson(post(1, parent: 0, replyCount: 1)),
+    ]);
     await t.container.read(threadProvider(1).future);
     final first = t.requested.length;
 
-    // The thread now claims two replies; we hold one. A feed or a live post carrying
-    // that count is enough to know our copy is stale, at no request cost.
+    // The thread now claims two replies where it claimed one. A feed or a live post
+    // carrying that count is enough to know our copy is stale, at no request cost.
     t.container.read(repliesCacheProvider).noticeCounts([
       Post.fromJson(post(1, parent: 0, replyCount: 2)),
     ]);
@@ -146,11 +151,32 @@ void main() {
 
   test('a matching reply_count leaves the cache alone', () async {
     final t = setUp$();
+    t.container.read(postCacheProvider).remember([
+      Post.fromJson(post(1, parent: 0, replyCount: 1)),
+    ]);
     await t.container.read(threadProvider(1).future);
     final first = t.requested.length;
 
     t.container.read(repliesCacheProvider).noticeCounts([
       Post.fromJson(post(1, parent: 0, replyCount: 1)),
+    ]);
+
+    t.container.invalidate(threadProvider(1));
+    await t.container.read(threadProvider(1).future);
+
+    expect(t.requested.length, first);
+  });
+
+  test('a count it has never seen is left alone rather than guessed at', () async {
+    // reply_count is a whole descendant count, so it cannot be checked against the
+    // number of direct children held. Treating a mismatch there as staleness threw
+    // away good replies on nearly every feed fetch.
+    final t = setUp$();
+    await t.container.read(threadProvider(1).future);
+    final first = t.requested.length;
+
+    t.container.read(repliesCacheProvider).noticeCounts([
+      Post.fromJson(post(1, parent: 0, replyCount: 9)),
     ]);
 
     t.container.invalidate(threadProvider(1));

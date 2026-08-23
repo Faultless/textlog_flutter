@@ -326,6 +326,42 @@ Two subtleties in the grouping, both covered by tests:
   guarantees a parent is seen before its children, which is what makes the single grouping
   pass work.
 
+### `reply_count` is a whole descendant count
+
+Not a direct-child count. Three separate bugs came from treating it as one, and all
+three showed up as "the +N more link does nothing":
+
+- **The count itself.** `unloaded` was `reply_count` minus the number of *direct*
+  children drawn, so a node whose whole visible branch was already on screen still
+  advertised replies. It is now `reply_count` minus everything rendered beneath the
+  node — like against like.
+- **What the link did.** It offered to load in place regardless of whether that could
+  put anything on screen. Past the nesting cap there is nowhere to draw a reply, so the
+  tap spent a request and left the tree exactly as it was. A node now carries
+  `expandable`, true only when fetching would actually add children *here*; everything
+  else opens the post, which is where those replies can be seen.
+- **Cache invalidation.** `noticeCounts` compared the incoming `reply_count` against
+  the number of children held, so nearly every node with a grandchild looked stale and
+  had its replies thrown away on every feed fetch. It now compares against the count
+  observed when those replies were cached, and says nothing when it never saw one.
+
+Because ids only ever increase, a post that made it into a page brings all its
+descendants with it — a page can never separate a node from its own children. So
+in-place expansion exists for one case only: a branch whose cached replies were dropped
+because the server reported a different count.
+
+### A page whose newest replies are all deep
+
+`/replies` returns the **newest** hundred of a subtree, which is not the top hundred. A
+busy branch deep in a thread can fill the page and leave its own ancestors off it, and
+those posts cannot be placed by `parent_id` alone. Dropping them meant a thread with a
+hundred and twenty replies rendered as empty.
+
+Two passes fix it. The first places what it can; the second rebuilds one missing level
+from the `parent` the server inlines on every post — free, no request. When more than one
+level is missing, and only then, one request for the root's direct children guarantees
+the thread is never blank when it has replies.
+
 ### Not refetching what we already have
 
 `RepliesCache` holds two things: the direct children of each parent, and a mark recording

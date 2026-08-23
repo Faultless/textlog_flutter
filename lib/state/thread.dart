@@ -149,8 +149,40 @@ class ThreadNotifier extends AutoDisposeFamilyAsyncNotifier<List<ReplyNode>, int
       return page.items;
     });
 
-    final grouped = _groupByParent(rootId, posts);
-    cache.rememberSubtree(rootId, maxThreadDepth, now, grouped);
+    var grouped = _groupByParent(rootId, posts);
+    var depth = maxThreadDepth;
+
+    // More than one level of ancestors missing, which the inlined parents cannot
+    // bridge. Rather than show an empty thread, spend one request on the level that
+    // is always placeable. Rare, and bounded by the same budget as everything else.
+    if (grouped[rootId]!.isEmpty && posts.isNotEmpty && budget() > 0) {
+      final direct = await ref.read(apiProvider).feed(
+        RepliesFeed(rootId),
+        limit: repliesPerNode,
+      );
+      if (direct.items.isNotEmpty) {
+        grouped = _groupByParent(rootId, direct.items);
+        // Only the one level was fetched, so nothing below it is covered.
+        depth = 1;
+        ref.read(postCacheProvider).remember(direct.items);
+      }
+    }
+
+    cache.rememberSubtree(
+      rootId,
+      depth,
+      now,
+      grouped,
+      // Every parent in the response carries its own count. The thread's own root
+      // does not appear in its own replies, so its count comes from the post cache
+      // when that has seen it — without which a new reply to the root would not be
+      // noticed until the entry aged out.
+      replyCounts: {
+        for (final post in posts) post.id: post.replyCount,
+        if (ref.read(postCacheProvider)[rootId] case final root?)
+          rootId: root.replyCount,
+      },
+    );
     ref.read(postCacheProvider).remember(posts);
     // Every post carries a current count for the level below it, which may
     // contradict replies we hold for nodes this request did not reach.
@@ -179,22 +211,47 @@ class ThreadNotifier extends AutoDisposeFamilyAsyncNotifier<List<ReplyNode>, int
   /// A depth request answers with the subtree flat, each post carrying its
   /// `parent_id`. Grouping it is what turns one response into the tree.
   ///
-  /// A parent that appears in the response but whose own children were cut off by
-  /// the page limit simply gets no entry, so [assembleReplies] reports its replies
-  /// as unloaded — a "+N more" link rather than a silently short branch.
+  /// The page holds the **newest** hundred of the subtree, which is not the same as
+  /// the top hundred: a busy branch deep in a thread can fill the whole page and
+  /// leave its own ancestors off it. Those posts cannot be placed by `parent_id`
+  /// alone, and dropping them meant a thread with a hundred and twenty replies
+  /// rendered none at all.
+  ///
+  /// So a second pass rebuilds one missing level from the `parent` the server inlines
+  /// on every post. That costs no request, which is the whole reason to do it that way.
   Map<int, List<Post>> _groupByParent(int rootId, List<Post> posts) {
     final grouped = <int, List<Post>>{rootId: []};
-    // Newest first is how the server returns them; a thread reads oldest first.
-    final ordered = [...posts]..sort((a, b) => a.id.compareTo(b.id));
-
     final reachable = {rootId};
-    for (final post in ordered) {
-      final parentId = post.parentId;
-      if (parentId == null) continue;
-      // The last level of a depth-capped response has children we cannot place.
-      if (!reachable.contains(parentId)) continue;
+    final placed = <int>{};
+
+    void place(Post post, int parentId) {
       (grouped[parentId] ??= []).add(post);
       reachable.add(post.id);
+      placed.add(post.id);
+    }
+
+    // Ascending id order, so a parent is always seen before its children.
+    final ordered = [...posts]..sort((a, b) => a.id.compareTo(b.id));
+
+    for (final post in ordered) {
+      final parentId = post.parentId;
+      if (parentId != null && reachable.contains(parentId)) place(post, parentId);
+    }
+
+    for (final post in ordered) {
+      if (placed.contains(post.id)) continue;
+      final parent = post.parent;
+      final grandparentId = parent?.parentId;
+      // Only one level can be bridged this way: a quote carries no parent of its own.
+      if (parent == null || grandparentId == null) continue;
+      if (!reachable.contains(grandparentId)) continue;
+      if (!placed.contains(parent.id)) place(parent, grandparentId);
+      place(post, parent.id);
+    }
+
+    // A conversation reads oldest first, and the second pass appends out of order.
+    for (final branch in grouped.values) {
+      branch.sort((a, b) => a.id.compareTo(b.id));
     }
     return grouped;
   }

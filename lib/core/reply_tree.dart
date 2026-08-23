@@ -9,14 +9,33 @@ library;
 import 'models.dart';
 
 final class ReplyNode {
-  const ReplyNode({required this.post, required this.children, required this.unloaded});
+  const ReplyNode({
+    required this.post,
+    required this.children,
+    required this.unloaded,
+    this.expandable = false,
+  });
 
   final Post post;
   final List<ReplyNode> children;
 
-  /// Replies known to exist but not fetched, because the depth cap or the request
-  /// budget stopped us. Drives the "N more replies" link.
+  /// Descendants that exist but are not drawn here.
+  ///
+  /// Compared like with like: the server's `reply_count` is a post's *whole*
+  /// descendant count, so this is that minus everything rendered beneath this node —
+  /// not minus its direct children, which was comparing two different things and
+  /// advertising replies that were already on screen.
   final int unloaded;
+
+  /// Whether fetching this node's replies would actually add children *here*.
+  ///
+  /// False when its children are already loaded, and false at the nesting cap —
+  /// where there is nowhere left to draw them, so the honest move is to open the
+  /// post and give the reader five fresh levels from there.
+  ///
+  /// This is the difference between a "+N more" that works and one that fires a
+  /// request and changes nothing, which is what it used to do.
+  final bool expandable;
 
   bool get hasUnloaded => unloaded > 0;
 }
@@ -35,25 +54,30 @@ List<ReplyNode> assembleReplies(
   if (replies == null) return const [];
 
   return [
-    for (final post in replies)
-      if (depth >= maxDepth || !loaded.containsKey(post.id))
-        ReplyNode(post: post, children: const [], unloaded: post.replyCount)
-      else
-        () {
-          final children = assembleReplies(
-            post.id,
-            loaded,
-            maxDepth: maxDepth,
-            depth: depth + 1,
-          );
-          return ReplyNode(
-            post: post,
-            children: children,
-            // The server may report more replies than the page we asked for.
-            unloaded: (post.replyCount - children.length).clamp(0, post.replyCount),
-          );
-        }(),
+    for (final post in replies) _node(post, loaded, maxDepth: maxDepth, depth: depth),
   ];
+}
+
+ReplyNode _node(
+  Post post,
+  Map<int, List<Post>> loaded, {
+  required int maxDepth,
+  required int depth,
+}) {
+  // At the cap there is no room to nest, whatever we hold.
+  final atCap = depth >= maxDepth;
+  final fetched = loaded.containsKey(post.id);
+  final children = atCap || !fetched
+      ? const <ReplyNode>[]
+      : assembleReplies(post.id, loaded, maxDepth: maxDepth, depth: depth + 1);
+
+  return ReplyNode(
+    post: post,
+    children: children,
+    // Whole descendant count against whole rendered count.
+    unloaded: (post.replyCount - countReplies(children)).clamp(0, post.replyCount),
+    expandable: !atCap && !fetched && post.replyCount > 0,
+  );
 }
 
 /// Total posts in a tree, used to say how much is on screen.

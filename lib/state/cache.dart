@@ -82,10 +82,19 @@ final postCacheProvider = Provider<PostCache>((ref) => PostCache());
 const repliesTtl = Duration(minutes: 5);
 
 final class CachedReplies {
-  const CachedReplies(this.posts, this.fetchedAt);
+  const CachedReplies(this.posts, this.fetchedAt, {this.observedReplyCount});
 
   final List<Post> posts;
   final DateTime fetchedAt;
+
+  /// The parent's own `reply_count` as it read when these replies were cached.
+  ///
+  /// Needed because `reply_count` is a post's *whole descendant* count, not the
+  /// number of direct children — so it cannot be compared against `posts.length`.
+  /// Doing that treated almost every node with a grandchild as out of date and threw
+  /// its replies away on every feed fetch. Null when it was never observed, which
+  /// means "no opinion" rather than "stale".
+  final int? observedReplyCount;
 
   bool isStale(DateTime now) => now.difference(fetchedAt) > repliesTtl;
 }
@@ -136,9 +145,12 @@ final class RepliesCache {
     for (final post in posts) {
       final cached = _byParent[post.id];
       if (cached == null || cached.posts.length >= repliesPerNode) continue;
+      // Like against like: the count we saw when we cached, against the count now.
+      final observed = cached.observedReplyCount;
+      if (observed == null || post.replyCount == observed) continue;
       // forget, not a bare remove: the subtree mark rooted here claimed to cover
       // these replies, and it no longer does.
-      if (post.replyCount != cached.posts.length) forget(post.id);
+      forget(post.id);
     }
   }
 
@@ -158,8 +170,8 @@ final class RepliesCache {
     return pending.whenComplete(() => _inFlight.remove(parentId));
   }
 
-  void remember(int parentId, List<Post> posts, DateTime now) {
-    _byParent[parentId] = CachedReplies(posts, now);
+  void remember(int parentId, List<Post> posts, DateTime now, {int? replyCount}) {
+    _byParent[parentId] = CachedReplies(posts, now, observedReplyCount: replyCount);
     if (_byParent.length > _limit) {
       for (final id in _byParent.keys.take(_byParent.length - _limit).toList()) {
         _byParent.remove(id);
@@ -184,10 +196,18 @@ final class RepliesCache {
   /// A node three levels down a five-level fetch has two levels below it, so it is
   /// marked as covered to depth two. That is what stops opening that node from
   /// showing a shallower tree than a fresh request would.
-  void rememberSubtree(int rootId, int depth, DateTime now, Map<int, List<Post>> loaded) {
+  /// [replyCounts] is each parent's own `reply_count` from the same response, so a
+  /// later response can tell whether that subtree has changed.
+  void rememberSubtree(
+    int rootId,
+    int depth,
+    DateTime now,
+    Map<int, List<Post>> loaded, {
+    Map<int, int> replyCounts = const {},
+  }) {
     _mark(rootId, depth, now);
     for (final entry in loaded.entries) {
-      remember(entry.key, entry.value, now);
+      remember(entry.key, entry.value, now, replyCount: replyCounts[entry.key]);
     }
     // Walk down from the root, spending a level at each step.
     var frontier = [rootId];
@@ -227,7 +247,11 @@ final class RepliesCache {
       } else {
         posts[index] = updated;
       }
-      _byParent[entry.key] = CachedReplies(posts, entry.value.fetchedAt);
+      _byParent[entry.key] = CachedReplies(
+        posts,
+        entry.value.fetchedAt,
+        observedReplyCount: entry.value.observedReplyCount,
+      );
     }
   }
 }

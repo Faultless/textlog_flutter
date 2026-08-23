@@ -84,6 +84,9 @@ class _NodeState extends ConsumerState<_Node> {
                 post: node.post,
                 style: meta,
                 showReplyCount: false,
+                // This row is the accordion's header. If it reflows, the fold
+                // control drops onto a second line and the whole thing reads broken.
+                singleLine: true,
                 onTap: () => context.push('/post/${node.post.id}'),
                 trailing: [
                   if (foldable) _Fold(_folded, () => setState(() => _folded = !_folded)),
@@ -181,14 +184,18 @@ class _MoreState extends ConsumerState<_More> {
     final label = inFeed
         ? 'read more'
         : '+ $count more ${count == 1 ? 'reply' : 'replies'}';
-    final canLoadHere = !inFeed && widget.depth < maxThreadDepth;
+
+    // Only load in place when that will actually put something on screen. It used
+    // to try regardless, which meant a tap past the nesting cap — or on a node whose
+    // replies were already loaded — spent a request and changed nothing at all.
+    final loadHere = !inFeed && widget.node.expandable;
 
     return Padding(
       padding: EdgeInsets.only(left: space2 + replyIndentOf(context), bottom: space3),
       child: Pressable(
         onTap: _loading
             ? null
-            : canLoadHere
+            : loadHere
             ? _load
             : () => context.push('/post/${widget.node.post.id}'),
         builder: (context, pressed) => Text(

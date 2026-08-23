@@ -61,6 +61,8 @@ class ParentQuote extends ConsumerWidget {
             post: quote,
             style: theme.labelSmall!,
             quoted: true,
+            // Keeps the `top` link on the same line as the handle it belongs to.
+            singleLine: true,
             context$: relation,
             onTap: () => context.push('/post/$parentId'),
             trailing: [
