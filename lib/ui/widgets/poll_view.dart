@@ -139,7 +139,10 @@ class _Option extends StatelessWidget {
           ? 'vote for ${option.label}'
           : '${option.label}, $percent per cent',
       child: GestureDetector(
-        onTap: onTap,
+        // Absorbed whether or not it can be voted on, for the same reason a checkbox
+        // is: an option reads as a button, and pressing one should never do something
+        // unrelated. The footing below says why it cannot be voted on.
+        onTap: onTap ?? () {},
         behavior: HitTestBehavior.opaque,
         child: Container(
           width: double.infinity,

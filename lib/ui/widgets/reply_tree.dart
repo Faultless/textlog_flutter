@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/reply_tree.dart';
 import '../../state/thread.dart';
+import '../router.dart';
 import '../theme.dart';
 import 'post_actions.dart';
 import 'link_preview_view.dart';
@@ -89,7 +89,7 @@ class _NodeState extends ConsumerState<_Node> {
                 // This row is the accordion's header. If it reflows, the fold
                 // control drops onto a second line and the whole thing reads broken.
                 singleLine: true,
-                onTap: () => context.push('/post/${node.post.id}'),
+                onTap: () => openPost(context, node.post.id),
                 trailing: [
                   if (foldable) _Fold(_folded, () => setState(() => _folded = !_folded)),
                 ],
@@ -201,7 +201,7 @@ class _MoreState extends ConsumerState<_More> {
             ? null
             : loadHere
             ? _load
-            : () => context.push('/post/${widget.node.post.id}'),
+            : () => openPost(context, widget.node.post.id),
         builder: (context, pressed) => Text(
           _loading ? 'loading…' : label,
           style: Theme.of(context).textTheme.bodySmall!

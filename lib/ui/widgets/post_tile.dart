@@ -2,9 +2,9 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/models.dart';
+import '../router.dart';
 import '../theme.dart';
 import 'parent_quote.dart';
 import 'link_preview_view.dart';
@@ -36,8 +36,9 @@ class PostTile extends ConsumerWidget {
   /// `.thread-root > .post > p` — the post a thread is about is set larger.
   final bool large;
 
-  /// True when this page is about this post, which is the only case where deleting
-  /// it has to navigate somewhere.
+  /// True when this page is about this post. It is the only case where deleting has
+  /// to navigate somewhere — and the one case where opening it would mean opening
+  /// the page you are already reading.
   final bool isSubject;
 
   /// Off inside a thread, where the parent is the post above.
@@ -49,7 +50,11 @@ class PostTile extends ConsumerWidget {
     final meta = Theme.of(context).textTheme.bodySmall!;
 
     return InkWell(
-      onTap: () => context.push('/post/${post.id}'),
+      // Nothing to open when this page is already about this post. It used to push
+      // the route it was already on, so a tap anywhere on the card — including on a
+      // checklist item somebody else's list would not let you tick — stacked another
+      // copy of the same page, over and over.
+      onTap: isSubject ? null : () => openPost(context, post.id),
       child: Container(
         width: double.infinity,
         padding: EdgeInsets.symmetric(horizontal: gutterOf(context), vertical: space5),
@@ -64,7 +69,7 @@ class PostTile extends ConsumerWidget {
             PostContextLine(
               post: post,
               style: meta,
-              onTap: () => context.push('/post/${post.id}'),
+              onTap: () => openPost(context, post.id),
             ),
             const SizedBox(height: space3),
             PostBody(

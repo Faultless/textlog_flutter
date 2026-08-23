@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/models.dart';
 import '../../core/post_context.dart';
 import '../../state/cache.dart';
 import '../../state/session.dart';
+import '../router.dart';
 import '../theme.dart';
 import '../screens/web_action.dart';
 import 'compose_sheet.dart';
@@ -37,7 +37,7 @@ class ParentQuote extends ConsumerWidget {
 
     if (quote == null) {
       return _Frame(
-        onTap: () => context.push('/post/$parentId'),
+        onTap: () => openPost(context, parentId),
         child: Text(
           '(deleted post)',
           style: theme.labelSmall!.asLink(palette).copyWith(color: palette.quoteInk),
@@ -55,7 +55,7 @@ class ParentQuote extends ConsumerWidget {
     );
 
     return _Frame(
-      onTap: () => context.push('/post/$parentId'),
+      onTap: () => openPost(context, parentId),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -66,12 +66,12 @@ class ParentQuote extends ConsumerWidget {
             // Keeps the `top` link on the same line as the handle it belongs to.
             singleLine: true,
             context$: relation,
-            onTap: () => context.push('/post/$parentId'),
+            onTap: () => openPost(context, parentId),
             trailing: [
               // Straight to the top of the conversation this quote sits in.
               if (quote.topId case final topId?)
                 Pressable(
-                  onTap: () => context.push('/post/$topId'),
+                  onTap: () => openPost(context, topId),
                   builder: (context, pressed) => Text(
                     'top',
                     style: theme.labelSmall!.asLink(palette).copyWith(

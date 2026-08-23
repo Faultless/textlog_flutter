@@ -102,6 +102,8 @@ class _Item extends StatelessWidget {
   const _Item(this.item, {required this.onTap});
 
   final TodoItem item;
+
+  /// Null for anyone but the author: ticking is an edit, and it is theirs to make.
   final VoidCallback? onTap;
 
   @override
@@ -113,7 +115,10 @@ class _Item extends StatelessWidget {
       checked: item.checked,
       button: onTap != null,
       child: GestureDetector(
-        onTap: onTap,
+        // Absorbed even when there is nothing to do. A checkbox reads as something
+        // you press, and a press on one has no business opening the post instead —
+        // which is what happens to a tap this does not claim.
+        onTap: onTap ?? () {},
         behavior: HitTestBehavior.opaque,
         child: Padding(
           // Room for a thumb even though the box itself is three characters.
