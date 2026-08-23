@@ -1,7 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/models.dart';
+import '../data/local_store.dart';
+import 'notifications.dart';
 import 'providers.dart';
 
 /// A signed-in session, or null. The token is an ordinary textlog session and is
@@ -12,14 +13,10 @@ import 'providers.dart';
 final sessionProvider = AsyncNotifierProvider<SessionNotifier, Session?>(SessionNotifier.new);
 
 class SessionNotifier extends AsyncNotifier<Session?> {
-  static const _tokenKey = 'session_token';
-  static const _handleKey = 'session_handle';
-
   @override
   Future<Session?> build() async {
     try {
-      final preferences = await SharedPreferences.getInstance();
-      final token = preferences.getString(_tokenKey);
+      final token = await LocalStore.token();
       if (token == null) return null;
 
       // Confirm the token still works, and pick up any change to the account.
@@ -38,9 +35,8 @@ class SessionNotifier extends AsyncNotifier<Session?> {
 
   /// What we last knew, for when the server cannot confirm it.
   Future<Session?> _stored() async {
-    final preferences = await SharedPreferences.getInstance();
-    final token = preferences.getString(_tokenKey);
-    final handle = preferences.getString(_handleKey);
+    final token = await LocalStore.token();
+    final handle = await LocalStore.handle();
     if (token == null || handle == null) return null;
     return Session(
       token: token,
@@ -53,9 +49,7 @@ class SessionNotifier extends AsyncNotifier<Session?> {
 
   Future<void> verify(String email, String code) async {
     final session = await ref.read(apiProvider).verifyCode(email, code);
-    final preferences = await SharedPreferences.getInstance();
-    await preferences.setString(_tokenKey, session.token);
-    await preferences.setString(_handleKey, session.account.handle);
+    await LocalStore.saveSession(session.token, session.account.handle);
     state = AsyncData(session);
   }
 
@@ -63,6 +57,9 @@ class SessionNotifier extends AsyncNotifier<Session?> {
     final token = state.valueOrNull?.token;
     state = const AsyncData(null);
     await _clear();
+    // Stop the background poll too, or the app keeps waking up to ask about an
+    // account it no longer holds a token for.
+    await ref.read(notifyProvider.notifier).signedOut();
     if (token != null) {
       try {
         await ref.read(apiProvider).signOut(token);
@@ -88,11 +85,7 @@ class SessionNotifier extends AsyncNotifier<Session?> {
     );
   }
 
-  Future<void> _clear() async {
-    final preferences = await SharedPreferences.getInstance();
-    await preferences.remove(_tokenKey);
-    await preferences.remove(_handleKey);
-  }
+  Future<void> _clear() => LocalStore.clearSession();
 }
 
 /// The handle the app is acting as, from a real session or the handle you typed.

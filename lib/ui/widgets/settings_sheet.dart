@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/notification_plan.dart';
+import '../../state/notifications.dart';
+import '../../state/session.dart';
 import '../../state/settings.dart';
 import '../theme.dart';
+import 'post_actions.dart';
 import 'glyph.dart';
 import 'pressable.dart';
 
@@ -156,6 +160,12 @@ class _Settings extends ConsumerWidget {
                     value: settings.barebones,
                     onChanged: notifier.setBarebones,
                   ),
+                  if (ref.watch(notifySupportedProvider)) ...[
+                    const SizedBox(height: space5),
+                    _Label('notifications'),
+                    const SizedBox(height: space2),
+                    const _Notifications(),
+                  ],
                   ],
                 ),
               ),
@@ -163,6 +173,60 @@ class _Settings extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Replies, mentions and follows, and the honest note about how they arrive.
+class _Notifications extends ConsumerWidget {
+  const _Notifications();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = context.palette;
+    final theme = Theme.of(context).textTheme;
+    final signedIn = ref.watch(sessionProvider).valueOrNull != null;
+    final preferences = ref.watch(notifyProvider).valueOrNull ?? NotifyPreferences.off;
+    final notifier = ref.read(notifyProvider.notifier);
+
+    if (!signedIn) {
+      return Text(
+        'Sign in to be told about replies and mentions.',
+        style: theme.labelSmall!.copyWith(color: palette.muted, height: 1.5),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _Toggle(
+          title: 'notify me',
+          // Say what it actually does. textlog has no push endpoint an app can
+          // reach, so this is a background check rather than instant delivery, and
+          // pretending otherwise would just look broken.
+          note: 'checked in the background every 15 minutes or so',
+          value: preferences.enabled,
+          onChanged: (wanted) async {
+            final granted = await notifier.setEnabled(wanted);
+            if (!granted && wanted && context.mounted) {
+              toast(context, 'Notifications are turned off for textlog in system settings.');
+            }
+          },
+        ),
+        if (preferences.enabled)
+          for (final kind in NotifyKind.values) ...[
+            const SizedBox(height: space3),
+            Padding(
+              padding: const EdgeInsets.only(left: space4),
+              child: _Toggle(
+                title: kind.id,
+                note: kind.description,
+                value: preferences.kinds.contains(kind),
+                onChanged: (wanted) => notifier.toggleKind(kind, wanted),
+              ),
+            ),
+          ],
+      ],
     );
   }
 }

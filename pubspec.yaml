@@ -16,6 +16,10 @@ dependencies:
   shared_preferences: ^2.3.3
   url_launcher: ^6.3.1
   web: ^1.1.1 # EventSource, for the firehose on Flutter web
+  # Notifications. The server has no push endpoint an app can reach, so these are
+  # raised locally from a background poll — see ARCHITECTURE.md.
+  flutter_local_notifications: ^22.3.0
+  workmanager: ^0.10.9
   flutter_web_plugins:
     sdk: flutter
 

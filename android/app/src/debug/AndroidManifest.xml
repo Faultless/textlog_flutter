@@ -4,4 +4,9 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+
+    <!-- Debug only, so a local textlog on http:// can be pointed at with a
+         TEXTLOG_ORIGIN dart-define. Release builds keep the platform default,
+         which refuses cleartext. -->
+    <application android:usesCleartextTraffic="true" />
 </manifest>

@@ -66,5 +66,17 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<!-- The background poll that raises notifications. iOS decides when a refresh is
+	     worth the battery, so this is opportunistic rather than a schedule — see
+	     lib/data/background.dart. -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>processing</string>
+	</array>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>textlog-activity-poll</string>
+	</array>
 </dict>
 </plist>

@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:go_router/go_router.dart';
 
+import 'data/background.dart';
+import 'data/notifications.dart';
 import 'state/pending_write.dart';
 import 'state/settings.dart';
 import 'ui/router.dart';
@@ -28,6 +30,11 @@ void main() {
     SemanticsBinding.instance.ensureSemantics();
   }
 
+  // Wires the isolate entry points so a notification action works with the app
+  // closed. Nothing is scheduled and no permission is asked for until the reader
+  // turns the setting on.
+  Background.ready();
+
   runApp(const ProviderScope(child: TextlogApp()));
 }
 
@@ -43,12 +50,38 @@ class _TextlogAppState extends ConsumerState<TextlogApp> with WidgetsBindingObse
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    Notifications.route.addListener(_followNotification);
+    Notifications.replied.addListener(_settleReply);
+    // Opened *by* a notification rather than tapped while running.
+    Notifications.launchRoute().then((route) {
+      if (route != null) Notifications.route.value = route;
+    });
   }
 
   @override
   void dispose() {
+    Notifications.route.removeListener(_followNotification);
+    Notifications.replied.removeListener(_settleReply);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  /// A tapped notification navigates once the router exists to do it.
+  void _followNotification() {
+    final route = Notifications.route.value;
+    if (route == null || route.isEmpty) return;
+    Notifications.route.value = null;
+    ref.read(routerProvider).go(route);
+  }
+
+  /// A reply sent from the shade landed on the server, not through the app, so the
+  /// thread it belongs to has to be told to catch up.
+  void _settleReply() {
+    final postId = Notifications.replied.value;
+    if (postId == null) return;
+    Notifications.replied.value = null;
+    ref.read(pendingWriteProvider.notifier).expect(PendingReply(postId));
+    ref.read(pendingWriteProvider.notifier).settle();
   }
 
   @override
@@ -57,6 +90,8 @@ class _TextlogAppState extends ConsumerState<TextlogApp> with WidgetsBindingObse
     // may have landed.
     if (state == AppLifecycleState.resumed) {
       ref.read(pendingWriteProvider.notifier).settle();
+      // A notification tapped while the app was suspended arrives around now.
+      _followNotification();
     }
   }
 

@@ -3,6 +3,11 @@
          so without it here a release build can reach nothing and every screen errors. -->
     <uses-permission android:name="android.permission.INTERNET"/>
 
+    <!-- Android 13+ asks the user before an app may notify. The app requests it when
+         the notification setting is turned on, not at launch — but without it declared
+         here the request cannot be made at all. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+
     <!-- Android 11+ hides other apps unless they are declared here. Without it
          url_launcher cannot resolve a browser and every reply silently does nothing. -->
     <queries>
@@ -38,6 +43,14 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- Handles a notification action (Reply, Mark read) when it is used from the
+             shade. flutter_local_notifications ships this class but does not declare
+             it, and without the declaration the broadcast goes nowhere: the shade
+             shows a spinner forever and the reply is silently dropped. -->
+        <receiver
+            android:name="com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver"
+            android:exported="false" />
+
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data
