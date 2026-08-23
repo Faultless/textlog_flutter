@@ -117,7 +117,7 @@ List<BodyBlock> markdownBlocks(String body, {required bool extended}) {
       // A run of blank lines between blocks is spacing, not content.
       return;
     }
-    blocks.addAll(extended ? _extendedBlocks(text) : [ParagraphBlock(_spans(text, false))]);
+    blocks.addAll(extended ? _extendedBlocks(text) : [ParagraphBlock(_spans(text))]);
   }
 
   for (var index = 0; index < lines.length; index++) {
@@ -177,7 +177,7 @@ List<BodyBlock> markdownBlocks(String body, {required bool extended}) {
   }
   flush();
 
-  return blocks.isEmpty ? [ParagraphBlock(_spans(normalized, extended))] : blocks;
+  return blocks.isEmpty ? [ParagraphBlock(_spans(normalized))] : blocks;
 }
 
 /// Line-based block parsing, for the opt-in markdown.
@@ -191,7 +191,7 @@ List<BodyBlock> _extendedBlocks(String text) {
     final joined = paragraph.join('\n');
     paragraph.clear();
     if (joined.trim().isEmpty) return;
-    blocks.add(ParagraphBlock(_spans(joined, true)));
+    blocks.add(ParagraphBlock(_spans(joined)));
   }
 
   for (var index = 0; index < lines.length; index++) {
@@ -208,7 +208,7 @@ List<BodyBlock> _extendedBlocks(String text) {
     }
     if (_heading.firstMatch(line) case final match?) {
       flushParagraph();
-      blocks.add(HeadingBlock(match[1]!.length, _spans(match[2]!, true)));
+      blocks.add(HeadingBlock(match[1]!.length, _spans(match[2]!)));
       continue;
     }
     if (_quote.hasMatch(line)) {
@@ -245,7 +245,7 @@ List<BodyBlock> _extendedBlocks(String text) {
       blocks.add(ListItemBlock(
         indent: _indentLevel(match[1]!),
         ordinal: int.parse(match[2]!),
-        spans: _spans(match[3]!, true),
+        spans: _spans(match[3]!),
       ));
       continue;
     }
@@ -255,7 +255,7 @@ List<BodyBlock> _extendedBlocks(String text) {
       final task = _task.firstMatch(rest);
       blocks.add(ListItemBlock(
         indent: _indentLevel(match[1]!),
-        spans: _spans(task == null ? rest : task[2]!, true),
+        spans: _spans(task == null ? rest : task[2]!),
         checked: task == null ? null : task[1]!.toLowerCase() == 'x',
       ));
       continue;
@@ -274,7 +274,7 @@ int _indentLevel(String whitespace) {
 
 List<List<BodyToken>> _tableCells(String line) => [
   for (final cell in _tableRow.firstMatch(line)![1]!.split('|'))
-    _spans(cell.trim(), true),
+    _spans(cell.trim()),
 ];
 
 List<TextAlignment> _alignments(String rule) => [
@@ -288,38 +288,10 @@ List<TextAlignment> _alignments(String rule) => [
     },
 ];
 
-/// `**bold**`, `*italic*`, `_italic_`. Strikethrough is not here: the site does it
-/// unconditionally, so [tokenizeBody] owns it.
-final _emphasis = RegExp(r'\*\*(.+?)\*\*|__(.+?)__|\*(.+?)\*|(?<![A-Za-z0-9_])_(.+?)_(?![A-Za-z0-9_])');
-
-List<BodyToken> _spans(String text, bool extended) {
-  final tokens = tokenizeBody(text);
-  if (!extended) return tokens;
-  return [
-    for (final token in tokens)
-      if (token is PlainText) ..._emphasised(token.text) else token,
-  ];
-}
-
-List<BodyToken> _emphasised(String text) {
-  final spans = <BodyToken>[];
-  var end = 0;
-
-  void plain(String value) {
-    if (value.isNotEmpty) spans.add(PlainText(value));
-  }
-
-  for (final match in _emphasis.allMatches(text)) {
-    plain(text.substring(end, match.start));
-    spans.add(switch (match) {
-      _ when match[1] != null => StyledText(match[1]!, bold: true),
-      _ when match[2] != null => StyledText(match[2]!, bold: true),
-      _ when match[3] != null => StyledText(match[3]!, italic: true),
-      _ => StyledText(match[4]!, italic: true),
-    });
-    end = match.end;
-  }
-
-  plain(text.substring(end));
-  return spans;
-}
+/// The block layer adds no inline emphasis of its own.
+///
+/// `*bold*`, `_underline_` and `~strikethrough~` are all rendered unconditionally by
+/// [tokenizeBody], because the site renders them unconditionally. There is nothing
+/// left for this layer to claim, and a second pass over the same markers would only
+/// disagree with the first.
+List<BodyToken> _spans(String text) => tokenizeBody(text);

@@ -12,12 +12,13 @@ import '../theme.dart';
 import 'form_parts.dart';
 import 'status.dart';
 
-const postMaxLength = 280;
+/// The server's `POST_MAX`, raised from 280.
+const postMaxLength = 500;
 
 enum ComposeKind { post, reply, edit }
 
 /// The site's compose box, as a sheet. One form for posting, replying and editing,
-/// because on textlog they are the same 280 characters and the same button.
+/// because on textlog they are the same body and the same button.
 Future<bool> showCompose(
   BuildContext context, {
   ComposeKind kind = ComposeKind.post,

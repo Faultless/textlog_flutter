@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/body_tokens.dart';
 import '../../core/markdown.dart';
 import '../../core/polls.dart';
+import '../../core/todos.dart';
 import '../../state/settings.dart';
 import '../theme.dart';
 
@@ -60,8 +61,9 @@ class _PostBodyState extends ConsumerState<PostBody> {
 
     final palette = context.palette;
     final plain = widget.style ?? Theme.of(context).textTheme.bodyMedium!;
-    // The option lines belong to the poll, not to the body.
-    final body = pollDisplayBody(widget.body);
+    // The option and item lines belong to the poll or the checklist below, not to
+    // the body above them.
+    final body = todoDisplayBody(pollDisplayBody(widget.body));
     final art = containsAsciiArt(body);
     // `.post p.ascii-art { line-height: 1.15 }`
     final base = art ? plain.copyWith(height: 1.15) : plain;
@@ -307,14 +309,18 @@ class _Rendered extends StatelessWidget {
     final link = base.asLink(palette);
     return switch (token) {
       PlainText(:final text) => TextSpan(text: text),
-      StyledText(:final text, :final bold, :final italic, :final strike, :final code) =>
+      StyledText(:final text, :final bold, :final strike, :final underline, :final code) =>
         TextSpan(
           text: text,
           style: base.copyWith(
             fontWeight: bold ? FontWeight.w700 : null,
             fontVariations: bold ? const [FontVariation.weight(700)] : null,
-            fontStyle: italic ? FontStyle.italic : null,
-            decoration: strike ? TextDecoration.lineThrough : null,
+            // Both can apply at once, so they combine rather than one winning.
+            decoration: TextDecoration.combine([
+              if (strike) TextDecoration.lineThrough,
+              if (underline) TextDecoration.underline,
+            ]),
+            decorationColor: underline ? palette.ink : null,
             // `<code>` — a tinted run rather than a box, so it can wrap mid-line.
             backgroundColor: code ? palette.tagBg : null,
             color: code ? palette.ink : null,

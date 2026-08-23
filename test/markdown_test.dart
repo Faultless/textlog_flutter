@@ -109,6 +109,57 @@ void main() {
       expect(spans.whereType<StyledText>().single.code, isTrue);
     });
 
+    test('asterisks are bold and underscores are underline', () {
+      // Not italics, and not behind the setting: the site renders both markers
+      // unconditionally, so treating them as opt-in italics showed the reader
+      // something the author did not write.
+      for (final body in ['*b*', '**b**']) {
+        final span = spansOf(body, extended: false).whereType<StyledText>().single;
+        expect(span.bold, isTrue, reason: body);
+        expect(span.underline, isFalse, reason: body);
+      }
+      for (final body in ['_u_', '__u__']) {
+        final span = spansOf(body, extended: false).whereType<StyledText>().single;
+        expect(span.underline, isTrue, reason: body);
+        expect(span.bold, isFalse, reason: body);
+      }
+    });
+
+    test('emphasis markers are removed from the rendered text', () {
+      expect(textOf(spansOf('a **b** c', extended: false)), 'a b c');
+    });
+
+    test('emphasis combines rather than one winning', () {
+      final span = spansOf('~*both*~', extended: false).whereType<StyledText>().single;
+      expect(span.strike, isTrue);
+      expect(span.bold, isTrue);
+    });
+
+    test('an unmatched marker stays literal', () {
+      expect(spansOf('2 * 3 = 6', extended: false).whereType<StyledText>(), isEmpty);
+    });
+
+    test('mentions and hashtags survive inside emphasis', () {
+      expect(
+        spansOf('**@stagas**', extended: false).whereType<MentionToken>().single.handle,
+        'stagas',
+      );
+    });
+
+    test('a handle is not chopped up by its own underscores', () {
+      // The underline rule would happily claim `_case_` out of the middle of a
+      // handle, so a mention has to be matched before it — which it is, by index.
+      final spans = spansOf('hi @snake_case_name', extended: false);
+      expect(spans.whereType<MentionToken>().single.handle, 'snake_case_name');
+      expect(spans.whereType<StyledText>(), isEmpty);
+    });
+
+    test('bare text with underscores is underlined, as the site does it', () {
+      // Faithful rather than convenient: textlog underlines `case` here too.
+      final spans = spansOf('snake_case_name', extended: false);
+      expect(spans.whereType<StyledText>().single.underline, isTrue);
+    });
+
     test('a body with none of this is one paragraph, newlines intact', () {
       final blocks = markdownBlocks('one\ntwo\n\nthree', extended: false);
       expect(blocks, hasLength(1));
@@ -327,30 +378,6 @@ void main() {
         expect(markdownBlocks(rule, extended: true).whereType<RuleBlock>(), hasLength(1),
             reason: rule);
       }
-    });
-
-    test('bold and italic', () {
-      expect(spansOf('**b**').whereType<StyledText>().single.bold, isTrue);
-      expect(spansOf('__b__').whereType<StyledText>().single.bold, isTrue);
-      expect(spansOf('*i*').whereType<StyledText>().single.italic, isTrue);
-      expect(spansOf('_i_').whereType<StyledText>().single.italic, isTrue);
-    });
-
-    test('emphasis markers are removed from the rendered text', () {
-      expect(textOf(spansOf('a **b** c')), 'a b c');
-    });
-
-    test('unmatched markers stay literal', () {
-      expect(spansOf('2 * 3 = 6').whereType<StyledText>(), isEmpty);
-    });
-
-    test('an underscore inside a word is not italics', () {
-      // Handles routinely contain them.
-      expect(spansOf('snake_case_name').whereType<StyledText>(), isEmpty);
-    });
-
-    test('mentions and hashtags survive inside emphasis', () {
-      expect(spansOf('**@stagas**').whereType<MentionToken>().single.handle, 'stagas');
     });
 
     test('CRLF bodies do not leave a carriage return behind', () {

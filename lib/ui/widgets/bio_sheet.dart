@@ -8,8 +8,9 @@ import '../theme.dart';
 import 'form_parts.dart';
 import 'post_actions.dart';
 
-/// The server's own limit, from `BIO_MAX`.
-const bioMax = 280;
+/// The server's own limit, from `BIO_MAX`. It is not the post limit — the app used
+/// to allow 280 here and let the server refuse what it had accepted.
+const bioMax = 160;
 
 /// Editing your bio, natively. `PATCH /api/v1/me` is new; before it this was a trip
 /// to account settings in a browser tab.

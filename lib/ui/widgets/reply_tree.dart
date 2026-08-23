@@ -6,9 +6,11 @@ import '../../core/reply_tree.dart';
 import '../../state/thread.dart';
 import '../theme.dart';
 import 'post_actions.dart';
+import 'link_preview_view.dart';
 import 'poll_view.dart';
 import 'post_body.dart';
 import 'post_tile.dart';
+import 'todo_view.dart';
 import 'post_meta.dart';
 import 'pressable.dart';
 
@@ -95,6 +97,8 @@ class _NodeState extends ConsumerState<_Node> {
               const SizedBox(height: space2),
               PostBody(node.post.body),
               PollView(node.post),
+              TodoView(node.post),
+              LinkPreviews(node.post),
               const SizedBox(height: space3),
               Row(children: postActions(context, ref, node.post, style: meta)),
             ],

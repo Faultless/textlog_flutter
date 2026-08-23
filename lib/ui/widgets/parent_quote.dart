@@ -9,9 +9,11 @@ import '../../state/session.dart';
 import '../theme.dart';
 import '../screens/web_action.dart';
 import 'compose_sheet.dart';
+import 'poll_view.dart';
 import 'post_body.dart';
 import 'post_meta.dart';
 import 'pressable.dart';
+import 'todo_view.dart';
 
 /// `.parent-quote` — the post being replied to, quoted beneath the reply.
 ///
@@ -85,6 +87,10 @@ class ParentQuote extends ConsumerWidget {
             quiet: true,
             style: theme.bodySmall!.copyWith(color: palette.quoteInk, height: 1.55),
           ),
+          // The site shows a quoted poll and checklist too — without them a quote of
+          // a poll is a question with no options under it.
+          PollView(quote),
+          TodoView(quote),
           const SizedBox(height: space2),
           // `.parent-quote-foot` — reply to the quoted post, not to the reply.
           _QuoteReply(quote),

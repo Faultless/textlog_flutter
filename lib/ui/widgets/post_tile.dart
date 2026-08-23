@@ -7,10 +7,12 @@ import 'package:go_router/go_router.dart';
 import '../../core/models.dart';
 import '../theme.dart';
 import 'parent_quote.dart';
+import 'link_preview_view.dart';
 import 'poll_view.dart';
 import 'post_actions.dart';
 import 'post_body.dart';
 import 'post_meta.dart';
+import 'todo_view.dart';
 
 /// `.post` — 24px/gutter padding, hairline top rule, the meta line in words above
 /// the body, the quoted parent beneath it, and the reply action at the foot.
@@ -76,6 +78,8 @@ class PostTile extends ConsumerWidget {
                   : null,
             ),
             PollView(post),
+            TodoView(post),
+            LinkPreviews(post),
             if (showParent)
               if (post.parentId case final int parentId)
                 ParentQuote(parentId: parentId, parent: post.parent),

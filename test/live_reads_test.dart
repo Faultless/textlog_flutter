@@ -145,6 +145,67 @@ void main() {
       throwsA(isA<ApiFailure>().having((f) => f.isUnauthorized, 'unauthorized', isTrue)),
     );
   });
+
+  live('a poll comes back with its options and its tally rule', () async {
+    // Polls used to be parsed out of the body because the API said nothing about
+    // them. It carries them now, including whether the tally may be shown.
+    final page = await api.feed(const TagFeed('poll'), limit: 20);
+    final polls = page.items.where((post) => post.poll != null).toList();
+    if (polls.isEmpty) return;
+
+    for (final post in polls) {
+      final poll = post.poll!;
+      expect(poll.options, isNotEmpty);
+      expect(poll.options.every((option) => option.id > 0), isTrue);
+      expect(poll.options.every((option) => option.label.isNotEmpty), isTrue);
+      // The tally is withheld until the poll closes or the reader has voted, so
+      // `votes` being null is a state the app has to render, not an error.
+      final revealed = poll.expired || poll.viewerVoted;
+      expect(poll.revealed, revealed);
+      if (!revealed) {
+        expect(poll.options.every((option) => option.votes == null), isTrue);
+      }
+    }
+  });
+
+  live('link previews come back keyed by their url', () async {
+    final page = await api.feed(const LatestFeed(), limit: 40);
+    final withPreviews = page.items.where((post) => post.linkPreviews.isNotEmpty);
+    if (withPreviews.isEmpty) return;
+
+    for (final post in withPreviews) {
+      for (final entry in post.linkPreviews.entries) {
+        expect(Uri.tryParse(entry.key), isNotNull, reason: 'the key is the url');
+        expect(entry.value.imageUrl, isNotEmpty);
+      }
+    }
+  });
+
+  live('voting refuses an anonymous reader rather than 404ing', () async {
+    // Confirms the endpoint exists and is gated, so a missing route does not read
+    // as "voting is broken".
+    await expectLater(
+      api.votePoll('not-a-token', 1, 1),
+      throwsA(isA<ApiFailure>().having((f) => f.isUnauthorized, 'unauthorized', isTrue)),
+    );
+  });
+
+  live('drafts and explore are reachable', () async {
+    await expectLater(
+      api.drafts('not-a-token'),
+      throwsA(isA<ApiFailure>().having((f) => f.isUnauthorized, 'unauthorized', isTrue)),
+    );
+    // Explore is public.
+    final explore = await api.explore(limit: 5);
+    expect(explore.people.length + explore.tags.length, greaterThan(0));
+  });
+
+  live('following a hashtag refuses an anonymous reader', () async {
+    await expectLater(
+      api.followTag('not-a-token', 'ascii', following: true),
+      throwsA(isA<ApiFailure>().having((f) => f.isUnauthorized, 'unauthorized', isTrue)),
+    );
+  });
 }
 
 /// The depth the app asks for.

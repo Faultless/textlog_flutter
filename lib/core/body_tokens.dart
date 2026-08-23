@@ -40,15 +40,21 @@ final class StyledText extends BodyToken {
   const StyledText(
     this.text, {
     this.bold = false,
-    this.italic = false,
     this.strike = false,
+    this.underline = false,
     this.code = false,
   });
 
   final String text;
+
+  /// `*x*` and `**x**`.
   final bool bold;
-  final bool italic;
+
+  /// `~x~` and `~~x~~`.
   final bool strike;
+
+  /// `_x_` and `__x__`. Not italic: the site has no italics at all.
+  final bool underline;
 
   /// Inline `` `code` `` — rendered in a boxed, quieter run.
   final bool code;
@@ -74,7 +80,18 @@ final class TagToken extends BodyToken {
 // Tokenizing
 // ---------------------------------------------------------------------------
 
-enum _Kind { codeFence, latexFence, code, math, markdownLink, strike, url, reference }
+enum _Kind {
+  codeFence,
+  latexFence,
+  code,
+  math,
+  markdownLink,
+  strike,
+  bold,
+  underline,
+  url,
+  reference,
+}
 
 final class _Token {
   const _Token(this.kind, this.start, this.end, this.raw, {this.label, this.url, this.display = false});
@@ -97,6 +114,9 @@ const _priority = {
   _Kind.math: 2,
   _Kind.markdownLink: 3,
   _Kind.strike: 4,
+  // The site gives all three emphasis markers the same precedence.
+  _Kind.bold: 4,
+  _Kind.underline: 4,
   _Kind.url: 5,
   _Kind.reference: 6,
 };
@@ -105,6 +125,12 @@ final _fence = RegExp(r'^```([^\r\n]*)\r?\n([\s\S]*?)\r?\n```(?=\r?$)', multiLin
 final _inlineCode = RegExp(r'`([^`\r\n]+)`');
 // `~x~` and `~~x~~`, but never `~~~`. The site does strikethrough with one tilde too.
 final _strike = RegExp(r'(?<!~)(~{1,2})(?!~)([^~\r\n]*?\S[^~\r\n]*?)\1(?!~)');
+
+/// `*x*` is bold and `_x_` is underline — not italic, and not behind a setting. The
+/// site renders both unconditionally, so the app that treated them as opt-in italics
+/// was showing the author something they did not write.
+final _bold = RegExp(r'(?<!\*)(\*{1,2})(?!\*)([^*\r\n]*?\S[^*\r\n]*?)\1(?!\*)');
+final _underline = RegExp(r'(?<!_)(_{1,2})(?!_)([^_\r\n]*?\S[^_\r\n]*?)\1(?!_)');
 final _markdownLink = RegExp(r'\[((?:\\[\[\]]|[^\]\r\n])+)\]\(([^\s<>")]+)\)');
 final _mentionToken = RegExp(r'(?<![A-Za-z0-9_])@[A-Za-z0-9_]+');
 final _hashtagToken = RegExp(r'(?<![\p{L}\p{M}\p{N}_])#[\p{L}\p{M}\p{N}_]+', unicode: true);
@@ -134,9 +160,15 @@ List<_Token> _tokenize(String body) {
     tokens.add(_Token(_Kind.code, match.start, match.end, match[0]!, label: match[1]));
   }
   tokens.addAll(_mathTokens(body, tokens));
-  for (final match in _strike.allMatches(body)) {
-    if (_escapedAt(body, match.start)) continue;
-    tokens.add(_Token(_Kind.strike, match.start, match.end, match[0]!, label: match[2]));
+  for (final (pattern, kind) in [
+    (_strike, _Kind.strike),
+    (_bold, _Kind.bold),
+    (_underline, _Kind.underline),
+  ]) {
+    for (final match in pattern.allMatches(body)) {
+      if (_escapedAt(body, match.start)) continue;
+      tokens.add(_Token(kind, match.start, match.end, match[0]!, label: match[2]));
+    }
   }
   for (final match in _markdownLink.allMatches(body)) {
     final url = markdownUrl(match[2]!);
@@ -290,14 +322,12 @@ List<BodyToken> tokenizeBody(String body) {
       case _Kind.markdownLink:
         tokens.add(LinkToken(match.url!, label: match.label, raw: match.raw));
       case _Kind.strike:
-        // The label can itself hold links and references.
+      case _Kind.bold:
+      case _Kind.underline:
+        // An emphasised run can itself hold links and references, and emphasis can
+        // nest — so the inner tokens are re-styled rather than flattened to text.
         for (final inner in tokenizeBody(match.label!)) {
-          tokens.add(switch (inner) {
-            PlainText(:final text) => StyledText(text, strike: true),
-            StyledText(:final text, :final bold, :final italic, :final code) =>
-              StyledText(text, bold: bold, italic: italic, code: code, strike: true),
-            final other => other,
-          });
+          tokens.add(_emphasised(inner, match.kind));
         }
       case _Kind.url:
         tokens.add(LinkToken(match.url!, label: shortLinkLabel(match.url!), raw: match.raw));
@@ -311,6 +341,28 @@ List<BodyToken> tokenizeBody(String body) {
 
   addText(body.substring(end));
   return tokens;
+}
+
+/// Apply one emphasis to an already-tokenized span, keeping whatever it already had.
+BodyToken _emphasised(BodyToken token, _Kind kind) {
+  bool on(bool existing, _Kind of) => existing || kind == of;
+  return switch (token) {
+    PlainText(:final text) => StyledText(
+      text,
+      strike: kind == _Kind.strike,
+      bold: kind == _Kind.bold,
+      underline: kind == _Kind.underline,
+    ),
+    StyledText(:final text, :final bold, :final strike, :final underline, :final code) =>
+      StyledText(
+        text,
+        code: code,
+        strike: on(strike, _Kind.strike),
+        bold: on(bold, _Kind.bold),
+        underline: on(underline, _Kind.underline),
+      ),
+    final other => other,
+  };
 }
 
 // ---------------------------------------------------------------------------

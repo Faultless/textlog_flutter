@@ -174,6 +174,83 @@ final class TextlogApi {
   Future<void> report(String token, int id, String reason) =>
       _send('POST', 'posts/$id/report', token: token, body: {'reason': reason});
 
+  /// Cast a vote. Answers with the post, so the tally the server now reveals can go
+  /// straight on screen without a second read.
+  Future<Post> votePoll(String token, int postId, int optionId) async {
+    final json = await _send(
+      'POST',
+      'posts/$postId/poll/votes',
+      token: token,
+      body: {'option_id': optionId},
+    );
+    return Post.fromJson(json['data'] as Map<String, dynamic>);
+  }
+
+  Future<void> followTag(String token, String tag, {required bool following}) => _send(
+    following ? 'POST' : 'DELETE',
+    'tags/${Uri.encodeComponent(tag)}/follow',
+    token: token,
+  );
+
+  Future<void> blockTag(String token, String tag, {required bool blocked}) => _send(
+    blocked ? 'POST' : 'DELETE',
+    'tags/${Uri.encodeComponent(tag)}/block',
+    token: token,
+  );
+
+  // -- drafts ----------------------------------------------------------------
+
+  Future<Page<Draft>> drafts(String token, {String? cursor, int limit = 20}) async {
+    final json = await _send(
+      'GET',
+      'drafts',
+      query: {'limit': '$limit', 'cursor': ?cursor},
+      token: token,
+    );
+    return Page.fromJson(json, Draft.fromJson);
+  }
+
+  Future<Draft> saveDraft(String token, String body, {int? parentId}) async {
+    final json = await _send('POST', 'drafts', token: token, body: {
+      'body': body,
+      'parent_id': parentId,
+    });
+    return Draft.fromJson(json['data'] as Map<String, dynamic>);
+  }
+
+  Future<Draft> editDraft(String token, int id, String body) async {
+    final json = await _send('PATCH', 'drafts/$id', token: token, body: {'body': body});
+    return Draft.fromJson(json['data'] as Map<String, dynamic>);
+  }
+
+  Future<void> deleteDraft(String token, int id) =>
+      _send('DELETE', 'drafts/$id', token: token);
+
+  /// Post it. The draft is gone afterwards, and the answer is the post it became.
+  Future<Post> publishDraft(String token, int id) async {
+    final json = await _send('POST', 'drafts/$id/publish', token: token);
+    return Post.fromJson(json['data'] as Map<String, dynamic>);
+  }
+
+  // -- discovery -------------------------------------------------------------
+
+  /// People and hashtags worth following, in one request. Both lists page on their
+  /// own cursors, which is why this is not a [Page].
+  Future<Explore> explore({
+    String? token,
+    String? peopleCursor,
+    String? tagsCursor,
+    int limit = 20,
+  }) async {
+    final json = await _send('GET', 'explore', token: token, query: {
+      'people_limit': '$limit',
+      'tags_limit': '$limit',
+      'people_cursor': ?peopleCursor,
+      'tags_cursor': ?tagsCursor,
+    });
+    return Explore.fromJson(json);
+  }
+
   // -- plumbing --------------------------------------------------------------
 
   Future<Map<String, dynamic>> _get(String path, [Map<String, String>? query]) =>

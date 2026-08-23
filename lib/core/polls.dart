@@ -5,15 +5,18 @@
 /// two reasons. Without it those option lines render as body text, which is simply
 /// wrong; and with it the options can be drawn as a poll.
 ///
-/// Voting is not in the API, so the app shows the poll and hands a vote to the site.
+/// The API carries polls now — options, tally and all — so this is no longer where
+/// the app learns what a poll *is*. What it is still needed for is the body: the
+/// option lines are part of it, and they must be stripped from what renders above the
+/// poll or the reader sees them twice.
 library;
 
 const pollLifetime = Duration(hours: 24);
 
 final _marker = RegExp(r'(?:^|\s)#poll\s*$', caseSensitive: false);
 
-final class Poll {
-  const Poll({required this.question, required this.options});
+final class PollBody {
+  const PollBody({required this.question, required this.options});
 
   final String question;
   final List<String> options;
@@ -21,7 +24,7 @@ final class Poll {
 
 /// The server's rules exactly: a `#poll` line, a non-empty question before it, and
 /// two to eight distinct options after it. Anything else is not a poll.
-Poll? parsePoll(String body) {
+PollBody? parsePoll(String body) {
   final lines = body.split('\n');
   final marker = lines.indexWhere(_marker.hasMatch);
   if (marker < 0) return null;
@@ -45,7 +48,7 @@ Poll? parsePoll(String body) {
       options.toSet().length != options.length) {
     return null;
   }
-  return Poll(question: question, options: options);
+  return PollBody(question: question, options: options);
 }
 
 /// The body with the option lines removed, which is what the site renders above the
@@ -57,6 +60,8 @@ String pollDisplayBody(String body) {
   return lines.sublist(0, marker + 1).join('\n').trim();
 }
 
-/// Polls close 24 hours after the post was written.
+/// Polls close 24 hours after the post was written. The API reports this directly on
+/// the poll now; this stays for the case where a body has a poll the server has not
+/// materialised.
 bool pollClosed(DateTime createdAt, {DateTime? now}) =>
     (now ?? DateTime.now()).difference(createdAt) >= pollLifetime;

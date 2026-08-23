@@ -37,6 +37,8 @@ final class Post {
     this.topId,
     this.parent,
     this.depth,
+    this.poll,
+    this.linkPreviews = const {},
   });
 
   final int id;
@@ -64,6 +66,12 @@ final class Post {
   /// `/posts/{id}/replies`, which is the one endpoint that returns a whole subtree.
   final int? depth;
 
+  /// The poll this post carries, from the server rather than parsed out of the body.
+  final Poll? poll;
+
+  /// Unfurled cards for the links in the body, keyed by URL.
+  final Map<String, LinkPreview> linkPreviews;
+
   bool get isReply => parentId != null;
 
   /// True when the author replied to themselves — the site says "continued" rather
@@ -86,9 +94,17 @@ final class Post {
       _ => null,
     },
     depth: json['depth'] as int?,
+    poll: switch (json['poll']) {
+      final Map<String, dynamic> poll => Poll.fromJson(poll),
+      _ => null,
+    },
+    linkPreviews: {
+      for (final entry in (json['link_previews'] as Map<String, dynamic>? ?? const {}).entries)
+        entry.key: LinkPreview.fromJson(entry.value as Map<String, dynamic>),
+    },
   );
 
-  Post copyWith({String? body, int? replyCount, Post? parent}) => Post(
+  Post copyWith({String? body, int? replyCount, Post? parent, Poll? poll}) => Post(
     id: id,
     topId: topId,
     body: body ?? this.body,
@@ -101,6 +117,8 @@ final class Post {
     author: author,
     parent: parent ?? this.parent,
     depth: depth,
+    poll: poll ?? this.poll,
+    linkPreviews: linkPreviews,
   );
 
   @override
@@ -276,6 +294,190 @@ final class Activity {
 
   @override
   int get hashCode => id.hashCode;
+}
+
+/// A link's unfurled card, as the server stored it. Keyed by the URL it belongs to.
+///
+/// The images are textlog's own — it fetches and stores them itself — so showing one
+/// costs a request to textlog and reveals nothing to the linked site. That is the
+/// whole reason this waited for the API instead of being unfurled client side.
+final class LinkPreview {
+  const LinkPreview({
+    required this.imageUrl,
+    this.title,
+    this.description,
+    this.siteName,
+    this.imageWidth,
+    this.imageHeight,
+    this.mimeType,
+  });
+
+  final String imageUrl;
+  final String? title;
+  final String? description;
+  final String? siteName;
+  final int? imageWidth;
+  final int? imageHeight;
+
+  /// Set for audio and video, which are played rather than shown.
+  final String? mimeType;
+
+  bool get isAudio => mimeType?.startsWith('audio/') ?? false;
+
+  /// The card's aspect, for reserving the right space before the image arrives.
+  double? get aspect => imageWidth == null || imageHeight == null || imageHeight == 0
+      ? null
+      : imageWidth! / imageHeight!;
+
+  factory LinkPreview.fromJson(Map<String, dynamic> json) => LinkPreview(
+    imageUrl: json['imageUrl'] as String? ?? '',
+    title: json['title'] as String?,
+    description: json['description'] as String?,
+    siteName: json['siteName'] as String?,
+    imageWidth: json['imageWidth'] as int?,
+    imageHeight: json['imageHeight'] as int?,
+    mimeType: json['mimeType'] as String?,
+  );
+}
+
+final class PollOption {
+  const PollOption({
+    required this.id,
+    required this.label,
+    required this.votes,
+    required this.selected,
+  });
+
+  final int id;
+  final String label;
+
+  /// Null until the result is revealed — the server withholds the tally until the
+  /// poll closes or you have voted, so a count cannot influence your choice.
+  final int? votes;
+
+  final bool selected;
+
+  factory PollOption.fromJson(Map<String, dynamic> json) => PollOption(
+    id: json['id'] as int,
+    label: json['label'] as String,
+    votes: json['votes'] as int?,
+    selected: json['selected'] as bool? ?? false,
+  );
+}
+
+/// A poll, as the API now returns it.
+///
+/// The app used to parse this out of the body because it had to. It still parses the
+/// body to *strip* the option lines from what it renders, but the options, the tally
+/// and whether you voted all come from the server now.
+final class Poll {
+  const Poll({
+    required this.options,
+    required this.totalVotes,
+    required this.expired,
+    required this.expiresAt,
+    required this.viewerVoted,
+  });
+
+  final List<PollOption> options;
+  final int? totalVotes;
+  final bool expired;
+  final DateTime expiresAt;
+  final bool viewerVoted;
+
+  /// Whether the numbers are showing. The server decides, and it withholds them
+  /// until you have had your say.
+  bool get revealed => totalVotes != null;
+
+  bool get open => !expired;
+
+  /// A share of the vote, 0–1, or null while the tally is withheld.
+  double? shareOf(PollOption option) {
+    final total = totalVotes;
+    final votes = option.votes;
+    if (total == null || votes == null) return null;
+    return total == 0 ? 0 : votes / total;
+  }
+
+  factory Poll.fromJson(Map<String, dynamic> json) => Poll(
+    options: [
+      for (final option in json['options'] as List? ?? const [])
+        PollOption.fromJson(option as Map<String, dynamic>),
+    ],
+    totalVotes: json['total_votes'] as int?,
+    expired: json['expired'] as bool? ?? false,
+    expiresAt: DateTime.parse(json['expires_at'] as String).toLocal(),
+    viewerVoted: json['viewer_voted'] as bool? ?? false,
+  );
+}
+
+/// An unpublished post, kept server side so it follows you between devices.
+final class Draft {
+  const Draft({
+    required this.id,
+    required this.body,
+    required this.parentId,
+    required this.createdAt,
+    required this.updatedAt,
+    this.parent,
+  });
+
+  final int id;
+  final String body;
+  final int? parentId;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  /// The post this draft is a reply to, inlined.
+  final Post? parent;
+
+  bool get isReply => parentId != null;
+
+  factory Draft.fromJson(Map<String, dynamic> json) => Draft(
+    id: json['id'] as int,
+    body: json['body'] as String? ?? '',
+    parentId: json['parent_id'] as int?,
+    createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
+    updatedAt: DateTime.parse(json['updated_at'] as String).toLocal(),
+    parent: switch (json['parent']) {
+      final Map<String, dynamic> parent => Post.fromJson(parent),
+      _ => null,
+    },
+  );
+}
+
+/// `/explore` — who and what to follow, in one response.
+final class Explore {
+  const Explore({
+    required this.people,
+    required this.tags,
+    this.peopleCursor,
+    this.tagsCursor,
+  });
+
+  final List<UserRef> people;
+  final List<TagDetails> tags;
+
+  /// Two independent cursors: the two lists page separately.
+  final String? peopleCursor;
+  final String? tagsCursor;
+
+  factory Explore.fromJson(Map<String, dynamic> json) {
+    final data = json['data'] as Map<String, dynamic>? ?? const {};
+    final pagination = json['pagination'] as Map<String, dynamic>? ?? const {};
+    return Explore(
+      people: [
+        for (final person in data['people'] as List? ?? const [])
+          UserRef.fromJson(person as Map<String, dynamic>),
+      ],
+      tags: [
+        for (final tag in data['tags'] as List? ?? const [])
+          TagDetails.fromJson(tag as Map<String, dynamic>),
+      ],
+      peopleCursor: pagination['people_next_cursor'] as String?,
+      tagsCursor: pagination['tags_next_cursor'] as String?,
+    );
+  }
 }
 
 /// One cursor-paginated slice. `nextCursor` is null when the feed is exhausted.

@@ -216,7 +216,7 @@ void main() {
     await settle(tester);
 
     expect(http.calls, isEmpty);
-    expect(find.textContaining('between 1 and 280'), findsOneWidget);
+    expect(find.textContaining('between 1 and $postMaxLength'), findsOneWidget);
     expect(find.byType(TextField), findsOneWidget);
   });
 

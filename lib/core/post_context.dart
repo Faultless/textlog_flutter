@@ -70,7 +70,10 @@ PostContext postContextOf(Post post, {String? viewerHandle}) {
 
   // A poll is announced as a poll whatever else is true of the post, exactly as the
   // site does — the options are the point, not the reply relation.
-  if (parsePoll(post.body) != null) {
+  //
+  // The API reports the poll directly; the body is still checked behind it for a
+  // server that has not materialised one.
+  if (post.poll != null || parsePoll(post.body) != null) {
     return PostContext(relation: PostRelation.createdPoll, mentionedYou: mentionedYou);
   }
   if (post.parentId == null) {
