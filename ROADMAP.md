@@ -1,6 +1,6 @@
 # Roadmap
 
-## Where we are — v0.3.0
+## Where we are — v0.3.1
 
 | Area | State |
 |---|---|
@@ -32,6 +32,7 @@
 | Drafts | server-side, shared with the website |
 | Explore | people and hashtags to follow |
 | Hashtags | follow and block, as well as read |
+| Links to textlog | opened in the app — posts, profiles, hashtags, feeds |
 
 ---
 
@@ -77,6 +78,36 @@ removed account's handle would go. All of that is derivable from the inlined par
 ⚠️ **Deliberately not doing:** scraping textlog.cc's HTML for anything the API does not
 serve. Parsing markup means the app breaks on any markup change on the server, which is
 exactly the fragility this project avoided on day one.
+
+---
+
+## v0.3.1 — links that stay in the app, and taps that land
+
+Three things, all reported from a phone rather than found in a test.
+
+**A checklist could not be ticked.** The card underneath every item opens the post it is
+about, so on the post's own page a tick pushed another copy of the page already showing —
+and a second tick another. Two fixes, because there were two faults: `openPost` now
+refuses to navigate to the route already on screen, and an item absorbs its own tap even
+when it cannot act on it, rather than leaving `onTap: null` for the card to catch. The
+subject card takes no tap at all now, so it does not offer a press that does nothing. See
+"Where a tap goes" in ARCHITECTURE.md.
+
+**A link back to textlog left the app.** `/post/2201` in a body used to open a browser onto
+a page the app already had a screen for. `core/app_links.dart` maps a URL to a route —
+posts, profiles, hashtags and their followers, every feed, search with its query, drafts,
+and `/enter` onto the account screen. Anything else still goes to the browser, including
+the cases worth being careful about: another site, a lookalike host like
+`textlog.cc.example`, `/account/…` which deliberately has no screen here, and a
+`javascript:` URI.
+
+**A fenced code block blanked the page it was on.** The tinted box asked for
+`width: double.infinity` inside its own sideways viewport, where the width is unbounded —
+it threw during layout and the whole thread came up empty, post and replies and reply form
+with it. Every post upstream with a code fence in it was an empty page. It now measures the
+column outside the scroll view and asks for that as a minimum, so a short fence still fills
+the width and a long one still scrolls. This is the second blank page from asking for the
+whole of an unbounded axis; the first was `CrossAxisAlignment.stretch` in a link preview.
 
 ---
 

@@ -161,8 +161,7 @@ asserts that turning the setting on never changes what gets linked.
 
 Polls live in the body — a line ending `#poll`, then the options — so `core/polls.dart`
 parses them and `pollDisplayBody` strips the option lines before rendering. Without that
-the options render as ordinary text. Voting is not in the API, so an option opens the post
-on textlog.cc rather than pretending.
+the options render as ordinary text.
 
 ## What a post's meta line says
 
@@ -234,10 +233,37 @@ leaves the address bar showing the page you just left.
 paints into a canvas, so without it the page is opaque to screen readers and to browser
 automation alike.
 
+## Where a tap goes
+
+Two rules, both learned from the same report: a checklist item that could not be ticked
+because the card underneath it kept opening the post.
+
+**The innermost thing with an action wins.** That is already how Flutter resolves a gesture
+arena, so a link span or a checkbox inside a tappable card needs nothing special — *as long
+as it has an action*. The trap is `onTap: null`: no recognizer is created, the tap falls
+through to the card, and a control that looks pressable does something unrelated. So a
+checkbox and a poll option pass `onTap ?? () {}` and absorb their own tap even when they
+cannot act on it, while `Semantics(button:)` still reports the truth to a screen reader.
+
+**Nothing navigates to the page it is already on.** A post is reachable from its card, its
+timestamp, a quoted parent and the `top` link, and on the page that post is *about* every
+one of them used to push the route already showing — stacking a second copy, then a third.
+`openPost` in `ui/router.dart` compares against `GoRouterState.of(context)` and returns
+instead, so the guard cannot be forgotten by the next thing that navigates to a post. The
+subject card goes further and takes no `onTap` at all, so it does not offer a press that
+would do nothing.
+
+`openLink` sits next to it for links out of a body or a preview card. `core/app_links.dart`
+maps a URL to a route, purely: same host as `linkOrigin`, a path it recognises, and back
+comes `/post/2201` or `/u/stagas` to push. Anything else — another site, a lookalike host
+like `textlog.cc.example`, `/account/...` which has no screen here, a `javascript:` URI —
+returns null and goes to the browser. Keeping it pure is what makes the browser cases
+cheap to test, and they are the ones worth testing.
+
 ## Writes
 
 `ui/widgets/compose_sheet.dart` is one form for posting, replying and editing, because on
-textlog those are the same 280 characters and the same button. `ui/widgets/post_actions.dart`
+textlog those are the same 500 characters and the same button. `ui/widgets/post_actions.dart`
 returns the row of actions as loose widgets rather than a widget of its own, so they sit on
 the same line as the handle and the time the way `.posttop` does on the site.
 
@@ -446,9 +472,13 @@ Two things about drawing them, both found on a device:
   is 475px of a phone screen, burying the post that linked it. A fixed square crop beside
   the text is predictable whatever the source shape, and a preview with no image is a
   compact line rather than a card with a hole in it.
-- **Never `CrossAxisAlignment.stretch`.** It resolves against the incoming maximum
-  cross-axis extent, which inside a scrollable is unbounded — so it throws
-  "BoxConstraints forces an infinite height" and takes the whole list down with it.
+- **Never ask for the whole of an unbounded axis.** `CrossAxisAlignment.stretch` and
+  `width: double.infinity` both resolve against the incoming maximum extent, which inside a
+  scrollable is infinite — so they throw during layout and take the whole page down, post
+  and replies and all. It cost a blank thread twice: once here, and once in a code block
+  filling its own sideways viewport. Where a child really should span the column, measure it
+  with a `LayoutBuilder` *outside* the scroll view and set a `minWidth`; that grows a narrow
+  child without capping a wide one.
 - **No images on the web build.** textlog serves preview images from a host that sends no
   `Access-Control-Allow-Origin` at all, and Flutter's canvas renderer fetches images with
   XHR. Rendering an `<img>` element instead escapes Flutter's layout and fills the screen,
