@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/models.dart';
 import '../../state/cache.dart';
@@ -108,7 +108,7 @@ class _PollViewState extends ConsumerState<PollView> {
                 busy: _busy && _pending == option.id,
               ),
             ),
-          _Footing(poll, signedIn: session != null, url: widget.post.url),
+          _Footing(poll, signedIn: session != null),
         ],
       ),
     );
@@ -201,11 +201,10 @@ class _Option extends StatelessWidget {
 
 /// What is left to say: how many voted, or why you cannot.
 class _Footing extends StatelessWidget {
-  const _Footing(this.poll, {required this.signedIn, required this.url});
+  const _Footing(this.poll, {required this.signedIn});
 
   final Poll poll;
   final bool signedIn;
-  final Uri url;
 
   @override
   Widget build(BuildContext context) {
@@ -221,9 +220,10 @@ class _Footing extends StatelessWidget {
       );
     }
     if (!signedIn) {
-      // The one thing here that still needs a browser, because signing up does.
+      // The app's own sign-in, not the post in a browser — which is what this used to
+      // open, having just told the reader to sign in.
       return GestureDetector(
-        onTap: () => launchUrl(url, mode: LaunchMode.externalApplication),
+        onTap: () => context.push('/me'),
         behavior: HitTestBehavior.opaque,
         child: Text('sign in to vote', style: style.asLink(palette)),
       );

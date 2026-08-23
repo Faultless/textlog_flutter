@@ -3,12 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_math_fork/flutter_math.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/body_analysis.dart';
 import '../../core/body_tokens.dart';
 import '../../core/markdown.dart';
 import '../../state/settings.dart';
+import '../router.dart';
 import '../theme.dart';
 
 /// Renders a post body the way textlog.cc renders one: URLs, @mentions, #hashtags,
@@ -308,7 +308,7 @@ class _Rendered extends StatelessWidget {
         alignment: PlaceholderAlignment.middle,
         child: _Tex(tex, style: base, display: false),
       ),
-      LinkToken(:final url, :final text) => _linkSpan(url, text, base, link),
+      LinkToken(:final url, :final text) => _linkSpan(context, url, text, base, link),
       MentionToken(:final handle) => TextSpan(
         text: '@$handle',
         style: link,
@@ -324,11 +324,14 @@ class _Rendered extends StatelessWidget {
 
   /// The site keeps a link's host whole and lets only its path break, so a long URL
   /// wraps without pushing the column wider. Two spans, one recognizer each.
-  InlineSpan _linkSpan(String url, String text, TextStyle base, TextStyle link) {
-    void open() {
-      final target = Uri.tryParse(url);
-      if (target != null) launchUrl(target, mode: LaunchMode.externalApplication);
-    }
+  InlineSpan _linkSpan(
+    BuildContext context,
+    String url,
+    String text,
+    TextStyle base,
+    TextStyle link,
+  ) {
+    void open() => openLink(context, url);
 
     final split = linkBreakPoint(text);
     if (split >= text.length) {

@@ -1,8 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/models.dart';
+import '../router.dart';
 import '../theme.dart';
 
 /// The unfurled card for a link in a post body.
@@ -74,10 +74,8 @@ class _Card extends StatelessWidget {
       button: true,
       label: 'open ${title ?? url}',
       child: GestureDetector(
-        onTap: () {
-          final target = Uri.tryParse(url);
-          if (target != null) launchUrl(target, mode: LaunchMode.externalApplication);
-        },
+        // A preview of a textlog post opens in the app, like the link itself.
+        onTap: () => openLink(context, url),
         behavior: HitTestBehavior.opaque,
         child: Container(
           decoration: BoxDecoration(border: Border.all(color: palette.soft)),

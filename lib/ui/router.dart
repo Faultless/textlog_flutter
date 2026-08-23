@@ -1,5 +1,10 @@
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import '../core/app_links.dart';
+import '../core/body_tokens.dart' show linkOrigin;
 
 import '../state/session.dart';
 import 'screens/drafts.dart';
@@ -67,3 +72,44 @@ final routerProvider = Provider<GoRouter>((ref) {
   ref.onDispose(router.dispose);
   return router;
 });
+
+/// Open a post, unless that is the page already on screen.
+///
+/// Several things navigate to a post: the card, its timestamp, a quoted parent, the
+/// `top` link. On the page that post is *about*, every one of them pushes the route it
+/// is already on — which stacks another copy of the same page, and a second tap
+/// another, so a checklist item that fell through to the card read as an endless loop
+/// of opening the same reply.
+///
+/// Guarding it here rather than at each call site means the next thing that navigates
+/// to a post cannot reintroduce it. Checked on tap rather than during build, so a
+/// widget can still be rendered in a test with no router above it.
+void openPost(BuildContext context, int id) {
+  final route = '/post/$id';
+  // The query is deliberately ignored: flat and tree are the same page.
+  if (GoRouterState.of(context).uri.path == route) return;
+  context.push(route);
+}
+
+/// Follow a link from a post body, a preview card, or anywhere else in a body.
+///
+/// A link to this instance opens in the app; everything else goes to the browser.
+/// Before this, tapping `/post/2201` in a body left the app for a page it already had
+/// a screen for.
+Future<void> openLink(BuildContext context, String url) async {
+  final route = routeForUrl(url, origin: linkOrigin);
+  if (route != null) {
+    // Reuses the guard, so a link to the post you are reading does nothing rather
+    // than stacking another copy of the same page.
+    if (route.startsWith('/post/')) {
+      final id = int.tryParse(route.substring('/post/'.length));
+      if (id != null) return openPost(context, id);
+    }
+    if (GoRouterState.of(context).uri.toString() != route) context.push(route);
+    return;
+  }
+
+  final target = Uri.tryParse(url);
+  if (target == null) return;
+  await launchUrl(target, mode: LaunchMode.externalApplication);
+}
