@@ -1,6 +1,6 @@
 # Roadmap
 
-## Where we are — v0.1.1
+## Where we are — v0.2.0
 
 | Area | State |
 |---|---|
@@ -24,6 +24,8 @@
 | Fonts | JetBrains Mono, Fira Code or system, four sizes |
 | Themes | light, dark, sepia, dracula + accent |
 | Barebones mode | characters instead of icons, no ripples, no animation |
+| Feeds | replies join their parent on the page, so a conversation is not repeated |
+| Notifications | replies, mentions and follows; quick reply and mark-read from the shade |
 
 ---
 
@@ -71,6 +73,45 @@ serve. Parsing markup means the app breaks on any markup change on the server, w
 exactly the fragility this project avoided on day one.
 
 ---
+
+## v0.2.0 — notifications, and a feed that stops repeating itself
+
+Upstream added a great deal in 54 commits, but **almost none of it to the API**: the only
+new endpoint behaviour is `bot` as a report reason. Link previews and drafts both shipped
+on the site and neither is on the API's post shape, so neither is implementable here.
+
+What *was* portable is the change with the most effect on a phone: the site now joins a
+reply to its parent when both are on the same feed page, instead of rendering the reply
+separately with the parent quoted underneath. That is pure client-side work on data the
+feed already returns — on a live page of twenty posts, six nest and six duplicated quotes
+disappear.
+
+**Notifications** are new, and the shape of them is dictated by what the server offers.
+textlog's push is Web Push under `/account/`, cookie-authenticated, expecting a browser
+endpoint — nothing an app can use. So the app polls `/activities/to-me` in the background
+and raises the notifications itself, with a reply field and a mark-read button in the
+shade. Latency is the price: fifteen minutes on Android, whenever-iOS-feels-like-it on
+iOS. The setting says so.
+
+**Still to do**
+- Share a post or a profile through the system share sheet.
+- Group the activity feeds into threads too. The post feeds do it now; activity rows each
+  carry their own unread state and mark-read behaviour, and getting that wrong is worse
+  than the duplication.
+- A "first unread" jump in `for you`, which the site has.
+
+### What would need the server
+
+| Wanted | Needs |
+|---|---|
+| Instant notifications | an `/api/v1/` endpoint taking an FCM or APNs device token |
+| Link previews | `link_previews` on the API's post shape |
+| Drafts | `/api/v1/drafts` |
+| Voting in a poll | a poll endpoint; the site votes by form POST |
+
+Each is the same shape of gap the write endpoints were before
+[stagas/textlog#3](https://github.com/stagas/textlog/pull/3), and the same answer applies:
+ask for the endpoint rather than scrape the HTML.
 
 ## Where the app deliberately differs from the site
 

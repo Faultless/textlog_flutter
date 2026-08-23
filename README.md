@@ -53,7 +53,7 @@ see [Building it for your own iPhone](#building-it-for-your-own-iphone).
 
 Read the whole thing in [ROADMAP.md](ROADMAP.md). In short:
 
-**Working today (v0.1.1)**
+**Working today (v0.2.0)**
 - Feeds the site has: **for you**, **to me**, hot and latest — plus a **live** tab, which the
   website cannot have, streaming new posts as they are written
 - **Search** across every note, server side
@@ -68,12 +68,17 @@ Read the whole thing in [ROADMAP.md](ROADMAP.md). In short:
 - Optional block markdown on top — headings, lists, task lists, tables, quotes
 - **Barebones mode**: characters instead of icons, no ripples, no animation
 - Light, dark, sepia and dracula themes, a choice of accent, monospace face and text size
+- **Notifications** for replies, mentions and follows — with a reply field and a
+  mark-read button right in the notification
+- Feeds join a reply to its parent when both are on the page, so one conversation is one
+  block instead of the same words repeated down the screen
 - A whole thread in one request, quoted parents with no request at all, and threads cached
   for the session
 
 **Next**
 - Share a post or profile through the system share sheet
 - A `for you` unread jump, the way the site's "first unread" link works
+- Link previews, drafts and poll voting — all waiting on textlog to put them in the API
 
 **Then — distribution (v0.2.0)**
 - Automated builds attached to each release

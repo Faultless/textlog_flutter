@@ -40,8 +40,12 @@ Dependencies point one way only — `ui` → `state` → `data` → `core`.
 ```
 core/    pure Dart. No Flutter, no I/O, no packages.
          models, FeedSource, body tokenizer, block markdown, polls, post context,
-         SSE parser, relative time, the TLD table the autolinker needs.
-data/    the only code that talks to the network. api.dart + firehose transports.
+         feed threading, notification planning, SSE parser, relative time, the TLD
+         table the autolinker needs.
+data/    the only code that talks to the network, plus the OS bridges.
+         api.dart, firehose transports, notifications, the background poll, and
+         local_store.dart — which owns every SharedPreferences key, because the
+         background isolate cannot reach a provider.
 state/   Riverpod providers. Thin — they wire data into the widget tree. Session lives here.
 ui/      widgets. Pure functions of state.
 ```
@@ -339,6 +343,25 @@ of those will find no entry for the forgotten parent and advertise its replies a
 which is the honest answer and costs one tap rather than refetching a whole thread. A
 `reply_count` that disagrees with what we hold goes through the same path.
 
+## Feed threads
+
+A feed that returns twenty replies to one conversation used to render twenty posts, each
+quoting the same parent underneath it. `core/feed_tree.dart` joins any reply whose parent
+is *also on the page* under that parent instead — the change the site made for the same
+reason, and worth more on a phone, where the duplication cost the most scrolling. On a
+live page of twenty, six posts nest and six duplicated quotes disappear.
+
+It needs nothing the feed does not already carry: `parent_id` for the join, and the
+inlined `parent` for the case where the parent is not on the page.
+
+Two things it must never do, both tested:
+
+- **Lose a post.** A chain deeper than the nesting cap does not get truncated; the chain
+  restarts as a new block each time it would nest too far.
+- **Swallow a page.** Ids only ever go up, so a cycle cannot happen — but if one did, a
+  grouper that found no roots would render nothing at all. Anything whose parent has not
+  been assigned yet becomes a root.
+
 ## Quoted parents
 
 A reply renders the post it answers in a tinted box beneath it, as the site does. **The
@@ -364,6 +387,57 @@ and links to it; so does this.
   do. Acting on an account settles it either way.
 - **A thread wider or deeper than one page.** 100 posts at depth 5 covers virtually
   everything; past that, branches advertise what is missing.
+
+## Notifications
+
+**There is no push endpoint an app can reach.** textlog does have push, but it is Web
+Push: the subscription routes live under `/account/`, authenticate with a *session
+cookie* rather than a bearer token, and expect a browser push endpoint with its own key
+pair. A Flutter app can satisfy none of those. Instant delivery would need something
+under `/api/v1/` that takes an FCM or APNs device token — the same shape of gap the
+write endpoints used to be.
+
+So the app polls `/activities/to-me`, which returns exactly replies, mentions and
+follows of you, and raises the notifications itself. The cost is latency: Android will
+not run periodic work more often than every fifteen minutes, and iOS decides for itself
+when a background refresh is worth the battery. The setting says so rather than implying
+otherwise.
+
+Nothing is scheduled and no permission is asked for until the reader turns it on.
+
+### The part that is easy to get wrong
+
+Deciding *what* to say lives in `core/notification_plan.dart`, pure and tested. A poll
+sees the same page of activity every fifteen minutes, so "have I already said this" is
+the whole problem — and it is compared against a remembered set of activity ids rather
+than a high-water mark, because those ids are opaque strings the server orders by time.
+There is no "greater than" to compare.
+
+Two details that only a device would have shown:
+
+- **A notification action runs in a fresh isolate** that never executed `main`. Anything
+  the app wired at launch is simply absent, so the entry point has to do the work
+  itself — a mutable hook set from `main` is a quick reply that silently posts nothing.
+- **The plugin uses the foreground callback when the app is alive** and the background
+  one when it is not. Both now run the same handler; wiring only one gives you a reply
+  button that works in exactly one of the two states.
+
+`android/app/src/main/AndroidManifest.xml` declares
+`com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver`. The plugin ships that
+class but does not declare it, and without the declaration the broadcast goes nowhere:
+the shade shows a spinner forever and the reply is dropped.
+
+### What was verified, and where
+
+Driven on an Android emulator: the notification and its group summary appear, `Reply`
+opens an inline field and posts `POST /api/v1/posts` with the right `parent_id` and
+bearer token, `Mark read` posts to `/activities/to-me/read`, and the periodic job
+registers with a network constraint about fifteen minutes out.
+
+**iOS is written but unverified** — no iOS SDK on the machine this was built on. The
+`Info.plist` background modes, the `BGTaskScheduler` identifier and the `AppDelegate`
+registration are all in place and the identifiers match what the plugin uses, but nobody
+has watched a notification arrive on a phone.
 
 ## Where the app deliberately differs from the site
 
