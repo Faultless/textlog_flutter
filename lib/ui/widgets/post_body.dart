@@ -185,8 +185,8 @@ class _Rendered extends StatelessWidget {
       ),
     ),
     CodeBlock(:final text) => _Scrollable(
+      fill: true,
       child: Container(
-        width: double.infinity,
         padding: const EdgeInsets.all(space3),
         color: palette.tagBg,
         child: Text(
@@ -374,13 +374,26 @@ class _Tex extends StatelessWidget {
 /// Code, tables and display maths can all be wider than the column. Scroll them
 /// inside their own box rather than letting the page scroll sideways.
 class _Scrollable extends StatelessWidget {
-  const _Scrollable({required this.child});
+  const _Scrollable({required this.child, this.fill = false});
 
   final Widget child;
 
+  /// Grow a narrow child out to the column, so a code block's tint spans the width
+  /// the way it does on the site. It cannot ask for that itself: inside a sideways
+  /// viewport the width is unbounded, and `double.infinity` there takes the page
+  /// down with it — which is what a single short code fence used to do.
+  final bool fill;
+
   @override
-  Widget build(BuildContext context) => SingleChildScrollView(
-    scrollDirection: Axis.horizontal,
-    child: child,
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) => SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: fill && constraints.hasBoundedWidth
+          ? ConstrainedBox(
+              constraints: BoxConstraints(minWidth: constraints.maxWidth),
+              child: child,
+            )
+          : child,
+    ),
   );
 }
