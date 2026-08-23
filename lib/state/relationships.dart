@@ -46,6 +46,7 @@ final class Relationships {
       ? true
       : (blockedComplete || settled.contains(handle) ? false : null);
 
+
   Relationships copyWith({
     Set<String>? following,
     Set<String>? blocked,
@@ -79,32 +80,30 @@ class RelationshipsNotifier extends AsyncNotifier<Relationships> {
     final session = await ref.watch(sessionProvider.future);
     if (session == null) return Relationships.unknown;
 
-    // Failing to load these must not break a screen: without them the buttons behave
-    // exactly as they did before, so "I do not know" is a safe answer.
-    try {
-      final api = ref.watch(apiProvider);
-      final handle = session.account.handle;
-      final following = await _walk(
-        (cursor) => api.people(handle, PeopleKind.following, cursor: cursor, limit: 100),
-      );
-      final blocked = await _walk(
-        (cursor) => api.people(
-          handle,
-          PeopleKind.blocks,
-          cursor: cursor,
-          limit: 100,
-          token: session.token,
-        ),
-      );
-      return Relationships(
-        following: following.handles,
-        blocked: blocked.handles,
-        followingComplete: following.complete,
-        blockedComplete: blocked.complete,
-      );
-    } catch (_) {
-      return Relationships.unknown;
-    }
+    final api = ref.watch(apiProvider);
+    final handle = session.account.handle;
+
+    // Each list is walked on its own. Failing to load one must not blank the other:
+    // a blocks endpoint that errors should not make the follow buttons forget who you
+    // follow. "I do not know" is a safe answer, but only for the list that failed.
+    final following = await _walk(
+      (cursor) => api.people(handle, PeopleKind.following, cursor: cursor, limit: 100),
+    );
+    final blocked = await _walk(
+      (cursor) => api.people(
+        handle,
+        PeopleKind.blocks,
+        cursor: cursor,
+        limit: 100,
+        token: session.token,
+      ),
+    );
+    return Relationships(
+      following: following.handles,
+      blocked: blocked.handles,
+      followingComplete: following.complete,
+      blockedComplete: blocked.complete,
+    );
   }
 
   Future<({Set<String> handles, bool complete})> _walk(
@@ -112,11 +111,16 @@ class RelationshipsNotifier extends AsyncNotifier<Relationships> {
   ) async {
     final handles = <String>{};
     String? cursor;
-    for (var page = 0; page < maxRelationshipPages; page++) {
-      final result = await fetch(cursor);
-      handles.addAll(result.items.map((person) => person.handle));
-      cursor = result.nextCursor;
-      if (cursor == null) return (handles: handles, complete: true);
+    try {
+      for (var page = 0; page < maxRelationshipPages; page++) {
+        final result = await fetch(cursor);
+        handles.addAll(result.items.map((person) => person.handle));
+        cursor = result.nextCursor;
+        if (cursor == null) return (handles: handles, complete: true);
+      }
+    } catch (_) {
+      // Whatever arrived is still true; it is just not the whole list.
+      return (handles: handles, complete: false);
     }
     return (handles: handles, complete: false);
   }
@@ -156,3 +160,63 @@ final followsProvider = Provider.autoDispose.family<bool?, String>(
 final blocksProvider = Provider.autoDispose.family<bool?, String>(
   (ref, handle) => ref.watch(relationshipsProvider).valueOrNull?.blocks(handle),
 );
+
+/// The hashtags you follow.
+///
+/// Its own notifier rather than part of [Relationships], because only a hashtag screen
+/// ever asks — and folding it in would have made every follow button on a profile pay
+/// for a list it has no use for.
+final followedTagSetProvider =
+    AsyncNotifierProvider<FollowedTagSetNotifier, ({Set<String> tags, bool complete})>(
+      FollowedTagSetNotifier.new,
+    );
+
+class FollowedTagSetNotifier
+    extends AsyncNotifier<({Set<String> tags, bool complete})> {
+  @override
+  Future<({Set<String> tags, bool complete})> build() async {
+    final session = await ref.watch(sessionProvider.future);
+    if (session == null) return (tags: <String>{}, complete: false);
+
+    final tags = <String>{};
+    String? cursor;
+    try {
+      for (var page = 0; page < maxRelationshipPages; page++) {
+        final result = await ref
+            .read(apiProvider)
+            .followedTags(session.account.handle, cursor: cursor, limit: 100);
+        tags.addAll(result.items.map((tag) => tag.tag));
+        cursor = result.nextCursor;
+        if (cursor == null) return (tags: tags, complete: true);
+      }
+    } catch (_) {
+      return (tags: tags, complete: false);
+    }
+    return (tags: tags, complete: false);
+  }
+
+  void note(String tag, {required bool following}) {
+    final current = state.valueOrNull ?? (tags: <String>{}, complete: false);
+    state = AsyncData((
+      tags: following ? {...current.tags, tag} : ({...current.tags}..remove(tag)),
+      // Acting on it is knowledge, so the set is authoritative for this tag either way.
+      complete: current.complete,
+    ));
+    _settled.add(tag);
+  }
+
+  final _settled = <String>{};
+
+  bool? follows(String tag) {
+    final current = state.valueOrNull;
+    if (current == null) return null;
+    if (current.tags.contains(tag)) return true;
+    return current.complete || _settled.contains(tag) ? false : null;
+  }
+}
+
+/// Whether you follow a hashtag — null while that is genuinely unknown.
+final followsTagProvider = Provider.autoDispose.family<bool?, String>((ref, tag) {
+  ref.watch(followedTagSetProvider);
+  return ref.read(followedTagSetProvider.notifier).follows(tag);
+});

@@ -8,6 +8,7 @@ import '../theme.dart';
 import '../widgets/feed_view.dart';
 import '../../state/people.dart';
 import '../widgets/people_list.dart';
+import '../widgets/post_actions.dart';
 import '../widgets/pressable.dart';
 import '../widgets/shell.dart';
 
@@ -38,14 +39,29 @@ class TagScreen extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text.rich(
-                  TextSpan(
-                    children: [
-                      TextSpan(text: '#', style: TextStyle(color: palette.accent)),
-                      TextSpan(text: tag),
-                    ],
-                  ),
-                  style: theme.titleLarge,
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text.rich(
+                        TextSpan(
+                          children: [
+                            TextSpan(text: '#', style: TextStyle(color: palette.accent)),
+                            TextSpan(text: tag),
+                          ],
+                        ),
+                        style: theme.titleLarge,
+                      ),
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        FollowTagButton(tag),
+                        const SizedBox(height: space2),
+                        BlockTagAction(tag, style: theme.labelSmall!),
+                      ],
+                    ),
+                  ],
                 ),
                 // A tag whose details fail to load is not worth an error: the notes
                 // below are the page.

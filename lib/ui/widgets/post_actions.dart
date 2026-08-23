@@ -389,3 +389,116 @@ Future<bool> _confirmBlock(BuildContext context, String handle) async {
   );
   return confirmed ?? false;
 }
+
+/// `follow` / `unfollow` on a hashtag.
+///
+/// Same problem as an account: the tag endpoint does not say whether you follow it,
+/// so the answer comes from your own followed-tag list — and holds back its arrow
+/// until it knows, rather than claiming you do not follow something you do.
+class FollowTagButton extends ConsumerStatefulWidget {
+  const FollowTagButton(this.tag, {super.key});
+
+  final String tag;
+
+  @override
+  ConsumerState<FollowTagButton> createState() => _FollowTagButtonState();
+}
+
+class _FollowTagButtonState extends ConsumerState<FollowTagButton> {
+  bool? _pending;
+  var _busy = false;
+
+  Future<void> _toggle(bool following) async {
+    final session = ref.read(sessionProvider).valueOrNull;
+    if (session == null || _busy) return;
+    final next = !following;
+
+    setState(() {
+      _busy = true;
+      _pending = next;
+    });
+    ref.read(followedTagSetProvider.notifier).note(widget.tag, following: next);
+    try {
+      await ref.read(apiProvider).followTag(session.token, widget.tag, following: next);
+    } on ApiFailure catch (failure) {
+      ref.read(followedTagSetProvider.notifier).note(widget.tag, following: following);
+      if (mounted) {
+        setState(() => _pending = following);
+        toast(context, failure.message);
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (ref.watch(sessionProvider).valueOrNull == null) return const SizedBox.shrink();
+
+    final known = _pending ?? ref.watch(followsTagProvider(widget.tag));
+    final following = known ?? false;
+    return TextlogButton(
+      following ? 'unfollow' : (known == null ? 'follow' : 'follow →'),
+      tone: following ? ButtonTone.unfollow : ButtonTone.primary,
+      onPressed: _busy ? null : () => _toggle(following),
+    );
+  }
+}
+
+/// `block` / `unblock` on a hashtag — the tag equivalent of blocking an account.
+class BlockTagAction extends ConsumerStatefulWidget {
+  const BlockTagAction(this.tag, {super.key, this.style});
+
+  final String tag;
+  final TextStyle? style;
+
+  @override
+  ConsumerState<BlockTagAction> createState() => _BlockTagActionState();
+}
+
+class _BlockTagActionState extends ConsumerState<BlockTagAction> {
+  /// There is no list of blocked tags in the API — only a count on your own profile —
+  /// so this tracks what it did rather than what it read.
+  var _blocked = false;
+  var _busy = false;
+
+  Future<void> _toggle() async {
+    final session = ref.read(sessionProvider).valueOrNull;
+    if (session == null || _busy) return;
+    final next = !_blocked;
+
+    setState(() {
+      _busy = true;
+      _blocked = next;
+    });
+    try {
+      await ref.read(apiProvider).blockTag(session.token, widget.tag, blocked: next);
+      if (next && mounted) {
+        toast(context, 'Blocked #${widget.tag}. Posts with it are hidden.');
+      }
+    } on ApiFailure catch (failure) {
+      if (!mounted) return;
+      setState(() => _blocked = !next);
+      toast(context, failure.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final theme = widget.style ?? Theme.of(context).textTheme.bodySmall!;
+    if (ref.watch(sessionProvider).valueOrNull == null) return const SizedBox.shrink();
+
+    return Pressable(
+      onTap: _busy ? null : _toggle,
+      builder: (context, pressed) => Text(
+        _blocked ? 'unblock' : 'block',
+        style: theme.asLink(palette).copyWith(
+          color: pressed ? palette.accent : (_blocked ? palette.muted : palette.errorInk),
+        ),
+      ),
+    );
+  }
+}

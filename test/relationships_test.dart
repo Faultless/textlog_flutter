@@ -39,10 +39,26 @@ String page(List<String> handles, {String? next}) => jsonEncode({
 
 /// A server that hands out `following` and `blocks` lists, optionally longer than
 /// the walk is allowed to follow.
+String tagPage(List<String> tags, {String? next}) => jsonEncode({
+  'data': [
+    for (final tag in tags)
+      {
+        'tag': tag,
+        'post_count': 1,
+        'follower_count': 1,
+        'url': 'https://textlog.cc/tag/$tag',
+        'api_url': 'https://textlog.cc/api/v1/tags/$tag',
+      },
+  ],
+  'pagination': {'next_cursor': next},
+});
+
 ({ProviderContainer container, List<String> calls}) harness({
   List<String> following = const [],
   List<String> blocked = const [],
+  List<String> tags = const [],
   bool endlessFollowing = false,
+  bool blocksFail = false,
   bool signedIn = true,
 }) {
   final calls = <String>[];
@@ -53,7 +69,12 @@ String page(List<String> handles, {String? next}) => jsonEncode({
         MockClient((request) async {
           calls.add(request.url.path);
           if (request.url.path.endsWith('/blocks')) {
-            return http.Response(page(blocked), 200);
+            return blocksFail
+                ? http.Response('{"error":{"code":"x","message":"no"}}', 500)
+                : http.Response(page(blocked), 200);
+          }
+          if (request.url.path.endsWith('/following/tags')) {
+            return http.Response(tagPage(tags), 200);
           }
           return http.Response(
             page(following, next: endlessFollowing ? 'more' : null),
@@ -169,5 +190,52 @@ void main() {
       t.container.read(relationshipsProvider.notifier).noteBlock('spammer', blocked: false);
       expect(t.container.read(blocksProvider('spammer')), isFalse);
     });
+  });
+
+  group('followed hashtags', () {
+    test('are not fetched until something asks', () async {
+      // Only a hashtag screen ever needs them, and folding them into the account
+      // lists would make every follow button on a profile pay for a list it cannot use.
+      final t = harness(following: ['alice'], tags: ['ascii']);
+      await t.container.read(relationshipsProvider.future);
+
+      expect(t.calls.any((path) => path.endsWith('/following/tags')), isFalse);
+    });
+
+    test('answer once they are', () async {
+      final t = harness(tags: ['ascii', 'dart']);
+      await t.container.read(followedTagSetProvider.future);
+
+      expect(t.container.read(followsTagProvider('ascii')), isTrue);
+      expect(t.container.read(followsTagProvider('flutter')), isFalse);
+      expect(t.calls, contains('/api/v1/users/me/following/tags'));
+    });
+
+    test('acting on one settles it', () async {
+      final t = harness(tags: const []);
+      await t.container.read(followedTagSetProvider.future);
+
+      t.container.read(followedTagSetProvider.notifier).note('dart', following: true);
+      expect(t.container.read(followsTagProvider('dart')), isTrue);
+
+      t.container.read(followedTagSetProvider.notifier).note('dart', following: false);
+      expect(t.container.read(followsTagProvider('dart')), isFalse);
+    });
+
+    test('nothing is known without a session', () async {
+      final t = harness(signedIn: false);
+      await t.container.read(followedTagSetProvider.future);
+      expect(t.calls, isEmpty);
+    });
+  });
+
+  test('one list failing does not blank the other', () async {
+    // A blocks endpoint that errors must not make the follow buttons forget who you
+    // follow — which is what a single try around both walks used to do.
+    final t = harness(following: ['alice'], blocksFail: true);
+    await t.container.read(relationshipsProvider.future);
+
+    expect(t.container.read(followsProvider('alice')), isTrue);
+    expect(t.container.read(blocksProvider('spammer')), isNull, reason: 'unknown, not false');
   });
 }

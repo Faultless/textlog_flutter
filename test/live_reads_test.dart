@@ -36,11 +36,35 @@ void main() {
   tearDownAll(() => client.close());
 
   /// Runs [body] only when there is a server, so a failure here is a real mismatch.
+  ///
+  /// A rate limit or a server error is not a mismatch — this suite shares textlog's
+  /// hundred-and-twenty-a-minute allowance with every other live call in the run, so
+  /// treating a 429 as a failure makes the whole file flaky and therefore worthless.
   void live(String description, Future<void> Function() body) {
     test(description, () async {
       if (!reachable) return;
-      await body();
+      try {
+        await body();
+      } on ApiFailure catch (failure) {
+        if (!failure.isTransient) rethrow;
+        // ignore: avoid_print
+        print('skipped "$description": ${failure.status} ${failure.message}');
+      }
     });
+  }
+
+  /// Assert a call is refused for want of a token.
+  ///
+  /// Tolerates a rate limit, which refuses it for a different reason and says nothing
+  /// about whether the endpoint is there.
+  Future<void> expectRefused(Future<void> Function() call) async {
+    try {
+      await call();
+      fail('expected the call to be refused');
+    } on ApiFailure catch (failure) {
+      if (failure.isRateLimited) return;
+      expect(failure.isUnauthorized, isTrue, reason: 'got ${failure.status}');
+    }
   }
 
   live('feeds decode, and carry the inlined parent', () async {
@@ -140,10 +164,7 @@ void main() {
   live('the activity feeds refuse an anonymous reader', () async {
     // Not a decode check: a confirmation that the endpoints exist and are gated,
     // so a silent 404 does not read as "no activity".
-    await expectLater(
-      api.activities('not-a-token', ActivityScope.forYou),
-      throwsA(isA<ApiFailure>().having((f) => f.isUnauthorized, 'unauthorized', isTrue)),
-    );
+    await expectRefused(() => api.activities('not-a-token', ActivityScope.forYou));
   });
 
   live('a poll comes back with its options and its tally rule', () async {
@@ -184,27 +205,18 @@ void main() {
   live('voting refuses an anonymous reader rather than 404ing', () async {
     // Confirms the endpoint exists and is gated, so a missing route does not read
     // as "voting is broken".
-    await expectLater(
-      api.votePoll('not-a-token', 1, 1),
-      throwsA(isA<ApiFailure>().having((f) => f.isUnauthorized, 'unauthorized', isTrue)),
-    );
+    await expectRefused(() => api.votePoll('not-a-token', 1, 1));
   });
 
   live('drafts and explore are reachable', () async {
-    await expectLater(
-      api.drafts('not-a-token'),
-      throwsA(isA<ApiFailure>().having((f) => f.isUnauthorized, 'unauthorized', isTrue)),
-    );
+    await expectRefused(() => api.drafts('not-a-token'));
     // Explore is public.
     final explore = await api.explore(limit: 5);
     expect(explore.people.length + explore.tags.length, greaterThan(0));
   });
 
   live('following a hashtag refuses an anonymous reader', () async {
-    await expectLater(
-      api.followTag('not-a-token', 'ascii', following: true),
-      throwsA(isA<ApiFailure>().having((f) => f.isUnauthorized, 'unauthorized', isTrue)),
-    );
+    await expectRefused(() => api.followTag('not-a-token', 'ascii', following: true));
   });
 }
 
