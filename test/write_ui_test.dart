@@ -269,7 +269,14 @@ void main() {
     await settle(tester);
     expect(find.text('report @someone'), findsOneWidget);
 
-    await tester.tap(find.text('spam'));
+    // Every reason the server accepts is offered, and the sheet fits them all —
+    // a fifth one used to overflow it.
+    for (final reason in ['harassment', 'spam', 'impersonation', 'bot', 'other']) {
+      expect(find.text(reason), findsOneWidget, reason: reason);
+    }
+    expect(tester.takeException(), isNull);
+
+    await tester.tap(find.text('bot'));
     await settle(tester);
     expect(http.calls, ['POST /api/v1/posts/1/report']);
     expect(find.textContaining('Thank you'), findsOneWidget);

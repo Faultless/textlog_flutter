@@ -181,7 +181,8 @@ Future<void> _confirmDelete(
   }
 }
 
-const _reasons = ['harassment', 'spam', 'impersonation', 'other'];
+/// The server's list, from `api-write.tsx`. `bot` is new.
+const _reasons = ['harassment', 'spam', 'impersonation', 'bot', 'other'];
 
 Future<void> _report(BuildContext context, WidgetRef ref, Post post) async {
   final palette = context.palette;
@@ -190,6 +191,10 @@ Future<void> _report(BuildContext context, WidgetRef ref, Post post) async {
   final reason = await showModalBottomSheet<String>(
     context: context,
     backgroundColor: Colors.transparent,
+    // Without these the sheet is capped at half the screen and clips whatever does
+    // not fit — which the fifth reason did, and a sixth certainly would.
+    isScrollControlled: true,
+    constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.85),
     builder: (context) => Container(
       width: double.infinity,
       decoration: BoxDecoration(
@@ -198,7 +203,7 @@ Future<void> _report(BuildContext context, WidgetRef ref, Post post) async {
       ),
       child: SafeArea(
         top: false,
-        child: Padding(
+        child: SingleChildScrollView(
           padding: EdgeInsets.symmetric(horizontal: gutterOf(context), vertical: space5),
           child: Column(
             mainAxisSize: MainAxisSize.min,

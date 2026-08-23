@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/feed_source.dart';
+import '../../core/feed_tree.dart';
 import '../../state/feed.dart';
 import '../../core/search.dart';
 import '../theme.dart';
 import 'post_tile.dart';
+import 'reply_tree.dart';
 import 'status.dart';
 
 /// The whole reading experience: give it a [FeedSource] and it paginates, refreshes
@@ -17,6 +19,7 @@ class FeedView extends ConsumerStatefulWidget {
     this.header,
     this.emptyMessage = 'Nothing here yet.',
     this.allowFilter = true,
+    this.group = true,
   });
 
   final FeedSource source;
@@ -26,6 +29,11 @@ class FeedView extends ConsumerStatefulWidget {
   /// Off where a server-side query already narrowed the list; filtering the results
   /// of a search reads as the search having broken.
   final bool allowFilter;
+
+  /// Join replies to parents on the same page into a thread. Off where the feed is
+  /// a list of one author's replies and nesting them under each other would misread
+  /// the page as a conversation.
+  final bool group;
 
   @override
   ConsumerState<FeedView> createState() => _FeedViewState();
@@ -94,13 +102,20 @@ class _FeedViewState extends ConsumerState<FeedView> {
                   ),
                 ];
               }
+              // Join replies to parents that are on the same page, so a busy
+              // thread is one block instead of the same conversation repeated
+              // down the feed.
+              final threads = widget.group ? groupFeed(posts) : [
+                for (final post in posts) FeedThread(root: post, replies: const []),
+              ];
+
               return [
                 if (widget.allowFilter && (filtering || value.posts.length >= _searchAfter))
                   filter,
                 SliverList.builder(
-                  itemCount: posts.length,
-                  itemBuilder: (context, index) => PostTile(
-                    posts[index],
+                  itemCount: threads.length,
+                  itemBuilder: (context, index) => _Thread(
+                    threads[index],
                     showTopBorder: index > 0 || widget.header != null,
                   ),
                 ),
@@ -117,6 +132,39 @@ class _FeedViewState extends ConsumerState<FeedView> {
           },
         ],
       ),
+    );
+  }
+}
+
+/// One feed entry: a post, and the page's own replies to it beneath.
+class _Thread extends StatelessWidget {
+  const _Thread(this.thread, {required this.showTopBorder});
+
+  final FeedThread thread;
+  final bool showTopBorder;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!thread.isThread) {
+      return PostTile(thread.root, showTopBorder: showTopBorder);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        PostTile(
+          thread.root,
+          showTopBorder: showTopBorder,
+          // Its replies are right below it, so quoting the parent it answers is
+          // still useful — but only for the root, not for every reply in the tree.
+        ),
+        Padding(
+          padding: const EdgeInsets.only(bottom: space4),
+          // No rootId: this tree is only what the page returned, so "read more"
+          // opens the thread rather than trying to load into a feed.
+          child: ReplyBranch(thread.replies),
+        ),
+      ],
     );
   }
 }

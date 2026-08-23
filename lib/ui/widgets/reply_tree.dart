@@ -14,12 +14,16 @@ import 'pressable.dart';
 
 /// `.reply-branch` — siblings share one hairline rail, indented by a gutter.
 class ReplyBranch extends StatelessWidget {
-  const ReplyBranch(this.nodes, {super.key, required this.rootId, this.depth = 1});
+  const ReplyBranch(this.nodes, {super.key, this.rootId, this.depth = 1});
 
   final List<ReplyNode> nodes;
 
   /// The thread these replies belong to, so a branch can ask it to load more.
-  final int rootId;
+  ///
+  /// Null inside a feed, where the tree is only what that page happened to return
+  /// and there is no thread notifier to ask — so "read more" opens the post instead
+  /// of loading in place.
+  final int? rootId;
 
   /// How deep this branch sits, counting the thread's own post as zero.
   final int depth;
@@ -45,7 +49,7 @@ class _Node extends ConsumerStatefulWidget {
   const _Node(this.node, {required this.rootId, required this.depth});
 
   final ReplyNode node;
-  final int rootId;
+  final int? rootId;
   final int depth;
 
   @override
@@ -108,7 +112,7 @@ class _More extends ConsumerStatefulWidget {
   const _More(this.node, {required this.rootId, required this.depth});
 
   final ReplyNode node;
-  final int rootId;
+  final int? rootId;
   final int depth;
 
   @override
@@ -157,9 +161,11 @@ class _MoreState extends ConsumerState<_More> {
   var _loading = false;
 
   Future<void> _load() async {
+    final rootId = widget.rootId;
+    if (rootId == null) return;
     setState(() => _loading = true);
     try {
-      await ref.read(threadProvider(widget.rootId).notifier).expand(widget.node.post.id);
+      await ref.read(threadProvider(rootId).notifier).expand(widget.node.post.id);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -169,8 +175,13 @@ class _MoreState extends ConsumerState<_More> {
   Widget build(BuildContext context) {
     final palette = context.palette;
     final count = widget.node.unloaded;
-    final replies = '$count more ${count == 1 ? 'reply' : 'replies'}';
-    final canLoadHere = widget.depth < maxThreadDepth;
+    // In a feed the tree is only what that page returned, so a count of what is
+    // missing is noise — the thread is one tap away and says it properly.
+    final inFeed = widget.rootId == null;
+    final label = inFeed
+        ? 'read more'
+        : '+ $count more ${count == 1 ? 'reply' : 'replies'}';
+    final canLoadHere = !inFeed && widget.depth < maxThreadDepth;
 
     return Padding(
       padding: EdgeInsets.only(left: space2 + replyIndentOf(context), bottom: space3),
@@ -181,7 +192,7 @@ class _MoreState extends ConsumerState<_More> {
             ? _load
             : () => context.push('/post/${widget.node.post.id}'),
         builder: (context, pressed) => Text(
-          _loading ? 'loading…' : '+ $replies',
+          _loading ? 'loading…' : label,
           style: Theme.of(context).textTheme.bodySmall!
               .asLink(palette)
               .copyWith(color: pressed ? palette.accentDark : null),
