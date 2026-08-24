@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/media.dart';
 import '../../core/models.dart';
 import '../router.dart';
 import '../theme.dart';
@@ -24,12 +25,29 @@ class LinkPreviews extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (post.linkPreviews.isEmpty) return const SizedBox.shrink();
-    final entry = post.linkPreviews.entries.first;
+    final entry = _first;
+    if (entry == null) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.only(top: space3),
-      child: _Card(url: entry.key, preview: entry.value),
+      child: _Card(url: entry.$1, preview: entry.$2),
     );
+  }
+
+  /// The preview to draw, if any.
+  ///
+  /// A voice clip is the one card the server does not send: it drives its own player
+  /// straight off the link, so there is no preview entry to iterate. Recognising the
+  /// link is what tells a clip apart from any other bare URL, so it is synthesised
+  /// here — and only when the server sent nothing, which keeps a real preview first.
+  (String, LinkPreview)? get _first {
+    if (post.linkPreviews.isNotEmpty) {
+      final entry = post.linkPreviews.entries.first;
+      return (entry.key, entry.value);
+    }
+    for (final url in audioLinksIn(post.body)) {
+      return (url, const LinkPreview(imageUrl: '', mimeType: 'audio/mpeg'));
+    }
+    return null;
   }
 }
 
@@ -64,15 +82,20 @@ class _Card extends StatelessWidget {
     // form is the honest rendering there.
     final hasThumbnail = !kIsWeb && preview.imageUrl.isNotEmpty && !preview.isAudio;
 
+    // A voice clip, said in words. Vocaroo answers with no preview metadata at all,
+    // so without this a clip and a blog post look exactly alike.
+    final audio = preview.isAudio || isAudioLink(url);
+
     // Nothing but an image is not a preview worth a card; the link is already in the
-    // body above it.
-    if (!hasThumbnail && title == null && description == null) {
+    // body above it. A voice clip is the exception: saying it is one is the whole
+    // value, and it is the case with nothing else to show.
+    if (!hasThumbnail && title == null && description == null && !audio) {
       return const SizedBox.shrink();
     }
 
     return Semantics(
       button: true,
-      label: 'open ${title ?? url}',
+      label: audio ? 'open the voice clip at $url' : 'open ${title ?? url}',
       child: GestureDetector(
         // A preview of a textlog post opens in the app, like the link itself.
         onTap: () => openLink(context, url),
@@ -108,7 +131,17 @@ class _Card extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (site != null && site.isNotEmpty)
+                      if (audio)
+                        Text(
+                          // The site plays it inline. Here it opens Vocaroo, so the
+                          // label says what kind of thing is on the other end rather
+                          // than promising a player this card does not have.
+                          '♪ voice clip${site != null && site.isNotEmpty ? ' · $site' : ''}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.labelSmall!.copyWith(color: palette.accent),
+                        )
+                      else if (site != null && site.isNotEmpty)
                         Text(
                           site,
                           maxLines: 1,
