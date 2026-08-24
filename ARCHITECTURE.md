@@ -144,10 +144,24 @@ The split that matters is **what is always rendered versus what is opt-in**:
 
 - **Always**, because textlog.cc renders it, and leaving it out would show the reader
   something the author did not write: inline `` `code` ``, ``` fences, `$x$` and `$$x$$`
-  LaTeX, `[label](url)`, `~strikethrough~` (one tilde, not just two), bare and schemeless
-  URLs, mentions, hashtags, spoilers, and polls.
+  LaTeX, `[label](url)`, `*bold*`, `_underline_`, `/italics/`, `~strikethrough~` (one
+  tilde, not just two), `|redacted|`, bare and schemeless URLs, mentions, hashtags,
+  spoilers, `>` quoted lines, polls and quizzes.
 - **Behind the `markdown` setting**, because the site keeps a post body flat: headings,
-  emphasis, ordered and unordered lists, task lists, blockquotes, tables and rules.
+  ordered and unordered lists, task lists, tables and rules.
+
+The emphasis markers are worth stating plainly, because three of them read as something
+else in every other dialect: `*x*` is **bold**, `_x_` is <u>underline</u>, and italics is
+`/x/`. Guessing from Markdown habit shows the reader emphasis the author did not write.
+`|x|` is a bar you press to reveal — ink on ink rather than a gap, so revealing it does
+not reflow the paragraph.
+
+**Quoting is not part of the setting**, though a blockquote sounds like markdown. The
+site quotes a `>` line unconditionally, so the app does too — grouping consecutive lines
+into one quote, recursing so `> > x` nests, and leaving fenced code alone, which is what
+keeps the `> Correct answer` in a *quiz syntax example* literal. It also leaves ASCII art
+alone: a drawing's first column is often `>`, and quoting it would take the drawing
+apart.
 
 LaTeX renders through `flutter_math_fork` — TeX to Flutter widgets, no webview, works on
 web. An expression it cannot parse falls back to the source in a code run, which is what the
@@ -199,6 +213,11 @@ churn instead:
 unhealthy and doubled its retry delay out to thirty seconds, which missed far more than it
 caught. A close after a successful connection is now normal — retry in a second. Exponential
 backoff is reserved for real failures: refused, rate limited, offline.
+
+The read limit is counted per *account* now, not per IP, and is 600 a minute signed in
+against 120 anonymous. Nothing in the app encodes those numbers — it reacts to a 429 and
+its `Retry-After` — but it is why a signed-in reader can page a long thread without ever
+meeting the gate, and why the live test suite is much less likely to trip over itself.
 
 **Reconcile, because the gap loses posts.** The server does not honour `Last-Event-ID`; a
 new connection simply subscribes to future posts, so anything published while it was down
@@ -259,6 +278,40 @@ comes `/post/2201` or `/u/stagas` to push. Anything else — another site, a loo
 like `textlog.cc.example`, `/account/...` which has no screen here, a `javascript:` URI —
 returns null and goes to the browser. Keeping it pure is what makes the browser cases
 cheap to test, and they are the ones worth testing.
+
+## Locked threads, and why the app guesses
+
+A `#lock` closes the thread beneath the post carrying it. The server walks the real
+ancestor chain and answers `409 thread_locked` to any reply under it, so that refusal is
+the authority — `core/locks.dart` cannot be, because the API does not put `thread_locked`
+on the post shape and the app cannot see every ancestor of every post it draws.
+
+So it guesses, deliberately, from the two things it *can* see: the post's own tags, and
+the parent the API inlines with it. A thread page seeds the flag from its subject and
+`ReplyBranch` carries it down, because a reply cannot see past its own parent — including
+through `FlatReplies`, where a post no longer sits under the ancestor that closed it and
+so cannot work it out from its position at all. Guessing early buys something the 409
+cannot give back: nobody wants to write a reply and be told afterwards that it was never
+going to be accepted.
+
+## What a retry has to look like
+
+Riverpod keeps the previous error while a provider rebuilds — `AsyncLoading`
+`copyWithPrevious` an `AsyncError` is still an `AsyncError`, with `isLoading` set. So the
+error branch of every screen rendered again during a retry: same message, same button, no
+spinner. Tapping retry was indistinguishable from tapping nothing, twice over on a network
+that failed again, and people pulled down to refresh instead — which worked, because a
+`RefreshIndicator` has a spinner of its own.
+
+`StatusMessage` is stateful for that one reason. It awaits the callback, says `retrying…`
+while it waits, and stops accepting taps until it returns. Which means **`onRetry` has to
+return a future that completes when the refetch does** — `notifier.refresh()`, or
+`ref.refresh(provider.future)`. A bare `ref.invalidate` returns before there is anything to
+wait for, so the label would flash for one frame and the screen would go back to looking
+inert. Every call site was changed to the future form for that reason.
+
+The button keeps its place while it waits rather than being replaced by a spinner: moving
+the thing you just pressed out from under your finger is its own small insult.
 
 ## Writes
 
@@ -446,6 +499,18 @@ and links to it; so does this.
   do. Acting on an account settles it either way.
 - **A thread wider or deeper than one page.** 100 posts at depth 5 covers virtually
   everything; past that, branches advertise what is missing.
+- **Playing a voice clip.** The site plays a Vocaroo link inline off its own
+  `/media/vocaroo/{id}` proxy, which serves a ranged mp3 an app could stream. Doing that
+  here means an audio engine, and with it a lock-screen entry, a focus policy and an
+  interruption story — none of which is what a voice clip in a text feed is asking for.
+  `core/media.dart` recognises one and says so; tapping it opens Vocaroo, which has a
+  player already.
+- **A pinned post is not marked as pinned.** `#pin` sorts the latest one first on a
+  profile, and the API already returns them in that order, so the app gets the ordering
+  for free. It cannot draw the badge: `profile_pinned` is on the website's own post shape,
+  not the API's.
+- **Unpublishing a post back into a draft.** A form action on the website, with no API
+  route behind it.
 
 ## Polls, checklists and link previews
 
@@ -456,6 +521,19 @@ except for one thing: the option lines are still *part* of the body, so they hav
 stripped from what renders above the poll. The tally is withheld by the server until the
 poll closes or you have voted, which is why `votes` is nullable rather than zero, and why
 that is a state the UI has to draw rather than an error.
+
+**Quizzes** are polls with a right answer: `#quiz` instead of `#poll`, the answer marked
+`>`, and an optional explanation after a blank line. Three things follow from the server's
+shape, and each of them is a UI state:
+
+- `expires_at` is **null**, because a quiz has no deadline — there is no tally to settle.
+  Reading it as a required string is what took down every feed page carrying a quiz, and
+  the nullability is now the thing a test pins.
+- `correct` and `explanation` are withheld exactly as `votes` is, so a quiz reads like a
+  poll until you commit to an answer. The optimistic copy written on tap deliberately
+  does *not* fill them in — guessing would give the answer away a round trip early.
+- The verdict is a tick or a cross as well as a colour. Green-versus-red says nothing to
+  a reader who cannot tell those two apart.
 
 **Checklists** are the opposite: entirely in the body, with no endpoint. Ticking one
 rewrites the body and saves it as an edit, so only the author can tick their own list.

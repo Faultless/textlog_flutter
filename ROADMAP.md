@@ -1,6 +1,6 @@
 # Roadmap
 
-## Where we are — v0.3.1
+## Where we are — v0.4.0
 
 | Area | State |
 |---|---|
@@ -19,7 +19,7 @@
 | Bio | native, `PATCH /me` |
 | Sign up | browser tab onto textlog.cc, on purpose |
 | Filter a loaded timeline | native, client-side |
-| Bodies | code, fences, LaTeX, markdown links, bold, underline, strikethrough, spoilers, ASCII art |
+| Bodies | code, fences, LaTeX, markdown links, bold, underline, italics, strikethrough, redactions, quotes, spoilers, ASCII art |
 | Block markdown | opt-in: headings, lists, task lists, tables, quotes, rules |
 | Fonts | JetBrains Mono, Fira Code or system, four sizes |
 | Themes | light, dark, sepia, dracula + accent |
@@ -27,12 +27,15 @@
 | Feeds | replies join their parent on the page, so a conversation is not repeated |
 | Notifications | replies, mentions and follows; quick reply and mark-read from the shade |
 | Polls | real options and tally from the API, and voting |
+| Quizzes | `#quiz`, the marked answer, the verdict and the explanation |
 | Link previews | thumbnail and text, or compact text where there is no image |
 | Checklists | `#todo` lists, ticked by the author |
 | Drafts | server-side, shared with the website |
 | Explore | people and hashtags to follow |
 | Hashtags | follow and block, as well as read |
 | Links to textlog | opened in the app — posts, profiles, hashtags, feeds |
+| Locked threads | `#lock` said before a reply is written, and the 409 handled |
+| Voice clips | named as one; opens Vocaroo, which has the player |
 
 ---
 
@@ -78,6 +81,51 @@ removed account's handle would go. All of that is derivable from the inlined par
 ⚠️ **Deliberately not doing:** scraping textlog.cc's HTML for anything the API does not
 serve. Parsing markup means the app breaks on any markup change on the server, which is
 exactly the fragility this project avoided on day one.
+
+---
+
+## v0.4.0 — catching up with the syntax, and a retry that reads as one
+
+**A quiz took down the page it was on.** Quizzes landed upstream as polls with a right
+answer, and a quiz has no deadline — so `expires_at` came back null where the app read a
+required string. Every feed page, search result and thread carrying one failed to decode
+whole. Quizzes now work properly: `#quiz`, the answer marked `>`, an optional explanation
+after a blank line, the right answer and the explanation withheld until you commit to one,
+a tick or a cross as well as a colour, no countdown, and `created a quiz` in the meta line
+rather than calling it a poll.
+
+**Three new body markers.** `/italics/` — the site had already spent `*` on bold and `_` on
+underline. `|redacted|`, a bar you press to reveal, drawn ink-on-ink so revealing it does
+not reflow the paragraph. And `>` quoted lines, which are *not* behind the markdown setting
+because the site quotes unconditionally: consecutive lines group into one quote, `> > x`
+nests, and both fenced code and ASCII art are left alone — the first so a quiz-syntax
+example stays literal, the second because a drawing's first column is often `>`.
+
+**Locked threads.** A `#lock` closes the thread under it and the server answers a reply
+with `409 thread_locked`. The app now says `thread locked` where the reply link would be,
+worked out from the post's own tags and the parent the API inlines, and carried down a
+thread from its subject. The server still has the last word; knowing early just saves
+writing a reply that was never going to be accepted.
+
+**Voice clips** are named rather than left as a bare URL. Vocaroo sends no preview metadata
+at all, so without this a clip and a blog post looked identical.
+
+**Retry did nothing visible.** Riverpod keeps the previous error while a provider rebuilds,
+so the error branch drew the same words and the same button with no spinner — tapping it
+was indistinguishable from tapping nothing, which is why the only refresh that felt real
+was pulling down. It says `retrying…` now and stops accepting taps until the request
+settles, which meant every call site had to return a future that completes when the
+refetch does rather than a bare `invalidate`. The profile screen, which had no retry at
+all, has one.
+
+Upstream also raised the read limit to **600 a minute when signed in** (from 120, and now
+counted per account rather than per IP). Nothing in the app encodes the number — it reacts
+to a 429 — but it is why paging a long thread signed in no longer meets the gate.
+
+**Left alone, and why:** playing a voice clip needs an audio engine and everything that
+comes with one; `#pin` already arrives in the right order from the API but the badge is not
+on the API's post shape; unpublishing a post back into a draft is a website form with no
+API route behind it.
 
 ---
 

@@ -53,7 +53,7 @@ see [Building it for your own iPhone](#building-it-for-your-own-iphone).
 
 Read the whole thing in [ROADMAP.md](ROADMAP.md). In short:
 
-**Working today (v0.3.1)**
+**Working today (v0.4.0)**
 - Feeds the site has: **for you**, **to me**, hot and latest — plus a **live** tab, which the
   website cannot have, streaming new posts as they are written
 - **Search** across every note, server side
@@ -64,11 +64,14 @@ Read the whole thing in [ROADMAP.md](ROADMAP.md). In short:
 - Sign in with a code sent to your email, then post, reply, edit, delete, follow, block,
   report, and edit your bio
 - Posts render the way the site renders them: inline and fenced code, **LaTeX**, markdown
-  links, bold, underline, strikethrough, spoilers, and ASCII art on its own line grid
-- **Polls** you can vote in, **link previews**, and **`#todo` checklists** you tick from the
-  post itself
+  links, bold, underline, italics, strikethrough, **redactions** you press to reveal,
+  `>` quotes, spoilers, and ASCII art on its own line grid
+- **Polls** you can vote in, **quizzes** that tell you whether you got it and why,
+  **link previews**, and **`#todo` checklists** you tick from the post itself
 - **Links back to textlog open in the app**, not the browser — a post, a profile, a hashtag
   or a feed
+- A `#lock`ed thread says so where the reply link would be, rather than after you write
+  one
 - **Drafts** kept on the server, so one started on the website is here and vice versa
 - **Explore** — people and hashtags to follow — and hashtags you can follow or block
 - Optional block markdown on top — headings, lists, task lists, tables, quotes
