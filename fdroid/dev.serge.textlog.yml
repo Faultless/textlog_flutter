@@ -1,0 +1,79 @@
+# The recipe to paste into an fdroiddata merge request as
+# metadata/dev.serge.textlog.yml. Kept here so it is versioned with the app it
+# builds, and so a change that breaks it (a new Flutter version, a moved output
+# path) is visible in the same commit.
+#
+# NOT YET SUBMITTED. It has to be validated by `fdroid build` — either locally in
+# their Docker environment or by the pipelines on an fdroiddata fork — before the MR
+# is worth opening. See fdroid/README.md for what is still undecided.
+
+Categories:
+  - Internet
+  - Social Network
+License: AGPL-3.0-only
+AuthorName: Serge Kamel
+SourceCode: https://github.com/Faultless/textlog_flutter
+IssueTracker: https://github.com/Faultless/textlog_flutter/issues
+Changelog: https://github.com/Faultless/textlog_flutter/releases
+
+# textlog.cc is AGPL and self-hostable, and the app reads its instance origin from
+# one constant, so this is not hardwired to a single server. Stated here because a
+# client of one service is the usual reason for a TetheredNet flag.
+AntiFeatures: []
+
+RepoType: git
+Repo: https://github.com/Faultless/textlog_flutter.git
+
+Builds:
+  - versionName: 0.4.0
+    versionCode: 20
+    # A tag would be ambiguous if it ever moved; F-Droid asks for the hash.
+    commit: 845da706aaab8d360fe3267a3c50ac0fbe0a8397
+    # Where pubspec.yaml lives. Root, here.
+    subdir: .
+    # Flutter comes from F-Droid's own srclib, checked out at the exact version this
+    # release was built with. That version lives in the CI workflow, and prebuild
+    # reads it from there rather than repeating it, so the two cannot drift.
+    srclibs:
+      - flutter@stable
+    # Nothing here is used by an Android build.
+    rm:
+      - ios
+      - linux
+      - macos
+      - web
+      - windows
+      - test
+    prebuild:
+      # POSIX classes, not \s/\S: those are GNU extensions, so this same line can
+      # be checked on a Mac before it is trusted on their Debian buildserver.
+      - FLUTTER_VERSION=$(sed -n -E 's/.*flutter-version:[[:space:]]*([^[:space:]]+).*/\1/p' .github/workflows/pages.yml)
+      - '[[ $FLUTTER_VERSION ]]'
+      - git -C $$flutter$$ checkout -f $FLUTTER_VERSION
+      # Pub's cache inside the build tree, so the scanner sees every Dart dependency
+      # rather than skipping over a directory it does not know about.
+      - export PUB_CACHE=$(pwd)/.pub-cache
+      - $$flutter$$/bin/flutter config --no-analytics
+      - $$flutter$$/bin/flutter pub get --enforce-lockfile
+    # The Dart packages are sources plus a pub cache of archives; the archives go.
+    scandelete:
+      - .pub-cache
+    build:
+      - export PUB_CACHE=$(pwd)/.pub-cache
+      - $$flutter$$/bin/flutter build apk --release
+    # One universal APK rather than a split per ABI. A split would be a third of the
+    # size, but Flutter offsets the versionCode itself (1000/2000/4000 + the base),
+    # which has to be mirrored in VercodeOperation and then interacts with the
+    # archive policy keeping only the highest codes. Not worth the failure modes on a
+    # first submission; revisit once this builds green.
+    output: build/app/outputs/flutter-apk/app-release.apk
+    # Must match whatever the pinned Flutter resolves to, or the build drifts.
+    ndk: r28c
+
+# `version: 0.4.0+20` in pubspec.yaml, read the way F-Droid's own docs give the
+# Flutter case: the code from after the `+`, the name from before it.
+AutoUpdateMode: Version
+UpdateCheckMode: Tags ^v\d+\.\d+\.\d+$
+UpdateCheckData: pubspec.yaml|version:\s.+\+(\d+)|.|version:\s(.+)\+
+CurrentVersion: 0.4.0
+CurrentVersionCode: 20

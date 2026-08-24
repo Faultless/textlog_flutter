@@ -1,0 +1,1 @@
+A text-first mobile client for textlog.cc — no algorithm, no metrics, no ads

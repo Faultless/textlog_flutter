@@ -1,0 +1,9 @@
+Quizzes: #quiz with a marked answer, an explanation, and a verdict once you pick. A quiz has no expiry, and reading that as a date used to blank any page carrying one.
+
+New body syntax: /italics/, |redacted| you press to reveal, and > quoted lines.
+
+A #lock'ed thread now says so where the reply link would be, instead of after you write one.
+
+Voice clips are named rather than left as a bare link.
+
+Retry says "retrying…" and means it — before, tapping it looked identical to tapping nothing.

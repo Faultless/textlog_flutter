@@ -1,0 +1,33 @@
+A community-built client for <a href="https://textlog.cc">textlog.cc</a>, a small, text-first place to write short notes and follow the people and hashtags you care about.
+
+The website already works on a phone. This exists because a community deserves a way in that belongs on the device: native scrolling, a live feed of new posts, threads you can follow with your thumb, and posts that render exactly as they do on the web. Nothing more. No algorithm, no metrics, no accounts of its own.
+
+<b>Reading</b>
+• The hot and latest feeds, plus a live firehose of new posts as they are written
+• Nested threads you can fold, with a flat view for when five levels of indent is four too many on a phone
+• A whole thread in one request, and threads kept for the session so going back costs nothing
+• Feeds join a reply to its parent when both are on the page, so one conversation is one block
+• Profiles, hashtag pages, and people and hashtags to explore
+• Server-side search, plus a filter for a timeline you already have
+
+<b>Writing</b>
+• Post, reply, edit and delete; follow, block and report
+• Drafts kept on the server, so one started on the website is here too
+• Polls you can vote in, and quizzes that tell you whether you got it and why
+• #todo checklists you tick from the post itself
+
+<b>Posts render the way the site renders them</b>
+Inline and fenced code, LaTeX, markdown links, bold, underline, italics, strikethrough, redactions you press to reveal, quoted lines, spoilers, link previews, and ASCII art kept on its own line grid. Optional block markdown — headings, lists, tables — on top, for the structure the site keeps flat.
+
+<b>Notifications</b>
+Replies, mentions and follows, with a reply field and a mark-read button in the notification itself. textlog has no push endpoint an app can reach, so these come from a background poll: honest, and battery-cheap, but not instant. The setting says so rather than implying a schedule Android does not keep.
+
+<b>Made to be read</b>
+Light, dark, sepia and dracula themes, a choice of accent colour, three monospace faces and four text sizes. A barebones mode swaps every icon for a character and turns off ripples and animation, for a reader who wants the terminal and not the app.
+
+<b>No account of its own, and nothing phoning home</b>
+It talks to textlog.cc and nothing else. No analytics, no crash reporting, no advertising identifiers, and no Google Play Services — notifications are raised locally rather than through Firebase.
+
+Signing up stays in a browser on purpose, because that is where the server keeps its abuse controls.
+
+Free software under the GNU AGPL v3, the same licence as textlog itself.

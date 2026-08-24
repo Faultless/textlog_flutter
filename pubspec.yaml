@@ -5,6 +5,10 @@ version: 0.4.0+20
 
 environment:
   sdk: ^3.11.3
+  # The floor, for anyone building this. The *exact* version releases are built with
+  # is pinned once, in .github/workflows/pages.yml, because a packager needs a single
+  # unambiguous string to check out — see fdroid/README.md.
+  flutter: '>=3.41.5'
 
 dependencies:
   flutter:
