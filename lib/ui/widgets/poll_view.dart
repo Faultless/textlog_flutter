@@ -9,6 +9,7 @@ import '../../state/providers.dart';
 import '../../state/session.dart';
 import '../theme.dart';
 import 'post_actions.dart';
+import 'post_body.dart';
 
 /// `.poll` — the options, the tally, and a way to vote.
 ///
@@ -77,12 +78,17 @@ class _PollViewState extends ConsumerState<PollView> {
               ? null
               : option.votes! + (option.id == chosen.id ? 1 : 0),
           selected: option.id == chosen.id,
+          // Still withheld: the server decides when to say which one was right, and
+          // guessing here would give the answer away a round trip early.
+          correct: option.correct,
         ),
     ],
     totalVotes: poll.totalVotes == null ? null : poll.totalVotes! + 1,
     expired: poll.expired,
     expiresAt: poll.expiresAt,
     viewerVoted: true,
+    kind: poll.kind,
+    explanation: poll.explanation,
   );
 
   @override
@@ -106,8 +112,15 @@ class _PollViewState extends ConsumerState<PollView> {
                 share: poll.shareOf(option),
                 onTap: canVote ? () => _vote(option) : null,
                 busy: _busy && _pending == option.id,
+                // Marking the right answer only once the server has told us, which
+                // it does the moment you answer.
+                correct: option.correct,
               ),
             ),
+          if (poll.explanation case final explanation?) ...[
+            const SizedBox(height: space1),
+            _Explanation(explanation),
+          ],
           _Footing(poll, signedIn: session != null),
         ],
       ),
@@ -116,9 +129,19 @@ class _PollViewState extends ConsumerState<PollView> {
 }
 
 class _Option extends StatelessWidget {
-  const _Option(this.option, {required this.share, required this.onTap, required this.busy});
+  const _Option(
+    this.option, {
+    required this.share,
+    required this.onTap,
+    required this.busy,
+    this.correct,
+  });
 
   final PollOption option;
+
+  /// A quiz, answered: true on the right one, false on the rest, null while the
+  /// server is still withholding it — and always null on an ordinary poll.
+  final bool? correct;
 
   /// Null while the tally is withheld — then this is a button, not a result.
   final double? share;
@@ -132,12 +155,24 @@ class _Option extends StatelessWidget {
     final theme = Theme.of(context).textTheme;
     final percent = share == null ? null : (share! * 100).round();
 
+    // Green for the answer, red for the one you picked instead. Nothing is coloured
+    // until the server reveals it, so a quiz reads exactly like a poll until then.
+    final verdict = switch (correct) {
+      true => palette.accent,
+      false when option.selected => palette.errorInk,
+      _ => null,
+    };
+
     return Semantics(
       button: onTap != null,
       selected: option.selected,
-      label: percent == null
-          ? 'vote for ${option.label}'
-          : '${option.label}, $percent per cent',
+      label: switch ((percent, correct)) {
+        (null, _) => 'vote for ${option.label}',
+        (final percent?, true) => '${option.label}, the answer, $percent per cent',
+        (final percent?, false) when option.selected =>
+          '${option.label}, your answer, wrong, $percent per cent',
+        (final percent?, _) => '${option.label}, $percent per cent',
+      },
       child: GestureDetector(
         // Absorbed whether or not it can be voted on, for the same reason a checkbox
         // is: an option reads as a button, and pressing one should never do something
@@ -149,9 +184,10 @@ class _Option extends StatelessWidget {
           decoration: BoxDecoration(
             color: palette.tagBg,
             border: Border.all(
-              color: option.selected
-                  ? palette.accent
-                  : (onTap != null ? palette.linkBorder : palette.soft),
+              color: verdict ??
+                  (option.selected
+                      ? palette.accent
+                      : (onTap != null ? palette.linkBorder : palette.soft)),
             ),
           ),
           child: Stack(
@@ -186,11 +222,23 @@ class _Option extends StatelessWidget {
                     ),
                     if (busy)
                       Text('…', style: theme.bodySmall!.copyWith(color: palette.muted))
-                    else if (percent != null)
-                      Text(
-                        '$percent%',
-                        style: theme.bodySmall!.copyWith(color: palette.quoteInk),
-                      ),
+                    else ...[
+                      // A tick or a cross rather than colour alone, which says
+                      // nothing to a reader who cannot tell these two apart.
+                      if (correct == true || (correct == false && option.selected))
+                        Padding(
+                          padding: const EdgeInsets.only(right: space2),
+                          child: Text(
+                            correct == true ? '✓' : '✗',
+                            style: theme.bodySmall!.copyWith(color: verdict),
+                          ),
+                        ),
+                      if (percent != null)
+                        Text(
+                          '$percent%',
+                          style: theme.bodySmall!.copyWith(color: palette.quoteInk),
+                        ),
+                    ],
                   ],
                 ),
               ),
@@ -216,9 +264,17 @@ class _Footing extends StatelessWidget {
 
     if (poll.revealed) {
       final total = poll.totalVotes ?? 0;
+      final answers = '$total ${total == 1 ? 'answer' : 'answers'}';
+      final votes = '$total ${total == 1 ? 'vote' : 'votes'}';
       return Text(
-        '$total ${total == 1 ? 'vote' : 'votes'}'
-        '${poll.expired ? ' · closed' : ''}',
+        poll.isQuiz
+            // No "closed": a quiz has no deadline to have passed.
+            ? '$answers${switch (poll.gotItRight) {
+                true => ' · you got it',
+                false => ' · not this time',
+                null => '',
+              }}'
+            : '$votes${poll.expired ? ' · closed' : ''}',
         style: style,
       );
     }
@@ -228,9 +284,40 @@ class _Footing extends StatelessWidget {
       return GestureDetector(
         onTap: () => context.push('/me'),
         behavior: HitTestBehavior.opaque,
-        child: Text('sign in to vote', style: style.asLink(palette)),
+        child: Text(
+          poll.isQuiz ? 'sign in to answer' : 'sign in to vote',
+          style: style.asLink(palette),
+        ),
       );
     }
-    return Text('results show once you vote', style: style);
+    return Text(
+      poll.isQuiz ? 'the answer shows once you pick' : 'results show once you vote',
+      style: style,
+    );
+  }
+}
+
+/// Why the answer is the answer. A quiz only, and the server withholds it until the
+/// reader has committed to one — so its presence is what says they have.
+class _Explanation extends StatelessWidget {
+  const _Explanation(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: space2),
+      padding: const EdgeInsets.symmetric(horizontal: space3, vertical: space2),
+      decoration: BoxDecoration(
+        color: palette.quoteBg,
+        border: Border(left: BorderSide(color: palette.accent, width: 2)),
+      ),
+      // Through the body renderer: an explanation is written the same way a post is,
+      // so it can carry a link or a mention and they should work.
+      child: PostBody(text, style: Theme.of(context).textTheme.bodySmall, quiet: true),
+    );
   }
 }

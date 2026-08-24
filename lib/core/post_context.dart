@@ -38,6 +38,7 @@ final class PostContext {
     required this.relation,
     required this.mentionedYou,
     this.target,
+    this.quiz = false,
   });
 
   final PostRelation relation;
@@ -48,6 +49,11 @@ final class PostContext {
   /// The post mentions the signed-in handle, which the site appends to the label.
   final bool mentionedYou;
 
+  /// A quiz rather than a poll. Same announcement, different noun — the site words it
+  /// `created a ${kind}` and a quiz is not a poll to the reader deciding whether to
+  /// open it.
+  final bool quiz;
+
   /// `wrote`, `replied to`, … — the label as the site words it, without punctuation
   /// and without the trailing `and mentioned you`, which the widget adds so it can
   /// style the two halves differently.
@@ -56,7 +62,7 @@ final class PostContext {
     PostRelation.continued => 'continued',
     PostRelation.repliedToYou => 'replied to you',
     PostRelation.repliedTo => 'replied to',
-    PostRelation.createdPoll => 'created a poll',
+    PostRelation.createdPoll => quiz ? 'created a quiz' : 'created a poll',
     PostRelation.unknown => null,
   };
 
@@ -73,8 +79,19 @@ PostContext postContextOf(Post post, {String? viewerHandle}) {
   //
   // The API reports the poll directly; the body is still checked behind it for a
   // server that has not materialised one.
-  if (post.poll != null || parsePoll(post.body) != null) {
-    return PostContext(relation: PostRelation.createdPoll, mentionedYou: mentionedYou);
+  if (post.poll case final poll?) {
+    return PostContext(
+      relation: PostRelation.createdPoll,
+      mentionedYou: mentionedYou,
+      quiz: poll.isQuiz,
+    );
+  }
+  if (parsePoll(post.body) case final body?) {
+    return PostContext(
+      relation: PostRelation.createdPoll,
+      mentionedYou: mentionedYou,
+      quiz: body.isQuiz,
+    );
   }
   if (post.parentId == null) {
     return PostContext(relation: PostRelation.wrote, mentionedYou: mentionedYou);

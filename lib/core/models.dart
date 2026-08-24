@@ -346,6 +346,7 @@ final class PollOption {
     required this.label,
     required this.votes,
     required this.selected,
+    this.correct,
   });
 
   final int id;
@@ -357,13 +358,22 @@ final class PollOption {
 
   final bool selected;
 
+  /// A quiz only. Null on a poll, and null on a quiz until the reader answers — the
+  /// server withholds which one is right for the same reason it withholds the tally.
+  final bool? correct;
+
   factory PollOption.fromJson(Map<String, dynamic> json) => PollOption(
     id: json['id'] as int,
     label: json['label'] as String,
     votes: json['votes'] as int?,
     selected: json['selected'] as bool? ?? false,
+    correct: json['correct'] as bool?,
   );
 }
+
+/// A poll asks what people think; a quiz has a right answer. Same shape, and the
+/// server tells them apart rather than the app guessing from the body.
+enum PollKind { poll, quiz }
 
 /// A poll, as the API now returns it.
 ///
@@ -377,19 +387,47 @@ final class Poll {
     required this.expired,
     required this.expiresAt,
     required this.viewerVoted,
+    this.kind = PollKind.poll,
+    this.explanation,
   });
 
   final List<PollOption> options;
   final int? totalVotes;
   final bool expired;
-  final DateTime expiresAt;
+
+  /// Null on a quiz: a quiz has no deadline, because there is nothing to close —
+  /// the answer does not change once enough people have voted.
+  final DateTime? expiresAt;
   final bool viewerVoted;
+  final PollKind kind;
+
+  /// Why that answer is the right one. A quiz only, and withheld until you answer.
+  final String? explanation;
+
+  bool get isQuiz => kind == PollKind.quiz;
+
+  /// The option the author marked right, once the server is willing to say.
+  PollOption? get answer {
+    for (final option in options) {
+      if (option.correct == true) return option;
+    }
+    return null;
+  }
 
   /// Whether the numbers are showing. The server decides, and it withholds them
   /// until you have had your say.
   bool get revealed => totalVotes != null;
 
   bool get open => !expired;
+
+  /// Did the reader get it right? Null until they have answered a quiz.
+  bool? get gotItRight {
+    if (!isQuiz || !viewerVoted) return null;
+    for (final option in options) {
+      if (option.selected) return option.correct == true;
+    }
+    return null;
+  }
 
   /// A share of the vote, 0–1, or null while the tally is withheld.
   double? shareOf(PollOption option) {
@@ -406,8 +444,15 @@ final class Poll {
     ],
     totalVotes: json['total_votes'] as int?,
     expired: json['expired'] as bool? ?? false,
-    expiresAt: DateTime.parse(json['expires_at'] as String).toLocal(),
+    // Nullable since quizzes landed: they never expire, and reading this as a
+    // required string took down every feed page that happened to carry one.
+    expiresAt: switch (json['expires_at']) {
+      final String at => DateTime.parse(at).toLocal(),
+      _ => null,
+    },
     viewerVoted: json['viewer_voted'] as bool? ?? false,
+    kind: json['kind'] == 'quiz' ? PollKind.quiz : PollKind.poll,
+    explanation: json['explanation'] as String?,
   );
 }
 

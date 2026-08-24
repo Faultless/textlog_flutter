@@ -204,7 +204,7 @@ String _verb(PostContext relation, NotifyKind kind) {
   return switch (relation.relation) {
     PostRelation.repliedToYou => 'replied to you',
     PostRelation.continued => 'continued',
-    PostRelation.createdPoll => 'created a poll',
+    PostRelation.createdPoll => relation.quiz ? 'created a quiz' : 'created a poll',
     _ => 'replied',
   };
 }
