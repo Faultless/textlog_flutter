@@ -55,7 +55,7 @@ class ThreadScreen extends ConsumerWidget {
               ),
               AsyncError(:final error) => StatusMessage(
                 messageFor(error),
-                onRetry: () => ref.invalidate(postProvider(id)),
+                onRetry: () => ref.refresh(postProvider(id).future),
               ),
               _ => const Spinner(),
             },
@@ -77,7 +77,7 @@ class ThreadScreen extends ConsumerWidget {
               ),
               AsyncError(:final error) => StatusMessage(
                 messageFor(error),
-                onRetry: () => ref.invalidate(threadProvider(id)),
+                onRetry: () => ref.refresh(threadProvider(id).future),
               ),
               _ => const Spinner(),
               },

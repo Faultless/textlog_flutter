@@ -37,7 +37,7 @@ class ExploreScreen extends ConsumerWidget {
               children: [
                 StatusMessage(
                   messageFor(error),
-                  onRetry: () => ref.invalidate(exploreProvider),
+                  onRetry: () => ref.refresh(exploreProvider.future),
                 ),
               ],
             ),

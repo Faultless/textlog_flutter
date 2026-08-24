@@ -60,7 +60,12 @@ class ProfileScreen extends ConsumerWidget {
 
     final header = switch (profile) {
       AsyncData(:final value) => _Header(value, isSelf: mine),
-      AsyncError(:final error) => StatusMessage(messageFor(error)),
+      // A profile that failed is the whole page for the reader — a name, a bio and
+      // every tab beneath it — so it gets a way back rather than a dead end.
+      AsyncError(:final error) => StatusMessage(
+        messageFor(error),
+        onRetry: () => ref.refresh(profileProvider(handle).future),
+      ),
       _ => const Spinner(),
     };
 

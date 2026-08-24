@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../core/models.dart';
@@ -22,11 +24,43 @@ String humanDuration(Duration duration) {
   return '$hours ${hours == 1 ? 'hour' : 'hours'}';
 }
 
-class StatusMessage extends StatelessWidget {
+/// A message where content would be, with an optional retry.
+///
+/// Stateful because of what a retry looks like from the reader's side. Riverpod keeps
+/// the previous error while a provider rebuilds, so the error branch of the calling
+/// screen renders again — the same words and the same button, with nothing to say a
+/// request is in flight. Tapping retry was indistinguishable from tapping nothing,
+/// and on a network that failed twice it stayed that way. So the wait is shown here,
+/// once, rather than asked of every screen that has an error state.
+///
+/// [onRetry] should therefore return a future that completes when the refetch does —
+/// `notifier.refresh()`, or `ref.refresh(provider.future)` — not a bare `invalidate`,
+/// which returns before there is anything to wait for.
+class StatusMessage extends StatefulWidget {
   const StatusMessage(this.message, {super.key, this.onRetry});
 
   final String message;
-  final VoidCallback? onRetry;
+  final FutureOr<void> Function()? onRetry;
+
+  @override
+  State<StatusMessage> createState() => _StatusMessageState();
+}
+
+class _StatusMessageState extends State<StatusMessage> {
+  var _busy = false;
+
+  Future<void> _retry() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await widget.onRetry!();
+    } catch (_) {
+      // The provider records its own failure and this widget rebuilds with the new
+      // message. Rethrowing here would only be an unhandled error in a tap handler.
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -37,13 +71,19 @@ class StatusMessage extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            message,
+            widget.message,
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodySmall!.copyWith(color: palette.muted),
           ),
-          if (onRetry != null) ...[
+          if (widget.onRetry != null) ...[
             const SizedBox(height: space4),
-            TextlogButton('retry', onPressed: onRetry),
+            // Not a spinner in place of the button: that moves the thing you just
+            // pressed out from under your finger. The label carries the state and
+            // the button stops accepting taps instead.
+            TextlogButton(
+              _busy ? 'retrying…' : 'retry',
+              onPressed: _busy ? null : _retry,
+            ),
           ],
         ],
       ),

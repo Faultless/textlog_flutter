@@ -205,7 +205,7 @@ class FollowedTagsList extends ConsumerWidget {
       ),
       AsyncError(:final error) => StatusMessage(
         messageFor(error),
-        onRetry: () => ref.invalidate(followedTagsProvider(handle)),
+        onRetry: () => ref.refresh(followedTagsProvider(handle).future),
       ),
       _ => const Spinner(),
     };

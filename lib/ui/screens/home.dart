@@ -202,7 +202,7 @@ class LiveFeed extends ConsumerWidget {
       return switch (connection) {
         AsyncError(:final error) => StatusMessage(
           messageFor(error),
-          onRetry: () => ref.invalidate(firehoseProvider),
+          onRetry: () => ref.refresh(firehoseProvider.future),
         ),
         _ => const _WaitingForPosts(),
       };

@@ -41,7 +41,7 @@ class DraftsScreen extends ConsumerWidget {
             ),
             AsyncError(:final error) => StatusMessage(
               messageFor(error),
-              onRetry: () => ref.invalidate(draftsProvider),
+              onRetry: () => ref.refresh(draftsProvider.future),
             ),
             _ => const Spinner(),
           },
