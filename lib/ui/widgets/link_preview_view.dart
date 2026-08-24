@@ -1,10 +1,12 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/body_tokens.dart' show linkOrigin;
 import '../../core/media.dart';
 import '../../core/models.dart';
 import '../router.dart';
 import '../theme.dart';
+import 'voice_clip.dart';
 
 /// The unfurled card for a link in a post body.
 ///
@@ -82,20 +84,23 @@ class _Card extends StatelessWidget {
     // form is the honest rendering there.
     final hasThumbnail = !kIsWeb && preview.imageUrl.isNotEmpty && !preview.isAudio;
 
-    // A voice clip, said in words. Vocaroo answers with no preview metadata at all,
-    // so without this a clip and a blog post look exactly alike.
-    final audio = preview.isAudio || isAudioLink(url);
+    // A voice clip. Vocaroo answers with no preview metadata at all, so without
+    // recognising the link a clip and a blog post look exactly alike.
+    final stream = audioStreamUrl(url, origin: linkOrigin);
+
+    // A clip plays here rather than opening anywhere, so it is its own control and
+    // not a link card at all.
+    if (stream != null) return VoiceClip(url: url, streamUrl: stream);
 
     // Nothing but an image is not a preview worth a card; the link is already in the
-    // body above it. A voice clip is the exception: saying it is one is the whole
-    // value, and it is the case with nothing else to show.
-    if (!hasThumbnail && title == null && description == null && !audio) {
+    // body above it.
+    if (!hasThumbnail && title == null && description == null && !preview.isAudio) {
       return const SizedBox.shrink();
     }
 
     return Semantics(
       button: true,
-      label: audio ? 'open the voice clip at $url' : 'open ${title ?? url}',
+      label: preview.isAudio ? 'open the audio at $url' : 'open ${title ?? url}',
       child: GestureDetector(
         // A preview of a textlog post opens in the app, like the link itself.
         onTap: () => openLink(context, url),
@@ -131,12 +136,9 @@ class _Card extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (audio)
+                      if (preview.isAudio)
                         Text(
-                          // The site plays it inline. Here it opens Vocaroo, so the
-                          // label says what kind of thing is on the other end rather
-                          // than promising a player this card does not have.
-                          '♪ voice clip${site != null && site.isNotEmpty ? ' · $site' : ''}',
+                          '♪ audio${site != null && site.isNotEmpty ? ' · $site' : ''}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: theme.labelSmall!.copyWith(color: palette.accent),
