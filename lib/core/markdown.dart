@@ -93,6 +93,10 @@ final _displayMathLine = RegExp(r'^\s*\$\$([\s\S]*?)\$\$\s*$');
 final _heading = RegExp(r'^ {0,3}(#{1,6})\s+(.*)$');
 final _rule = RegExp(r'^ {0,3}(?:-{3,}|\*{3,}|_{3,})\s*$');
 final _quote = RegExp(r'^ {0,3}>\s?(.*)$');
+
+/// The site's own rule, which allows no indent: `/^>\s?/`. The looser [_quote] above
+/// is CommonMark's, and stays with the opt-in markdown that asked for CommonMark.
+final _plainQuote = RegExp(r'^>\s?');
 final _bullet = RegExp(r'^(\s*)[-*+]\s+(.*)$');
 final _ordered = RegExp(r'^(\s*)(\d{1,9})[.)]\s+(.*)$');
 final _task = RegExp(r'^\[([ xX])\]\s+(.*)$');
@@ -117,7 +121,7 @@ List<BodyBlock> markdownBlocks(String body, {required bool extended}) {
       // A run of blank lines between blocks is spacing, not content.
       return;
     }
-    blocks.addAll(extended ? _extendedBlocks(text) : [ParagraphBlock(_spans(text))]);
+    blocks.addAll(extended ? _extendedBlocks(text) : _plainBlocks(text));
   }
 
   for (var index = 0; index < lines.length; index++) {
@@ -181,6 +185,37 @@ List<BodyBlock> markdownBlocks(String body, {required bool extended}) {
 }
 
 /// Line-based block parsing, for the opt-in markdown.
+/// The blocks a body has whether or not the extra markdown is switched on.
+///
+/// Quoting is not part of that setting: the site renders a `>` line as a quote
+/// unconditionally, so this runs in both modes. Fences never reach here — the scanner
+/// above has already lifted them out, which is what keeps a `>` inside a code sample
+/// literal, exactly as the site keeps it.
+List<BodyBlock> _plainBlocks(String text) {
+  final lines = text.split('\n');
+  // A drawing is full of `>`, and turning its first column into quotes would take it
+  // apart. The site leaves art alone for the same reason.
+  if (containsAsciiArt(text) || !lines.any(_plainQuote.hasMatch)) {
+    return [ParagraphBlock(_spans(text))];
+  }
+
+  final blocks = <BodyBlock>[];
+  for (var index = 0; index < lines.length;) {
+    // Consecutive lines of the same kind are one quote, not one per line.
+    final quoted = _plainQuote.hasMatch(lines[index]);
+    final group = <String>[];
+    while (index < lines.length && _plainQuote.hasMatch(lines[index]) == quoted) {
+      group.add(quoted ? lines[index].replaceFirst(_plainQuote, '') : lines[index]);
+      index++;
+    }
+    final joined = group.join('\n');
+    if (!quoted && joined.trim().isEmpty) continue;
+    // Recursed, so `> > x` nests the way it reads.
+    blocks.add(quoted ? QuoteBlock(_plainBlocks(joined)) : ParagraphBlock(_spans(joined)));
+  }
+  return blocks;
+}
+
 List<BodyBlock> _extendedBlocks(String text) {
   final lines = text.split('\n');
   final blocks = <BodyBlock>[];

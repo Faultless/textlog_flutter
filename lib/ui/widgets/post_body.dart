@@ -35,6 +35,10 @@ class _PostBodyState extends ConsumerState<PostBody> {
   final _recognizers = <TapGestureRecognizer>[];
   var _revealed = false;
 
+  /// Redactions the reader has asked to see, by their text. Two identical redactions
+  /// in one body reveal together, which is the reading anyone would expect.
+  final _shown = <String>{};
+
   @override
   void dispose() {
     _disposeRecognizers();
@@ -74,6 +78,8 @@ class _PostBodyState extends ConsumerState<PostBody> {
       base: base,
       onTap: _onTap,
       quiet: widget.quiet,
+      shown: _shown,
+      onReveal: (text) => setState(() => _shown.add(text)),
     );
     if (!analysis.spoiler.hasSpoiler) return visible;
 
@@ -83,7 +89,14 @@ class _PostBodyState extends ConsumerState<PostBody> {
         visible,
         const SizedBox(height: space2),
         if (_revealed)
-          _Rendered(analysis.hidden, base: base, onTap: _onTap, quiet: widget.quiet)
+          _Rendered(
+            analysis.hidden,
+            base: base,
+            onTap: _onTap,
+            quiet: widget.quiet,
+            shown: _shown,
+            onReveal: (text) => setState(() => _shown.add(text)),
+          )
         else
           // `<details><summary>reveal</summary>` — the reader opts in.
           GestureDetector(
@@ -107,12 +120,18 @@ class _Rendered extends StatelessWidget {
     required this.base,
     required this.onTap,
     required this.quiet,
+    required this.shown,
+    required this.onReveal,
   });
 
   final List<BodyBlock> blocks;
   final TextStyle base;
   final TapGestureRecognizer Function(VoidCallback) onTap;
   final bool quiet;
+
+  /// Redactions already revealed, and how to reveal another.
+  final Set<String> shown;
+  final void Function(String text) onReveal;
 
   @override
   Widget build(BuildContext context) {
@@ -287,23 +306,44 @@ class _Rendered extends StatelessWidget {
     final link = base.asLink(palette);
     return switch (token) {
       PlainText(:final text) => TextSpan(text: text),
-      StyledText(:final text, :final bold, :final strike, :final underline, :final code) =>
-        TextSpan(
-          text: text,
-          style: base.copyWith(
-            fontWeight: bold ? FontWeight.w700 : null,
-            fontVariations: bold ? const [FontVariation.weight(700)] : null,
-            // Both can apply at once, so they combine rather than one winning.
-            decoration: TextDecoration.combine([
-              if (strike) TextDecoration.lineThrough,
-              if (underline) TextDecoration.underline,
-            ]),
-            decorationColor: underline ? palette.ink : null,
-            // `<code>` — a tinted run rather than a box, so it can wrap mid-line.
-            backgroundColor: code ? palette.tagBg : null,
-            color: code ? palette.ink : null,
-          ),
-        ),
+      StyledText(
+        :final text,
+        :final bold,
+        :final italic,
+        :final strike,
+        :final underline,
+        :final redacted,
+        :final code,
+      ) =>
+        () {
+          // `|x|` — a bar the width of the words under it, until it is pressed. Ink
+          // on ink rather than an empty box, so the line does not reflow on reveal.
+          final hidden = redacted && !shown.contains(text);
+          return TextSpan(
+            text: text,
+            recognizer: hidden ? onTap(() => onReveal(text)) : null,
+            style: base.copyWith(
+              fontWeight: bold ? FontWeight.w700 : null,
+              fontVariations: bold ? const [FontVariation.weight(700)] : null,
+              fontStyle: italic ? FontStyle.italic : null,
+              // Several can apply at once, so they combine rather than one winning.
+              decoration: TextDecoration.combine([
+                if (strike) TextDecoration.lineThrough,
+                if (underline) TextDecoration.underline,
+              ]),
+              decorationColor: underline ? palette.ink : null,
+              // `<code>` — a tinted run rather than a box, so it can wrap mid-line.
+              backgroundColor: hidden
+                  ? palette.ink
+                  : redacted
+                  ? palette.tagBg
+                  : code
+                  ? palette.tagBg
+                  : null,
+              color: hidden ? palette.ink : (code || redacted ? palette.ink : null),
+            ),
+          );
+        }(),
       MathToken(:final tex) => WidgetSpan(
         alignment: PlaceholderAlignment.middle,
         child: _Tex(tex, style: base, display: false),

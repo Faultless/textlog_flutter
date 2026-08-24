@@ -40,8 +40,10 @@ final class StyledText extends BodyToken {
   const StyledText(
     this.text, {
     this.bold = false,
+    this.italic = false,
     this.strike = false,
     this.underline = false,
+    this.redacted = false,
     this.code = false,
   });
 
@@ -53,8 +55,14 @@ final class StyledText extends BodyToken {
   /// `~x~` and `~~x~~`.
   final bool strike;
 
-  /// `_x_` and `__x__`. Not italic: the site has no italics at all.
+  /// `/x/`. Slashes rather than `*` or `_`, both of which the site had already spent.
+  final bool italic;
+
+  /// `_x_` and `__x__`. Not italic — see [italic] for that.
   final bool underline;
+
+  /// `|x|` — hidden behind a bar until the reader asks for it.
+  final bool redacted;
 
   /// Inline `` `code` `` — rendered in a boxed, quieter run.
   final bool code;
@@ -88,7 +96,9 @@ enum _Kind {
   markdownLink,
   strike,
   bold,
+  italics,
   underline,
+  redacted,
   url,
   reference,
 }
@@ -113,9 +123,11 @@ const _priority = {
   _Kind.code: 1,
   _Kind.math: 2,
   _Kind.markdownLink: 3,
+  _Kind.redacted: 4,
   _Kind.strike: 4,
-  // The site gives all three emphasis markers the same precedence.
+  // The site gives every emphasis marker the same precedence.
   _Kind.bold: 4,
+  _Kind.italics: 4,
   _Kind.underline: 4,
   _Kind.url: 5,
   _Kind.reference: 6,
@@ -131,6 +143,13 @@ final _strike = RegExp(r'(?<!~)(~{1,2})(?!~)([^~\r\n]*?\S[^~\r\n]*?)\1(?!~)');
 /// was showing the author something they did not write.
 final _bold = RegExp(r'(?<!\*)(\*{1,2})(?!\*)([^*\r\n]*?\S[^*\r\n]*?)\1(?!\*)');
 final _underline = RegExp(r'(?<!_)(_{1,2})(?!_)([^_\r\n]*?\S[^_\r\n]*?)\1(?!_)');
+
+/// `/x/` is italics — the marker the site settled on, since `*` and `_` were already
+/// taken. It must start at a word boundary so a URL's slashes are left alone.
+final _italics = RegExp(r'(?<!\S)/([^/\s](?:[^/\r\n]*?[^/\s])?)/(?!/)');
+
+/// `|x|` is redacted: on the site a black bar you reveal by focusing it.
+final _redacted = RegExp(r'(?<!\|)\|(?!\|)([^|\r\n]*?\S[^|\r\n]*?)\|(?!\|)');
 final _markdownLink = RegExp(r'\[((?:\\[\[\]]|[^\]\r\n])+)\]\(([^\s<>")]+)\)');
 final _mentionToken = RegExp(r'(?<![A-Za-z0-9_])@[A-Za-z0-9_]+');
 final _hashtagToken = RegExp(r'(?<![\p{L}\p{M}\p{N}_])#[\p{L}\p{M}\p{N}_]+', unicode: true);
@@ -168,6 +187,16 @@ List<_Token> _tokenize(String body) {
     for (final match in pattern.allMatches(body)) {
       if (_escapedAt(body, match.start)) continue;
       tokens.add(_Token(kind, match.start, match.end, match[0]!, label: match[2]));
+    }
+  }
+  // These two carry no repeated-delimiter group, so the label is group 1.
+  for (final (pattern, kind) in [
+    (_italics, _Kind.italics),
+    (_redacted, _Kind.redacted),
+  ]) {
+    for (final match in pattern.allMatches(body)) {
+      if (_escapedAt(body, match.start)) continue;
+      tokens.add(_Token(kind, match.start, match.end, match[0]!, label: match[1]));
     }
   }
   for (final match in _markdownLink.allMatches(body)) {
@@ -323,7 +352,9 @@ List<BodyToken> tokenizeBody(String body) {
         tokens.add(LinkToken(match.url!, label: match.label, raw: match.raw));
       case _Kind.strike:
       case _Kind.bold:
+      case _Kind.italics:
       case _Kind.underline:
+      case _Kind.redacted:
         // An emphasised run can itself hold links and references, and emphasis can
         // nest — so the inner tokens are re-styled rather than flattened to text.
         for (final inner in tokenizeBody(match.label!)) {
@@ -351,15 +382,27 @@ BodyToken _emphasised(BodyToken token, _Kind kind) {
       text,
       strike: kind == _Kind.strike,
       bold: kind == _Kind.bold,
+      italic: kind == _Kind.italics,
       underline: kind == _Kind.underline,
+      redacted: kind == _Kind.redacted,
     ),
-    StyledText(:final text, :final bold, :final strike, :final underline, :final code) =>
+    StyledText(
+      :final text,
+      :final bold,
+      :final italic,
+      :final strike,
+      :final underline,
+      :final redacted,
+      :final code,
+    ) =>
       StyledText(
         text,
         code: code,
         strike: on(strike, _Kind.strike),
         bold: on(bold, _Kind.bold),
+        italic: on(italic, _Kind.italics),
         underline: on(underline, _Kind.underline),
+        redacted: on(redacted, _Kind.redacted),
       ),
     final other => other,
   };
