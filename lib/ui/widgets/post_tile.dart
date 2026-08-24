@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/locks.dart';
 import '../../core/models.dart';
 import '../router.dart';
 import '../theme.dart';
@@ -28,6 +29,7 @@ class PostTile extends ConsumerWidget {
     this.large = false,
     this.isSubject = false,
     this.showParent = true,
+    this.lockedAbove = false,
   });
 
   final Post post;
@@ -43,6 +45,10 @@ class PostTile extends ConsumerWidget {
 
   /// Off inside a thread, where the parent is the post above.
   final bool showParent;
+
+  /// Set by a thread whose root already locked it: an ancestor's `#lock` closes
+  /// everything under it, and only the tree knows what is above this post.
+  final bool lockedAbove;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -91,7 +97,14 @@ class PostTile extends ConsumerWidget {
             const SizedBox(height: space3),
             // `.postfoot`
             Row(
-              children: postActions(context, ref, post, style: meta, isSubject: isSubject),
+              children: postActions(
+                context,
+                ref,
+                post,
+                style: meta,
+                isSubject: isSubject,
+                locked: threadLocked(post, inherited: lockedAbove),
+              ),
             ),
           ],
         ),

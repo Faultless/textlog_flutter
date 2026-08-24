@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/locks.dart';
 import '../../core/reply_tree.dart';
 import '../../state/thread.dart';
 import '../router.dart';
@@ -16,7 +17,13 @@ import 'pressable.dart';
 
 /// `.reply-branch` — siblings share one hairline rail, indented by a gutter.
 class ReplyBranch extends StatelessWidget {
-  const ReplyBranch(this.nodes, {super.key, this.rootId, this.depth = 1});
+  const ReplyBranch(
+    this.nodes, {
+    super.key,
+    this.rootId,
+    this.depth = 1,
+    this.lockedAbove = false,
+  });
 
   final List<ReplyNode> nodes;
 
@@ -30,6 +37,10 @@ class ReplyBranch extends StatelessWidget {
   /// How deep this branch sits, counting the thread's own post as zero.
   final int depth;
 
+  /// An ancestor carried `#lock`, so nothing under it can be replied to. Passed down
+  /// rather than recomputed, because a reply cannot see past its own parent.
+  final bool lockedAbove;
+
   @override
   Widget build(BuildContext context) {
     if (nodes.isEmpty) return const SizedBox.shrink();
@@ -41,18 +52,27 @@ class ReplyBranch extends StatelessWidget {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [for (final node in nodes) _Node(node, rootId: rootId, depth: depth)],
+        children: [
+          for (final node in nodes)
+            _Node(node, rootId: rootId, depth: depth, lockedAbove: lockedAbove),
+        ],
       ),
     );
   }
 }
 
 class _Node extends ConsumerStatefulWidget {
-  const _Node(this.node, {required this.rootId, required this.depth});
+  const _Node(
+    this.node, {
+    required this.rootId,
+    required this.depth,
+    required this.lockedAbove,
+  });
 
   final ReplyNode node;
   final int? rootId;
   final int depth;
+  final bool lockedAbove;
 
   @override
   ConsumerState<_Node> createState() => _NodeState();
@@ -100,12 +120,25 @@ class _NodeState extends ConsumerState<_Node> {
               TodoView(node.post),
               LinkPreviews(node.post),
               const SizedBox(height: space3),
-              Row(children: postActions(context, ref, node.post, style: meta)),
+              Row(
+                children: postActions(
+                  context,
+                  ref,
+                  node.post,
+                  style: meta,
+                  locked: widget.lockedAbove || locksThread(node.post),
+                ),
+              ),
             ],
           ),
         ),
         if (!_folded) ...[
-          ReplyBranch(node.children, rootId: widget.rootId, depth: widget.depth + 1),
+          ReplyBranch(
+            node.children,
+            rootId: widget.rootId,
+            depth: widget.depth + 1,
+            lockedAbove: widget.lockedAbove || locksThread(node.post),
+          ),
           if (node.hasUnloaded) _More(node, rootId: widget.rootId, depth: widget.depth),
         ],
       ],
@@ -218,31 +251,42 @@ class _MoreState extends ConsumerState<_More> {
 /// The site offers this; on a phone it is arguably the better default for a deep
 /// thread, because five levels of rail leaves very little room for the words.
 class FlatReplies extends StatelessWidget {
-  const FlatReplies(this.nodes, {super.key, required this.rootId});
+  const FlatReplies(
+    this.nodes, {
+    super.key,
+    required this.rootId,
+    this.lockedAbove = false,
+  });
 
   final List<ReplyNode> nodes;
   final int rootId;
 
+  /// The thread's own post carried `#lock`, so none of these can be replied to.
+  final bool lockedAbove;
+
   @override
   Widget build(BuildContext context) {
-    final flattened = <ReplyNode>[];
-    void visit(List<ReplyNode> branch) {
+    // Flattened with the lock carried along: read in order, a post no longer sits
+    // under the ancestor that closed it, so it cannot work it out from its position.
+    final flattened = <(ReplyNode, bool)>[];
+    void visit(List<ReplyNode> branch, {required bool locked}) {
       for (final node in branch) {
-        flattened.add(node);
-        visit(node.children);
+        flattened.add((node, locked));
+        visit(node.children, locked: locked || locksThread(node.post));
       }
     }
-    visit(nodes);
+    visit(nodes, locked: lockedAbove);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        for (final node in flattened)
+        for (final (node, locked) in flattened)
           PostTile(
             node.post,
             // The parent is somewhere above in the list, so quoting it again would
             // double every post on screen.
             showParent: false,
+            lockedAbove: locked,
           ),
       ],
     );

@@ -27,6 +27,7 @@ List<Widget> postActions(
   Post post, {
   TextStyle? style,
   bool isSubject = false,
+  bool locked = false,
 }) {
   final palette = context.palette;
   final meta = style ?? Theme.of(context).textTheme.bodySmall!;
@@ -34,25 +35,36 @@ List<Widget> postActions(
   final mine = session != null && session.account.handle == post.author.handle;
 
   return [
-    Pressable(
-      onTap: () async {
-        if (session == null) {
-          await openReply(ref, post.id);
-          return;
-        }
-        await showCompose(context, kind: ComposeKind.reply, target: post);
-      },
-      builder: (context, pressed) => Text(
-        // The site says `continue` when you are replying to yourself, and says so
-        // before you have signed in rather than offering an action that cannot work.
-        session == null
-            ? 'sign in to reply'
-            : mine
-            ? 'continue'
-            : 'reply',
-        style: meta.asLink(palette).copyWith(color: pressed ? palette.accent : palette.muted),
+    if (locked)
+      // Said before the reply is written rather than after. The server answers a
+      // reply under a `#lock` with a 409, and finding that out having typed one is
+      // a worse way to learn it.
+      Text(
+        'thread locked',
+        style: meta.copyWith(color: palette.muted),
+      )
+    else
+      Pressable(
+        onTap: () async {
+          if (session == null) {
+            await openReply(ref, post.id);
+            return;
+          }
+          await showCompose(context, kind: ComposeKind.reply, target: post);
+        },
+        builder: (context, pressed) => Text(
+          // The site says `continue` when you are replying to yourself, and says so
+          // before you have signed in rather than offering an action that cannot work.
+          session == null
+              ? 'sign in to reply'
+              : mine
+              ? 'continue'
+              : 'reply',
+          style: meta.asLink(palette).copyWith(
+            color: pressed ? palette.accent : palette.muted,
+          ),
+        ),
       ),
-    ),
     const Spacer(),
     if (mine)
       PostMenu(

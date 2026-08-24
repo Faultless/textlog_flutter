@@ -570,6 +570,10 @@ final class ApiFailure implements Exception {
   bool get isNotFound => status == 404;
   bool get isRateLimited => status == 429;
 
+  /// A `#lock` above the post you replied to. The server walks the real ancestor
+  /// chain, so this is the authoritative answer where the app could only guess.
+  bool get isThreadLocked => code == 'thread_locked';
+
   /// The token was rejected. The only reason to sign someone out.
   bool get isUnauthorized => status == 401 || status == 403;
 

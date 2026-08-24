@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/locks.dart';
 import '../../core/reply_tree.dart';
 import '../../state/cache.dart';
 import '../../state/providers.dart';
@@ -29,6 +30,12 @@ class ThreadScreen extends ConsumerWidget {
     final post = ref.watch(postProvider(id));
     final replies = ref.watch(threadProvider(id));
     final palette = context.palette;
+    // A `#lock` on the post a page is about closes every reply beneath it, and the
+    // replies cannot see that for themselves — none of them is its parent.
+    final locked = switch (post) {
+      AsyncData(:final value) => threadLocked(value),
+      _ => false,
+    };
 
     return Scaffold(
       appBar: textlogAppBar(context, path: '/post/$id', showBack: true),
@@ -70,8 +77,8 @@ class ThreadScreen extends ConsumerWidget {
                   Padding(
                     padding: const EdgeInsets.only(bottom: space6),
                     child: flat
-                        ? FlatReplies(value, rootId: id)
-                        : ReplyBranch(value, rootId: id),
+                        ? FlatReplies(value, rootId: id, lockedAbove: locked)
+                        : ReplyBranch(value, rootId: id, lockedAbove: locked),
                   ),
                 ],
               ),
