@@ -499,12 +499,6 @@ and links to it; so does this.
   do. Acting on an account settles it either way.
 - **A thread wider or deeper than one page.** 100 posts at depth 5 covers virtually
   everything; past that, branches advertise what is missing.
-- **Playing a voice clip.** The site plays a Vocaroo link inline off its own
-  `/media/vocaroo/{id}` proxy, which serves a ranged mp3 an app could stream. Doing that
-  here means an audio engine, and with it a lock-screen entry, a focus policy and an
-  interruption story — none of which is what a voice clip in a text feed is asking for.
-  `core/media.dart` recognises one and says so; tapping it opens Vocaroo, which has a
-  player already.
 - **A pinned post is not marked as pinned.** `#pin` sorts the latest one first on a
   profile, and the API already returns them in that order, so the app gets the ordering
   for free. It cannot draw the badge: `profile_pinned` is on the website's own post shape,
@@ -562,6 +556,31 @@ Two things about drawing them, both found on a device:
   XHR. Rendering an `<img>` element instead escapes Flutter's layout and fills the screen,
   which is worse than not having the picture — so web gets the compact form.
 
+## Voice clips
+
+A Vocaroo link plays where it was linked, streamed from textlog's own
+`/media/vocaroo/{id}` — a plain ranged mp3. Going through the proxy is the point:
+listening tells Vocaroo nothing, which is the same reason link previews are fetched
+server side.
+
+Three things are load-bearing:
+
+- **Two URLs, and they are not interchangeable.** The link identifies the clip among
+  others on the page; the proxy is where the bytes are. Handing the link to the player
+  asks it to decode Vocaroo's *web page*, and the failure surfaces as
+  `UnrecognizedInputFormatException` — which reads as an unplayable clip rather than
+  the mix-up it is. A test pins the two apart at the boundary where they meet.
+- **One player for the app**, in `state/audio.dart`, with `playingClipProvider` naming
+  the clip that owns it. Two clips playing over each other is never wanted, and a
+  player per card would hold a decoder open for every card that scrolled past.
+- **Created only on first press.** The card watches which clip is playing, not the
+  player, so a feed full of clips costs nothing until one is pressed — and a widget
+  test can render one with no platform channel at all.
+
+Vocaroo sends no preview metadata, so there is no card to attach this to: the
+preview is synthesised from the body's own links, and only when the server sent no
+real preview to show first.
+
 ## Parsing a body once
 
 Rendering a body asks a lot of questions about it — poll, checklist, spoiler, ASCII art,
@@ -573,6 +592,26 @@ A body is an immutable string, so `core/body_analysis.dart` works all of it out 
 keeps the answer in a bounded, insertion-ordered map. A rebuild is a lookup. The test
 asserts the cached answer is *identical*, not merely equal, and that it agrees with parsing
 by hand — a cache that changes the answer is worse than no cache.
+
+## When something counts as read
+
+An activity used to become read only if you tapped it, which meant scrolling through
+everything addressed to you left every dot in place — and the only way to clear them
+was "mark all as read", a chore the reader had already done by reading.
+
+A row is read once it has been **fully** on screen. Fully is the whole point: half a
+row at the bottom edge is the thing you were scrolling towards, and marking it would
+quietly lose it. A row taller than the viewport is never counted at all, so a wall of
+text is not declared read for having passed by. `core/seen.dart` is that rule and
+nothing else, so it can be argued with in a test rather than on a device; the widget
+only measures and reports rectangles.
+
+The sweep runs on scroll *end* rather than per frame — flinging through a feed is not
+reading it — and once more after any build that has data, because at open there has
+been no scroll to notice and the first screenful would otherwise be the one part that
+never marks itself. Ids already sent are remembered: the notifier is optimistic, so a
+row stops being unread locally before the request lands and would otherwise be re-sent
+on every scroll past it.
 
 ## Notifications
 

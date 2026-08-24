@@ -26,6 +26,7 @@
 | Barebones mode | characters instead of icons, no ripples, no animation |
 | Feeds | replies join their parent on the page, so a conversation is not repeated |
 | Notifications | replies, mentions and follows; quick reply and mark-read from the shade |
+| Activity | marks itself read as you scroll past, not only on tap |
 | Polls | real options and tally from the API, and voting |
 | Quizzes | `#quiz`, the marked answer, the verdict and the explanation |
 | Link previews | thumbnail and text, or compact text where there is no image |
@@ -35,7 +36,7 @@
 | Hashtags | follow and block, as well as read |
 | Links to textlog | opened in the app — posts, profiles, hashtags, feeds |
 | Locked threads | `#lock` said before a reply is written, and the 409 handled |
-| Voice clips | named as one; opens Vocaroo, which has the player |
+| Voice clips | played in place, streamed through textlog's own proxy |
 
 ---
 
@@ -81,6 +82,26 @@ removed account's handle would go. All of that is derivable from the inlined par
 ⚠️ **Deliberately not doing:** scraping textlog.cc's HTML for anything the API does not
 serve. Parsing markup means the app breaks on any markup change on the server, which is
 exactly the fragility this project avoided on day one.
+
+---
+
+## Unreleased
+
+**Voice clips play in the app.** They opened Vocaroo before, which was a deliberate
+call and the wrong one. Streamed through textlog's own `/media/vocaroo/{id}` proxy, so
+listening tells Vocaroo nothing. One player for the app, created only when a clip is
+first pressed, so a feed full of them costs nothing until you press one.
+
+**Activity marks itself read as you scroll past it.** Only a tap counted before, so
+reading a whole tab left every dot in place and the only way to clear them was "mark
+all as read" — a chore you had already done by reading. A row counts once it has been
+*fully* on screen; half a row at the bottom edge is the thing you were scrolling
+towards, not the thing you just read.
+
+**Packaged for F-Droid**: fastlane metadata with real screenshots, a pinned Flutter
+floor, and the build recipe under `fdroid/`. Not submitted — see `fdroid/README.md`
+for the one decision that has to be made first, because the first accepted build
+settles whose key signs it forever.
 
 ---
 

@@ -67,7 +67,8 @@ Read the whole thing in [ROADMAP.md](ROADMAP.md). In short:
   links, bold, underline, italics, strikethrough, **redactions** you press to reveal,
   `>` quotes, spoilers, and ASCII art on its own line grid
 - **Polls** you can vote in, **quizzes** that tell you whether you got it and why,
-  **link previews**, and **`#todo` checklists** you tick from the post itself
+  **link previews**, **voice clips** played in place, and **`#todo` checklists** you tick
+  from the post itself
 - **Links back to textlog open in the app**, not the browser — a post, a profile, a hashtag
   or a feed
 - A `#lock`ed thread says so where the reply link would be, rather than after you write
@@ -79,6 +80,8 @@ Read the whole thing in [ROADMAP.md](ROADMAP.md). In short:
 - Light, dark, sepia and dracula themes, a choice of accent, monospace face and text size
 - **Notifications** for replies, mentions and follows — with a reply field and a
   mark-read button right in the notification
+- Activity marks itself read as you scroll past it, rather than waiting for you to press
+  "mark all as read"
 - Feeds join a reply to its parent when both are on the page, so one conversation is one
   block instead of the same words repeated down the screen
 - A whole thread in one request, quoted parents with no request at all, and threads cached
