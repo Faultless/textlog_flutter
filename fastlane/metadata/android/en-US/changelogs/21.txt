@@ -1,0 +1,5 @@
+Voice clips play in the app now, streamed through textlog's own proxy so listening tells Vocaroo nothing. They opened Vocaroo before — a deliberate call, and the wrong one.
+
+Activity marks itself read as you scroll past it. Only a tap counted before, so reading a whole tab left every dot in place and clearing them meant pressing "mark all as read" — a chore you had already done by reading.
+
+Also: packaged for F-Droid, with a build recipe and store metadata in the repo.

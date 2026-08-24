@@ -1,6 +1,6 @@
 # Roadmap
 
-## Where we are — v0.4.0
+## Where we are — v0.5.0
 
 | Area | State |
 |---|---|
@@ -85,7 +85,7 @@ exactly the fragility this project avoided on day one.
 
 ---
 
-## Unreleased
+## v0.5.0 — clips that play, and dots that clear themselves
 
 **Voice clips play in the app.** They opened Vocaroo before, which was a deliberate
 call and the wrong one. Streamed through textlog's own `/media/vocaroo/{id}` proxy, so

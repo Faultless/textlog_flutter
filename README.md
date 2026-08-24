@@ -53,7 +53,7 @@ see [Building it for your own iPhone](#building-it-for-your-own-iphone).
 
 Read the whole thing in [ROADMAP.md](ROADMAP.md). In short:
 
-**Working today (v0.4.0)**
+**Working today (v0.5.0)**
 - Feeds the site has: **for you**, **to me**, hot and latest — plus a **live** tab, which the
   website cannot have, streaming new posts as they are written
 - **Search** across every note, server side
