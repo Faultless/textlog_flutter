@@ -6,6 +6,7 @@ import '../../core/body_tokens.dart';
 import '../../core/models.dart';
 import '../../core/post_context.dart';
 import '../../state/session.dart';
+import '../../state/settings.dart';
 import '../theme.dart';
 import 'pressable.dart';
 
@@ -73,7 +74,11 @@ class HandleLink extends ConsumerWidget {
 /// The site labels this `read` and drops the time entirely. On a phone that throws
 /// away the one thing a dense feed most needs, so the app keeps the stamp *as* the
 /// affordance: same tap target, same place, more information.
-class PostMeta extends StatelessWidget {
+/// Both halves are the reader's to turn off. The stamp doubles as the way into a
+/// post, so losing it costs something — but a reader who does not want to know how
+/// old a post is, or how many replies it drew, should not have to, and the card
+/// itself still opens the post either way.
+class PostMeta extends ConsumerWidget {
   const PostMeta({
     super.key,
     required this.createdAt,
@@ -88,9 +93,14 @@ class PostMeta extends StatelessWidget {
   final VoidCallback? onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final palette = context.palette;
     final base = style ?? Theme.of(context).textTheme.bodySmall!;
+    final settings = ref.watch(settingsProvider).valueOrNull ?? const Settings();
+    final showTime = settings.timestamps;
+    final replies = settings.replyCounts ? replyCount : 0;
+    // Nothing left to draw, and an empty tap target in a meta line reads as a bug.
+    if (!showTime && replies == 0) return const SizedBox.shrink();
 
     return Pressable(
       onTap: onTap,
@@ -99,14 +109,15 @@ class PostMeta extends StatelessWidget {
         return Text.rich(
           TextSpan(
             children: [
-              TextSpan(text: relativeTime(createdAt), style: link),
-              if (replyCount > 0) ...[
+              if (showTime) TextSpan(text: relativeTime(createdAt), style: link),
+              if (replies > 0) ...[
+                if (showTime)
+                  TextSpan(
+                    text: ' · ',
+                    style: base.copyWith(color: palette.muted),
+                  ),
                 TextSpan(
-                  text: ' · ',
-                  style: base.copyWith(color: palette.muted),
-                ),
-                TextSpan(
-                  text: '$replyCount ${replyCount == 1 ? 'reply' : 'replies'}',
+                  text: '$replies ${replies == 1 ? 'reply' : 'replies'}',
                   style: link,
                 ),
               ],

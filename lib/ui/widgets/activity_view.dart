@@ -6,6 +6,7 @@ import '../../core/models.dart';
 import '../../core/seen.dart';
 import '../../data/api.dart';
 import '../../state/activity.dart';
+import '../../state/settings.dart';
 import '../theme.dart';
 import 'post_meta.dart';
 import 'post_tile.dart';
@@ -64,6 +65,25 @@ class _ActivityViewState extends ConsumerState<ActivityView> {
     }
   }
 
+  /// The rows this reader wants to see.
+  ///
+  /// Follows and tag-follows are activity but they are not *reading*: some readers
+  /// want the posts and none of the who-followed-whom. Filtered in the app rather
+  /// than asked of the server, which offers no such parameter — so the count the
+  /// server reports as unread can exceed what is on screen, and a hidden row is
+  /// never marked read on the reader's behalf.
+  List<Activity> visible(List<Activity> items) {
+    final wanted =
+        ref.watch(settingsProvider).valueOrNull?.followNotices ?? true;
+    if (wanted) return items;
+    return [
+      for (final item in items)
+        if (item.kind != ActivityKind.userFollow &&
+            item.kind != ActivityKind.tagFollow)
+          item,
+    ];
+  }
+
   /// Measure the unread rows and mark the ones fully on screen.
   ///
   /// On scroll *end* rather than on every frame: flinging through a feed is not
@@ -115,7 +135,7 @@ class _ActivityViewState extends ConsumerState<ActivityView> {
           controller: _controller,
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: switch (feed) {
-            AsyncData(:final value) when value.items.isEmpty => [
+            AsyncData(:final value) when visible(value.items).isEmpty => [
               SliverToBoxAdapter(
                 child: StatusMessage(
                   widget.scope == ActivityScope.toMe
@@ -125,22 +145,26 @@ class _ActivityViewState extends ConsumerState<ActivityView> {
               ),
             ],
             AsyncData(:final value) => [
-              SliverList.builder(
-                itemCount: value.items.length,
-                itemBuilder: (context, index) {
-                  final activity = value.items[index];
-                  return _Row(
-                    activity,
-                    scope: widget.scope,
-                    showTopBorder: index > 0,
-                    // Keyed only while unread, and by id so a row keeps its key
-                    // across the rebuild that inserts new activity above it.
-                    measureKey: activity.unread && !_sent.contains(activity.id)
-                        ? _unread.putIfAbsent(activity.id, GlobalKey.new)
-                        : null,
-                  );
-                },
-              ),
+              () {
+                final items = visible(value.items);
+                return SliverList.builder(
+                  itemCount: items.length,
+                  itemBuilder: (context, index) {
+                    final activity = items[index];
+                    return _Row(
+                      activity,
+                      scope: widget.scope,
+                      showTopBorder: index > 0,
+                      // Keyed only while unread, and by id so a row keeps its key
+                      // across the rebuild that inserts new activity above it.
+                      measureKey:
+                          activity.unread && !_sent.contains(activity.id)
+                          ? _unread.putIfAbsent(activity.id, GlobalKey.new)
+                          : null,
+                    );
+                  },
+                );
+              }(),
               SliverToBoxAdapter(
                 child: switch (value) {
                   ActivityState(:final loadMoreError?) => StatusMessage(

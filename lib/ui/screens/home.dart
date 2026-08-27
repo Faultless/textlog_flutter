@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/feed_source.dart';
+import '../../core/tab_prefs.dart';
 import '../../data/api.dart';
 import '../../state/activity.dart';
+import '../../state/settings.dart';
 import '../../state/providers.dart';
 import '../../state/session.dart';
 import '../theme.dart';
@@ -38,8 +40,25 @@ enum HomeTab {
   /// Offered only to a signed-in reader.
   final bool authenticated;
 
+  /// Stable id for the preferences store — the enum name, not the label, so
+  /// rewording a tab does not silently reset anyone's arrangement.
+  String get id => name;
+
   static List<HomeTab> visible({required bool signedIn}) =>
       values.where((tab) => signedIn || !tab.authenticated).toList();
+
+  /// What this reader sees: the tabs their sign-in state allows, in the order they
+  /// chose, minus the ones they turned off.
+  static List<HomeTab> forReader({
+    required bool signedIn,
+    required List<String> order,
+    required Set<String> hidden,
+  }) => arrangeTabs(
+    visible(signedIn: signedIn),
+    order: order,
+    hidden: hidden,
+    id: (tab) => tab.id,
+  );
 
   static HomeTab? ofPath(String path) =>
       values.where((tab) => tab.path == path).firstOrNull;
@@ -69,10 +88,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget build(BuildContext context) {
     final session = ref.watch(viewerProvider);
     final signedIn = session != null;
-    final tabs = HomeTab.visible(signedIn: signedIn);
+    final settings = ref.watch(settingsProvider).valueOrNull ?? const Settings();
+    final tabs = HomeTab.forReader(
+      signedIn: signedIn,
+      order: settings.tabOrder,
+      hidden: settings.hiddenTabs,
+    );
 
     // Signing out with `to me` open leaves you on a tab that no longer exists.
-    final tab = tabs.contains(widget.tab) ? widget.tab : HomeTab.hot;
+    // A hidden tab reached by its own URL still renders: hiding is about the row,
+    // not about walling off a link someone sent you.
+    final tab = tabs.contains(widget.tab) ? widget.tab : tabs.first;
     _visited.add(tab);
 
     Future<void> write() async {

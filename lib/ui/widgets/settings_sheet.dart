@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/notification_plan.dart';
+import '../../core/tab_prefs.dart';
+import '../screens/home.dart';
 import '../../state/notifications.dart';
 import '../../state/session.dart';
 import '../../state/settings.dart';
@@ -155,6 +157,20 @@ class _Settings extends ConsumerWidget {
                   ),
                   const SizedBox(height: space4),
                   _Toggle(
+                    title: 'timestamps',
+                    note: 'how long ago each post was written',
+                    value: settings.timestamps,
+                    onChanged: notifier.setTimestamps,
+                  ),
+                  const SizedBox(height: space4),
+                  _Toggle(
+                    title: 'reply counts',
+                    note: 'how many replies a post drew',
+                    value: settings.replyCounts,
+                    onChanged: notifier.setReplyCounts,
+                  ),
+                  const SizedBox(height: space4),
+                  _Toggle(
                     title: 'offer translations',
                     // Says where the translation comes from, because "translate" on
                     // a phone usually means a request to somebody's cloud.
@@ -162,6 +178,24 @@ class _Settings extends ConsumerWidget {
                     value: settings.translate,
                     onChanged: notifier.setTranslate,
                   ),
+                  const SizedBox(height: space4),
+                  _Toggle(
+                    title: 'follow notices',
+                    note: 'follows and tag follows in your for you feed',
+                    value: settings.followNotices,
+                    onChanged: notifier.setFollowNotices,
+                  ),
+                  const SizedBox(height: space4),
+                  _Toggle(
+                    title: 'swipe to reply',
+                    note: 'drag a post to the left to reply to it',
+                    value: settings.swipeToReply,
+                    onChanged: notifier.setSwipeToReply,
+                  ),
+                  const SizedBox(height: space5),
+                  _Label('tabs'),
+                  const SizedBox(height: space2),
+                  const _Tabs(),
                   const SizedBox(height: space4),
                   _Toggle(
                     title: 'barebones',
@@ -411,3 +445,126 @@ class _Toggle extends StatelessWidget {
   }
 }
 
+/// Which tabs the reader wants, and in what order.
+///
+/// A list rather than a drag-and-drop grid: reordering by dragging inside a scrolling
+/// sheet fights the sheet, and on a phone the target is small enough that people miss
+/// it. Two arrows and a toggle say the same thing and cannot be fumbled.
+class _Tabs extends ConsumerWidget {
+  const _Tabs();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = context.palette;
+    final theme = Theme.of(context).textTheme;
+    final settings = ref.watch(settingsProvider).valueOrNull ?? const Settings();
+    final notifier = ref.read(settingsProvider.notifier);
+    final signedIn = ref.watch(viewerProvider) != null;
+
+    // Shown in the reader's order, including the ones they hid — this is where you
+    // come to bring one back, so hiding it from here would be a trap.
+    final available = HomeTab.visible(signedIn: signedIn);
+    final ordered = arrangeTabs(
+      available,
+      order: settings.tabOrder,
+      hidden: const {},
+      id: (tab) => tab.id,
+    );
+    final hidden = settings.hiddenTabs;
+    // The last one standing cannot be turned off: a tab row with nothing in it is an
+    // app with no way back to this setting.
+    final showing = ordered.where((tab) => !hidden.contains(tab.id)).length;
+
+    Set<String> toggled(String id) {
+      final next = {...hidden};
+      if (!next.remove(id)) next.add(id);
+      return next;
+    }
+
+    void move(int from, int to) {
+      final ids = [for (final tab in ordered) tab.id];
+      ids.insert(to, ids.removeAt(from));
+      notifier.setTabs(order: ids);
+    }
+
+    return Column(
+      children: [
+        for (final (index, tab) in ordered.indexed)
+          Padding(
+            padding: const EdgeInsets.only(bottom: space2),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    tab.label,
+                    style: theme.bodySmall!.copyWith(
+                      color: hidden.contains(tab.id) ? palette.muted : palette.ink,
+                    ),
+                  ),
+                ),
+                _Arrow('↑', onTap: index == 0 ? null : () => move(index, index - 1)),
+                _Arrow(
+                  '↓',
+                  onTap: index == ordered.length - 1
+                      ? null
+                      : () => move(index, index + 1),
+                ),
+                const SizedBox(width: space3),
+                Pressable(
+                  onTap: hidden.contains(tab.id) || showing > 1
+                      ? () => notifier.setTabs(hidden: toggled(tab.id))
+                      : null,
+                  builder: (context, pressed) => Text(
+                    hidden.contains(tab.id) ? 'show' : 'hide',
+                    style: theme.labelSmall!.asLink(palette).copyWith(
+                      color: pressed
+                          ? palette.accent
+                          : (hidden.contains(tab.id) || showing > 1
+                                ? palette.muted
+                                : palette.disabledInk),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        if (!signedIn)
+          Padding(
+            padding: const EdgeInsets.only(top: space1),
+            child: Text(
+              'for you and to me appear once you sign in',
+              style: theme.labelSmall!.copyWith(color: palette.muted),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _Arrow extends StatelessWidget {
+  const _Arrow(this.glyph, {required this.onTap});
+
+  final String glyph;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Semantics(
+      button: onTap != null,
+      label: glyph == '↑' ? 'move up' : 'move down',
+      child: Pressable(
+        onTap: onTap,
+        hitPadding: const EdgeInsets.symmetric(horizontal: space2, vertical: space2),
+        builder: (context, pressed) => Text(
+          glyph,
+          style: Theme.of(context).textTheme.bodySmall!.copyWith(
+            color: onTap == null
+                ? palette.disabledInk
+                : (pressed ? palette.accent : palette.ink),
+          ),
+        ),
+      ),
+    );
+  }
+}
