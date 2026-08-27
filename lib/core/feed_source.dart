@@ -133,8 +133,15 @@ Map<String, String> queryOf(FeedSource source) => switch (source) {
 ///
 /// The signed-in feeds are deliberately absent: `for you` and `to me` are activity,
 /// and a stale copy of who replied to you is worse than an honest moment of loading.
-String? coldStorageKeyOf(FeedSource source) => switch (source) {
-  LatestFeed() => 'feed:latest',
-  HotFeed() => 'feed:hot',
-  _ => null,
-};
+/// [viewer] is the handle the page was read as, because a signed-in read is not the
+/// same page: it applies the reader's blocks and carries their unread state. Sharing
+/// one key would show a stored feed to whoever opened the app next.
+String? coldStorageKeyOf(FeedSource source, {String? viewer}) {
+  final name = switch (source) {
+    LatestFeed() => 'latest',
+    HotFeed() => 'hot',
+    _ => null,
+  };
+  if (name == null) return null;
+  return viewer == null ? 'feed:$name' : 'feed:$name:@$viewer';
+}

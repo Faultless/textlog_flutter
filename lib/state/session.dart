@@ -140,6 +140,13 @@ final viewerProvider = Provider<Session?>((ref) {
   return live.valueOrNull ?? (live.isLoading ? LocalStore.primedSession() : null);
 });
 
+/// Whether anyone is signed in — and nothing else.
+///
+/// Coarse on purpose. A feed has to refetch when you sign in or out, because the
+/// answer genuinely differs, but *not* when the confirmation behind a cold start
+/// fills in a bio. Watching the session itself would do both.
+final signedInProvider = Provider<bool>((ref) => ref.watch(viewerProvider) != null);
+
 /// The handle the app is acting as, from a real session or the handle you typed.
 final viewerHandleProvider = Provider<String?>((ref) {
   return ref.watch(viewerProvider)?.account.handle;

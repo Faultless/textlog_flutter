@@ -37,6 +37,7 @@ final class Post {
     this.topId,
     this.parent,
     this.depth,
+    this.unread,
     this.poll,
     this.linkPreviews = const {},
     this.translation,
@@ -66,6 +67,10 @@ final class Post {
   /// Distance from the post whose replies were requested. Only set on
   /// `/posts/{id}/replies`, which is the one endpoint that returns a whole subtree.
   final int? depth;
+
+  /// Unread, on an authenticated read of the latest feed. Null everywhere else —
+  /// which is not the same as read, and is why this is nullable rather than false.
+  final bool? unread;
 
   /// The poll this post carries, from the server rather than parsed out of the body.
   final Poll? poll;
@@ -113,6 +118,7 @@ final class Post {
       _ => null,
     },
     depth: json['depth'] as int?,
+    unread: json['unread'] as bool?,
     poll: switch (json['poll']) {
       final Map<String, dynamic> poll => Poll.fromJson(poll),
       _ => null,
@@ -124,7 +130,15 @@ final class Post {
     },
   );
 
-  Post copyWith({String? body, int? replyCount, Post? parent, Poll? poll}) => Post(
+  /// [read] clears the unread flag; there is deliberately no way to set it back,
+  /// because only the server decides what is unread in the first place.
+  Post copyWith({
+    String? body,
+    int? replyCount,
+    Post? parent,
+    Poll? poll,
+    bool read = false,
+  }) => Post(
     id: id,
     topId: topId,
     body: body ?? this.body,
@@ -137,6 +151,7 @@ final class Post {
     author: author,
     parent: parent ?? this.parent,
     depth: depth,
+    unread: read ? false : unread,
     poll: poll ?? this.poll,
     linkPreviews: linkPreviews,
     translation: translation,
@@ -548,14 +563,23 @@ final class Explore {
 
 /// One cursor-paginated slice. `nextCursor` is null when the feed is exhausted.
 final class Page<T> {
-  const Page({required this.items, required this.nextCursor, this.hasUnread = false});
+  const Page({
+    required this.items,
+    required this.nextCursor,
+    this.hasUnread = false,
+    this.unreadCount = 0,
+  });
 
   final List<T> items;
   final String? nextCursor;
 
-  /// Activity feeds only: whether anything unread remains anywhere in the feed, not
-  /// just on this page. Cheaper than counting, and it is what drives the tab dot.
+  /// Whether anything unread remains anywhere in the feed, not just on this page.
+  /// Cheaper than counting, and it is what drives the tab dot.
   final bool hasUnread;
+
+  /// How many, where the server offers it — the latest feed does, on an
+  /// authenticated read.
+  final int unreadCount;
 
   bool get hasMore => nextCursor != null;
 
@@ -568,6 +592,7 @@ final class Page<T> {
     ],
     nextCursor: (json['pagination'] as Map<String, dynamic>?)?['next_cursor'] as String?,
     hasUnread: json['has_unread'] as bool? ?? false,
+    unreadCount: json['unread_count'] as int? ?? 0,
   );
 }
 

@@ -30,8 +30,21 @@ final class TextlogApi {
 
   // -- reads -----------------------------------------------------------------
 
-  Future<Page<Post>> feed(FeedSource source, {String? cursor, int limit = 20}) async =>
-      Page.fromJson(await feedJson(source, cursor: cursor, limit: limit), Post.fromJson);
+  /// A feed, read as [token]'s owner when one is given.
+  ///
+  /// The token is optional to the server but it changes the answer, and not only by
+  /// adding unread state: an anonymous read applies no viewer, so the accounts and
+  /// hashtags *you* blocked come back in it. Reading as yourself is also counted
+  /// against the higher authenticated rate limit rather than the shared anonymous one.
+  Future<Page<Post>> feed(
+    FeedSource source, {
+    String? cursor,
+    int limit = 20,
+    String? token,
+  }) async => Page.fromJson(
+    await feedJson(source, cursor: cursor, limit: limit, token: token),
+    Post.fromJson,
+  );
 
   /// The same read, undecoded.
   ///
@@ -42,11 +55,13 @@ final class TextlogApi {
     FeedSource source, {
     String? cursor,
     int limit = 20,
-  }) => _get(pathOf(source), {
-    'limit': '$limit',
-    'cursor': ?cursor,
-    ...queryOf(source),
-  });
+    String? token,
+  }) => _send(
+    'GET',
+    pathOf(source),
+    token: token,
+    query: {'limit': '$limit', 'cursor': ?cursor, ...queryOf(source)},
+  );
 
   Future<Post> post(int id) async {
     final json = await _get('posts/$id');

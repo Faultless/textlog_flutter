@@ -6,6 +6,7 @@ import '../../core/feed_source.dart';
 import '../../core/tab_prefs.dart';
 import '../../data/api.dart';
 import '../../state/activity.dart';
+import '../../state/feed.dart';
 import '../../state/settings.dart';
 import '../../state/providers.dart';
 import '../../state/session.dart';
@@ -138,6 +139,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       HomeTab.forYou =>
                         ref.watch(activityUnreadProvider(ActivityScope.forYou)),
                       HomeTab.toMe => ref.watch(activityUnreadProvider(ActivityScope.toMe)),
+                      // The latest feed reports unread too, signed in.
+                      HomeTab.latest => ref.watch(latestUnreadProvider),
                       _ => false,
                     },
                   ),
@@ -149,6 +152,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   _MarkAllRead(ActivityScope.forYou, compact: compact),
                 HomeTab.toMe => (compact) =>
                   _MarkAllRead(ActivityScope.toMe, compact: compact),
+                HomeTab.latest when session != null => (compact) =>
+                  _MarkLatestRead(compact: compact),
                 _ => null,
               },
             ),
@@ -182,6 +187,39 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 /// On a narrow row it shortens, and the "nothing left to read" status disappears
 /// entirely — it is information, not an action, and it was costing more than half
 /// the tab row to say something the absent unread dots already say.
+/// The same control for the latest feed, which reports unread the same way but
+/// through the feed notifier rather than the activity one.
+class _MarkLatestRead extends ConsumerWidget {
+  const _MarkLatestRead({required this.compact});
+
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = context.palette;
+    final theme = Theme.of(context).textTheme.labelSmall!;
+    if (!ref.watch(latestUnreadProvider)) return const SizedBox.shrink();
+
+    final count = ref.watch(
+      feedProvider(const LatestFeed()).select(
+        (feed) => feed.valueOrNull?.unreadCount ?? 0,
+      ),
+    );
+    return Pressable(
+      onTap: () => ref.read(feedProvider(const LatestFeed()).notifier).markAllRead(),
+      semanticLabel: 'mark all as read',
+      builder: (context, pressed) => Text(
+        // The count is worth saying here: unlike the activity feeds, the latest feed
+        // is everything anyone wrote, so "12 new" and "400 new" are different news.
+        compact ? 'mark read' : (count > 0 ? '$count new · mark all read' : 'mark all read'),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: theme.asLink(palette).copyWith(color: pressed ? palette.accent : null),
+      ),
+    );
+  }
+}
+
 class _MarkAllRead extends ConsumerWidget {
   const _MarkAllRead(this.scope, {required this.compact});
 
