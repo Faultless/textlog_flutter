@@ -214,6 +214,10 @@ unhealthy and doubled its retry delay out to thirty seconds, which missed far mo
 caught. A close after a successful connection is now normal — retry in a second. Exponential
 backoff is reserved for real failures: refused, rate limited, offline.
 
+Feed reads carry the session token now. Not for the unread state alone: an anonymous
+read applies no viewer, so the accounts and hashtags the reader had *blocked* came
+back in their own feeds. It also counts against the higher authenticated limit.
+
 The read limit is counted per *account* now, not per IP, and is 600 a minute signed in
 against 120 anonymous. Nothing in the app encodes those numbers — it reacts to a 429 and
 its `Retry-After` — but it is why a signed-in reader can page a long thread without ever
@@ -293,6 +297,73 @@ through `FlatReplies`, where a post no longer sits under the ancestor that close
 so cannot work it out from its position at all. Guessing early buys something the 409
 cannot give back: nobody wants to write a reply and be told afterwards that it was never
 going to be accepted.
+
+## Opening the app
+
+A cold start used to show a signed-out app that changed its mind: `sign in` in the
+header, no account tabs, an empty feed with a spinner — and then, once a local read
+and a network round trip had finished, the whole thing rearranged itself. Two
+separate causes, and both are worth stating because both are easy to reintroduce.
+
+**An `AsyncNotifier`'s first state is `loading`, even when its `build` awaits
+nothing.** So `ref.watch(sessionProvider).valueOrNull` is null on the first frame no
+matter how fast the session resolves, and every widget asking "am I signed in"
+answered no. `LocalStore.prime()` now opens storage once before `runApp`, and
+`viewerProvider` returns the stored session while the real one is still coming.
+**The UI reads `viewerProvider`**; `sessionProvider` is for the token and the actions
+on its notifier. The confirmation runs behind the reader: it fills in the rest of the
+account, and only a *rejected* token clears the session — being offline is not
+evidence that anyone signed out.
+
+**And there were no posts to show.** The caches were all in memory, so every launch
+started from nothing. `data/feed_store.dart` keeps the last page of `hot` and
+`latest` on disk — the server's own JSON, parsed back through the same
+`Page.fromJson` the network path uses, so there is no second serialiser to drift and
+a stored feed either decodes exactly or is discarded. It goes up immediately and the
+network replaces it in place.
+
+Three things about that are load-bearing:
+
+- **In place, not by invalidating.** `refresh()` invalidates, which builds a new
+  notifier, which reads the same stored page and revalidates again — forever. The
+  revalidation writes `state` directly.
+- **Offered once per session.** A stored page is for a cold start. Every later build —
+  a pull to refresh, the invalidation after posting — must reach the server, or the
+  reader would be shown the page from before their own write.
+- **Keyed by who read it.** A signed-in read applies that reader's blocks and carries
+  their unread state, so the key carries their handle. One shared key would show a
+  stored timeline to whoever opened the app next.
+
+Two days is the shelf life. Posts carry a relative timestamp, and `3h` on a week-old
+post is a lie that the refresh would only correct afterwards.
+
+## Reading preferences
+
+The site has one appearance panel; a phone needs a few more decisions, because the
+page is smaller and because what one reader wants out of the way is what another
+reads for. All of them persist, all default to how the app shipped, and none of them
+change what the server sends.
+
+- **Timestamps and reply counts** can each be turned off. The stamp doubles as the
+  link into a post, so losing it costs something — the card still opens the post, and
+  with both off `PostMeta` draws nothing rather than an empty tap target.
+- **Follow notices** filters follows and tag-follows out of `for you`. Done in the
+  app because the server offers no such parameter, which has a consequence worth
+  knowing: the unread count it reports can exceed what is on screen, and a hidden row
+  is never marked read on the reader's behalf.
+- **Tabs** can be reordered and hidden. `core/tab_prefs.dart` is the rule, and every
+  interesting case in it is a disagreement between a stored preference and the tabs a
+  build actually offers: a tab added by a later version is **appended** rather than
+  dropped, one that no longer exists is dropped, and hiding everything still leaves
+  one standing — a tab row with nothing in it is an app with no way back to the
+  setting that broke it. A hidden tab still renders when reached by its own URL;
+  hiding is about the row, not about walling off a link someone sent you.
+- **Swipe to reply** drags a post leftwards. Leftwards deliberately: a rightward drag
+  from the edge is the system back gesture on both platforms, and competing with that
+  would break something people rely on to win something they do not yet know exists.
+  The inner horizontal scroll of a wide code block still wins its own gesture, being
+  deeper in the hit test — there is a test for that, because the alternative is a post
+  whose code cannot be read.
 
 ## What a retry has to look like
 
@@ -503,8 +574,13 @@ and links to it; so does this.
   profile, and the API already returns them in that order, so the app gets the ordering
   for free. It cannot draw the badge: `profile_pinned` is on the website's own post shape,
   not the API's.
-- **Unpublishing a post back into a draft.** A form action on the website, with no API
-  route behind it.
+- **Moderation.** The server classifies posts and the website has a consent screen for
+  showing what it flagged. `moderation_category` and `moderation_score` are on the
+  website's own post shape, not the API's, so the app cannot see the flag to act on it.
+- **A direct reply count.** `direct_reply_count` landed upstream — the number a reader
+  would actually count — but on the website's shape only. The app still works from
+  `reply_count`, which is the whole descendant count, and subtracts what it has
+  rendered to decide what is missing.
 
 ## Polls, checklists and link previews
 
@@ -612,6 +688,19 @@ been no scroll to notice and the first screenful would otherwise be the one part
 never marks itself. Ids already sent are remembered: the notifier is optimistic, so a
 row stops being unread locally before the request lands and would otherwise be re-sent
 on every scroll past it.
+
+## Translation
+
+`translation` is on the post shape: the server detects the language, translates once,
+and stores nothing when the body is already English. So the app neither detects
+anything nor sends anybody's post to a third-party translator — it decides whether to
+offer the swap, and that is all.
+
+Two conditions before the button appears. The setting is on, and the translation
+actually differs from the body — the translator sometimes hands back its input, and a
+button that swaps a body for itself is worse than no button. The rendered body is
+keyed on which text is showing, so a revealed spoiler or redaction is not carried
+across into different words where it would make no sense.
 
 ## Notifications
 

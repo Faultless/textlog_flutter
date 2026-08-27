@@ -53,7 +53,7 @@ see [Building it for your own iPhone](#building-it-for-your-own-iphone).
 
 Read the whole thing in [ROADMAP.md](ROADMAP.md). In short:
 
-**Working today (v0.5.0)**
+**Working today (v0.6.0)**
 - Feeds the site has: **for you**, **to me**, hot and latest — plus a **live** tab, which the
   website cannot have, streaming new posts as they are written
 - **Search** across every note, server side
@@ -80,8 +80,14 @@ Read the whole thing in [ROADMAP.md](ROADMAP.md). In short:
 - Light, dark, sepia and dracula themes, a choice of accent, monospace face and text size
 - **Notifications** for replies, mentions and follows — with a reply field and a
   mark-read button right in the notification
-- Activity marks itself read as you scroll past it, rather than waiting for you to press
-  "mark all as read"
+- Activity and the latest feed mark themselves read as you scroll past, rather than
+  waiting for you to press "mark all as read"
+- **Opens where you left it**: already signed in, with the feed it had, before anything
+  loads
+- **Yours to arrange**: reorder or hide tabs, turn off timestamps or reply counts, hide
+  follow notices, swipe a post to reply
+- **Read a post in English** when textlog found it was not — the translation is the
+  server's, so nothing is sent anywhere
 - Feeds join a reply to its parent when both are on the page, so one conversation is one
   block instead of the same words repeated down the screen
 - A whole thread in one request, quoted parents with no request at all, and threads cached

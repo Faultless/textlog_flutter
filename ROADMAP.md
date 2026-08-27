@@ -1,6 +1,6 @@
 # Roadmap
 
-## Where we are — v0.5.0
+## Where we are — v0.6.0
 
 | Area | State |
 |---|---|
@@ -27,6 +27,12 @@
 | Feeds | replies join their parent on the page, so a conversation is not repeated |
 | Notifications | replies, mentions and follows; quick reply and mark-read from the shade |
 | Activity | marks itself read as you scroll past, not only on tap |
+| Latest feed | read as you: unread marks, cleared by scrolling or all at once |
+| Cold start | signed in and showing the last feed before anything loads |
+| Reading prefs | tab order and visibility, timestamps, reply counts, follow notices |
+| Gestures | swipe a post to reply |
+| Translation | the server's, offered on a post it found was not English |
+| Drafts | server-side, shared with the website; a post can be moved back to one |
 | Polls | real options and tally from the API, and voting |
 | Quizzes | `#quiz`, the marked answer, the verdict and the explanation |
 | Link previews | thumbnail and text, or compact text where there is no image |
@@ -82,6 +88,34 @@ removed account's handle would go. All of that is derivable from the inlined par
 ⚠️ **Deliberately not doing:** scraping textlog.cc's HTML for anything the API does not
 serve. Parsing markup means the app breaks on any markup change on the server, which is
 exactly the fragility this project avoided on day one.
+
+---
+
+## Unreleased
+
+**The app opens as itself.** A cold start used to render signed out and then rearrange
+itself once storage and a network round trip had answered. Storage is opened before
+the first frame, the stored session is what the UI reads until the real one lands, and
+the last page of `hot` and `latest` is kept on disk so there are posts on screen
+immediately. Confirmation happens behind the reader; only a rejected token signs
+anyone out.
+
+**Reading preferences.** Reorder or hide tabs, turn timestamps or reply counts off,
+keep follow notices out of `for you`, and swipe a post leftwards to reply. All
+persisted, all defaulting to how the app shipped.
+
+**Translation**, from the server rather than from anywhere else: textlog detects the
+language and translates once per post, so the app only decides whether to offer the
+swap.
+
+**Caught up with upstream:** a post can be **moved back to drafts** now that there is
+an API route for it, and the **latest feed is read as you** — which brings unread
+marks that clear as you scroll, a mark-all, and, less visibly, feeds that actually
+apply the accounts and hashtags you blocked. They did not before, because feed reads
+went out anonymously.
+
+Still upstream-only: moderation flags and `direct_reply_count`, both on the website's
+post shape rather than the API's.
 
 ---
 
