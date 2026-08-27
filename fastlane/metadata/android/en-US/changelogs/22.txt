@@ -1,0 +1,7 @@
+The app opens as itself: already signed in, with the last feed it had on screen, before anything loads. It used to render signed out and rearrange itself a moment later.
+
+Yours to arrange — reorder or hide tabs, turn off timestamps or reply counts, keep follow notices out of for you, swipe a post leftwards to reply.
+
+Read a post in English when textlog found it was not; the translation is the server's, so nothing is sent anywhere.
+
+Also: move a post back to drafts.

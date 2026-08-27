@@ -91,7 +91,7 @@ exactly the fragility this project avoided on day one.
 
 ---
 
-## Unreleased
+## v0.6.0 — opens as itself, and yours to arrange
 
 **The app opens as itself.** A cold start used to render signed out and then rearrange
 itself once storage and a network round trip had answered. Storage is opened before
