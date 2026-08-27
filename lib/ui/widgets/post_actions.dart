@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/models.dart';
 import '../../state/cache.dart';
+import '../../state/drafts.dart';
 import '../../state/feed.dart';
 import '../../state/providers.dart';
 import '../../state/relationships.dart';
@@ -71,6 +72,10 @@ List<Widget> postActions(
         style: meta,
         entries: [
           MenuEntry('edit', () => showCompose(context, kind: ComposeKind.edit, target: post)),
+          MenuEntry(
+            'move to drafts',
+            () => _unpublish(context, ref, post, isSubject: isSubject),
+          ),
           MenuEntry(
             'delete',
             () => _confirmDelete(context, ref, post, isSubject: isSubject),
@@ -187,6 +192,48 @@ Future<void> _confirmDelete(
     if (isSubject && context.mounted) {
       final parent = post.parentId;
       parent == null ? context.go('/') : context.go('/post/$parent');
+    }
+  } on ApiFailure catch (failure) {
+    if (context.mounted) toast(context, failure.message);
+  }
+}
+
+/// Take a post back to drafts.
+///
+/// No confirmation: nothing is lost. The words move to the drafts list, where the
+/// reader can publish them again — which is the difference between this and `delete`,
+/// and the reason only one of the two is red.
+Future<void> _unpublish(
+  BuildContext context,
+  WidgetRef ref,
+  Post post, {
+  required bool isSubject,
+}) async {
+  final session = ref.read(viewerProvider);
+  if (session == null) return;
+  try {
+    await ref.read(apiProvider).unpublishPost(session.token, post.id);
+
+    // Gone from every feed and thread holding it, exactly as a delete would be — as
+    // far as anyone reading is concerned it is no longer published.
+    ref.read(postCacheProvider).forget(post.id);
+    ref.read(repliesCacheProvider).apply(post.id, null);
+    applyToLiveFeeds(post.id, null);
+    ref.invalidate(profileProvider(post.author.handle));
+    if (post.parentId case final parent?) {
+      ref.read(postCacheProvider).forget(parent);
+      ref.invalidate(postProvider(parent));
+    }
+    // …and present in the drafts list, which is where it went.
+    ref.invalidate(draftsProvider);
+
+    if (context.mounted) {
+      toast(context, 'Moved to drafts.');
+      // Standing on a page about a post that is no longer published is a dead end.
+      if (isSubject) {
+        final parent = post.parentId;
+        parent == null ? context.go('/drafts') : context.go('/post/$parent');
+      }
     }
   } on ApiFailure catch (failure) {
     if (context.mounted) toast(context, failure.message);

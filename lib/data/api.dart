@@ -168,6 +168,29 @@ final class TextlogApi {
 
   Future<void> deletePost(String token, int id) => _send('DELETE', 'posts/$id', token: token);
 
+  /// Take a published post back to drafts, returning the draft it became.
+  ///
+  /// The website has had this as a form action for a while; it is an API route now,
+  /// which is what let the app offer it. Not the same as deleting: the words survive,
+  /// they are just no longer published.
+  Future<Draft> unpublishPost(String token, int id) async {
+    final json = await _send('POST', 'posts/$id/unpublish', token: token);
+    return Draft.fromJson(json['data'] as Map<String, dynamic>);
+  }
+
+  /// Mark specific posts in the latest feed as read.
+  ///
+  /// Capped at 100 an request by the server, so the caller chunks.
+  Future<void> markLatestRead(String token, List<int> postIds) => _send(
+    'POST',
+    'feeds/latest/read',
+    token: token,
+    body: {'post_ids': postIds},
+  );
+
+  Future<void> markLatestReadAll(String token) =>
+      _send('POST', 'feeds/latest/read-all', token: token);
+
   Future<void> follow(String token, String handle, {required bool following}) => _send(
     following ? 'POST' : 'DELETE',
     'users/${Uri.encodeComponent(handle)}/follow',
