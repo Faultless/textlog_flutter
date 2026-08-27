@@ -30,14 +30,23 @@ final class TextlogApi {
 
   // -- reads -----------------------------------------------------------------
 
-  Future<Page<Post>> feed(FeedSource source, {String? cursor, int limit = 20}) async {
-    final json = await _get(pathOf(source), {
-      'limit': '$limit',
-      'cursor': ?cursor,
-      ...queryOf(source),
-    });
-    return Page.fromJson(json, Post.fromJson);
-  }
+  Future<Page<Post>> feed(FeedSource source, {String? cursor, int limit = 20}) async =>
+      Page.fromJson(await feedJson(source, cursor: cursor, limit: limit), Post.fromJson);
+
+  /// The same read, undecoded.
+  ///
+  /// The body is what gets kept for a cold start: storing the server's own JSON and
+  /// parsing it back with [Page.fromJson] means the stored copy round-trips exactly,
+  /// and there is no second serialiser to keep in step with the model.
+  Future<Map<String, dynamic>> feedJson(
+    FeedSource source, {
+    String? cursor,
+    int limit = 20,
+  }) => _get(pathOf(source), {
+    'limit': '$limit',
+    'cursor': ?cursor,
+    ...queryOf(source),
+  });
 
   Future<Post> post(int id) async {
     final json = await _get('posts/$id');

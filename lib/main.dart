@@ -6,13 +6,14 @@ import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:go_router/go_router.dart';
 
 import 'data/background.dart';
+import 'data/local_store.dart';
 import 'data/notifications.dart';
 import 'state/pending_write.dart';
 import 'state/settings.dart';
 import 'ui/router.dart';
 import 'ui/theme.dart';
 
-void main() {
+Future<void> main() async {
   // Without this, web URLs are hash-based and /tag/open_source never reaches the
   // router. No-op off the web.
   usePathUrlStrategy();
@@ -34,6 +35,11 @@ void main() {
   // closed. Nothing is scheduled and no permission is asked for until the reader
   // turns the setting on.
   Background.ready();
+
+  // Before the first frame: opening the app while already signed in should look like
+  // being signed in, not like a signed-out app that changes its mind. See
+  // LocalStore.prime.
+  await LocalStore.prime();
 
   runApp(const ProviderScope(child: TextlogApp()));
 }

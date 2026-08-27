@@ -35,7 +35,7 @@ class _TodoViewState extends ConsumerState<TodoView> {
   String get _body => _optimistic ?? widget.post.body;
 
   Future<void> _toggle(int index) async {
-    final session = ref.read(sessionProvider).valueOrNull;
+    final session = ref.read(viewerProvider);
     if (session == null || _busy) return;
 
     final next = toggleTodo(_body, index);

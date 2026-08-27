@@ -28,7 +28,7 @@ class _Account extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = context.palette;
     final theme = Theme.of(context).textTheme;
-    final session = ref.watch(sessionProvider).valueOrNull;
+    final session = ref.watch(viewerProvider);
     final handle = session?.account.handle ?? ref.watch(identityProvider).valueOrNull;
 
     Widget item(String label, VoidCallback onTap, {Color? colour}) => GestureDetector(

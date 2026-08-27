@@ -38,7 +38,7 @@ class _PollViewState extends ConsumerState<PollView> {
   Poll? get _poll => _optimistic ?? widget.post.poll;
 
   Future<void> _vote(PollOption option) async {
-    final session = ref.read(sessionProvider).valueOrNull;
+    final session = ref.read(viewerProvider);
     final poll = _poll;
     if (session == null || poll == null || _busy || poll.viewerVoted || poll.expired) return;
 
@@ -96,7 +96,7 @@ class _PollViewState extends ConsumerState<PollView> {
     final poll = _poll;
     if (poll == null) return const SizedBox.shrink();
 
-    final session = ref.watch(sessionProvider).valueOrNull;
+    final session = ref.watch(viewerProvider);
     final canVote = session != null && poll.open && !poll.viewerVoted;
 
     return Padding(

@@ -31,7 +31,7 @@ List<Widget> postActions(
 }) {
   final palette = context.palette;
   final meta = style ?? Theme.of(context).textTheme.bodySmall!;
-  final session = ref.watch(sessionProvider).valueOrNull;
+  final session = ref.watch(viewerProvider);
   final mine = session != null && session.account.handle == post.author.handle;
 
   return [
@@ -166,7 +166,7 @@ Future<void> _confirmDelete(
   );
   if (confirmed != true) return;
 
-  final session = ref.read(sessionProvider).valueOrNull;
+  final session = ref.read(viewerProvider);
   if (session == null) return;
   try {
     await ref.read(apiProvider).deletePost(session.token, post.id);
@@ -241,7 +241,7 @@ Future<void> _report(BuildContext context, WidgetRef ref, Post post) async {
   );
   if (reason == null) return;
 
-  final session = ref.read(sessionProvider).valueOrNull;
+  final session = ref.read(viewerProvider);
   if (session == null) return;
   try {
     await ref.read(apiProvider).report(session.token, post.id, reason);
@@ -286,7 +286,7 @@ class _FollowButtonState extends ConsumerState<FollowButton> {
   var _busy = false;
 
   Future<void> _toggle(bool following) async {
-    final session = ref.read(sessionProvider).valueOrNull;
+    final session = ref.read(viewerProvider);
     if (session == null || _busy) return;
     final next = !following;
 
@@ -311,7 +311,7 @@ class _FollowButtonState extends ConsumerState<FollowButton> {
 
   @override
   Widget build(BuildContext context) {
-    final session = ref.watch(sessionProvider).valueOrNull;
+    final session = ref.watch(viewerProvider);
     if (session == null || session.account.handle == widget.handle) return const SizedBox.shrink();
 
     final known = _pending ?? ref.watch(followsProvider(widget.handle));
@@ -345,7 +345,7 @@ class BlockAction extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = context.palette;
     final theme = style ?? Theme.of(context).textTheme.bodySmall!;
-    final session = ref.watch(sessionProvider).valueOrNull;
+    final session = ref.watch(viewerProvider);
     if (session == null || session.account.handle == handle) return const SizedBox.shrink();
 
     final blocked = ref.watch(blocksProvider(handle)) ?? false;
@@ -421,7 +421,7 @@ class _FollowTagButtonState extends ConsumerState<FollowTagButton> {
   var _busy = false;
 
   Future<void> _toggle(bool following) async {
-    final session = ref.read(sessionProvider).valueOrNull;
+    final session = ref.read(viewerProvider);
     if (session == null || _busy) return;
     final next = !following;
 
@@ -445,7 +445,7 @@ class _FollowTagButtonState extends ConsumerState<FollowTagButton> {
 
   @override
   Widget build(BuildContext context) {
-    if (ref.watch(sessionProvider).valueOrNull == null) return const SizedBox.shrink();
+    if (ref.watch(viewerProvider) == null) return const SizedBox.shrink();
 
     final known = _pending ?? ref.watch(followsTagProvider(widget.tag));
     final following = known ?? false;
@@ -475,7 +475,7 @@ class _BlockTagActionState extends ConsumerState<BlockTagAction> {
   var _busy = false;
 
   Future<void> _toggle() async {
-    final session = ref.read(sessionProvider).valueOrNull;
+    final session = ref.read(viewerProvider);
     if (session == null || _busy) return;
     final next = !_blocked;
 
@@ -501,7 +501,7 @@ class _BlockTagActionState extends ConsumerState<BlockTagAction> {
   Widget build(BuildContext context) {
     final palette = context.palette;
     final theme = widget.style ?? Theme.of(context).textTheme.bodySmall!;
-    if (ref.watch(sessionProvider).valueOrNull == null) return const SizedBox.shrink();
+    if (ref.watch(viewerProvider) == null) return const SizedBox.shrink();
 
     return Pressable(
       onTap: _busy ? null : _toggle,

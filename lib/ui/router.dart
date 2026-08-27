@@ -28,7 +28,7 @@ GoRouter buildRouter(Ref ref) => GoRouter(
     GoRoute(
       path: '/',
       redirect: (_, _) =>
-          homeRedirect(signedIn: ref.read(sessionProvider).valueOrNull != null),
+          homeRedirect(signedIn: ref.read(viewerProvider) != null),
     ),
     for (final tab in HomeTab.values)
       GoRoute(path: tab.path, builder: (_, _) => HomeScreen(tab: tab)),

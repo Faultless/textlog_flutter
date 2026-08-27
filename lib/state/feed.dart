@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/feed_source.dart';
+import '../data/feed_store.dart';
 import '../core/models.dart';
 import 'cache.dart';
 import 'rate_limit.dart';
@@ -55,16 +56,77 @@ void applyToLiveFeeds(int postId, Post? updated) {
   }
 }
 
+/// Storage keys already served from disk this session.
+///
+/// A stored page is for a *cold start*, so it is offered once. Every later build —
+/// a pull to refresh, the invalidation that follows posting — has to reach the
+/// server, or the reader would be shown the page from before their own write.
+final _servedFromStore = <String>{};
+
 class FeedNotifier extends AutoDisposeFamilyAsyncNotifier<FeedState, FeedSource> {
+  var _disposed = false;
+
   @override
   Future<FeedState> build(FeedSource arg) async {
     cacheFor(ref, feedCacheDuration);
     _liveFeeds.add(this);
-    ref.onDispose(() => _liveFeeds.remove(this));
-    final page = await ref.watch(apiProvider).feed(arg);
+    ref.onDispose(() {
+      _disposed = true;
+      _liveFeeds.remove(this);
+    });
+
+    // A feed kept from a previous session goes up first, and the network lands
+    // behind it. Only the feeds a cold start can open on are stored — see
+    // coldStorageKeyOf.
+    final key = coldStorageKeyOf(arg);
+    if (key != null && _servedFromStore.add(key)) {
+      if (await FeedStore.load(key) case final stored?) {
+        try {
+          final page = Page.fromJson(stored, Post.fromJson);
+          if (page.items.isNotEmpty) {
+            ref.read(postCacheProvider).remember(page.items);
+            ref.read(repliesCacheProvider).noticeCounts(page.items);
+            _revalidate(key);
+            return FeedState(posts: page.items, cursor: page.nextCursor);
+          }
+        } catch (_) {
+          // Stored by a version that shaped it differently. Fetch instead.
+        }
+      }
+    }
+
+    return _fetch(key);
+  }
+
+  /// Fetch the first page, keeping it for the next cold start.
+  Future<FeedState> _fetch(String? key) async {
+    final json = await ref.watch(apiProvider).feedJson(arg);
+    final page = Page.fromJson(json, Post.fromJson);
     ref.read(postCacheProvider).remember(page.items);
     ref.read(repliesCacheProvider).noticeCounts(page.items);
+    if (key != null) await FeedStore.save(key, json);
     return FeedState(posts: page.items, cursor: page.nextCursor);
+  }
+
+  /// Replace the stored page with a fresh one, without the reader waiting on it.
+  ///
+  /// In place rather than through [refresh]: `refresh` invalidates, which builds a
+  /// new notifier, which would read the same stored page and revalidate again —
+  /// forever. Writing `state` directly ends there.
+  ///
+  /// Not awaited by [build] either. The stored posts are already on screen, and a
+  /// failure here leaves them there, which is the right outcome: yesterday's posts
+  /// beat an error page over a feed that loaded fine yesterday.
+  void _revalidate(String key) {
+    Future<void>(() async {
+      try {
+        final fresh = await _fetch(key);
+        if (_disposed) return;
+        state = AsyncData(fresh);
+      } catch (_) {
+        // Offline. The stored page stands.
+      }
+    });
   }
 
   /// [asked] means the reader tapped retry, the one case that ignores both the
@@ -113,4 +175,8 @@ class FeedNotifier extends AutoDisposeFamilyAsyncNotifier<FeedState, FeedSource>
     ref.invalidateSelf();
     await future;
   }
+
+  /// For tests and for signing out: forget that a cold start has been served, so the
+  /// next build offers the stored page again.
+  static void forgetColdStarts() => _servedFromStore.clear();
 }

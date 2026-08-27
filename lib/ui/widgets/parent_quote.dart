@@ -129,7 +129,7 @@ class _QuoteReply extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = context.palette;
     final theme = Theme.of(context).textTheme;
-    final session = ref.watch(sessionProvider).valueOrNull;
+    final session = ref.watch(viewerProvider);
     final mine = session != null && session.account.handle == post.author.handle;
 
     return Pressable(

@@ -83,7 +83,7 @@ class _ComposeState extends ConsumerState<_Compose> {
   };
 
   Future<void> _send() async {
-    final session = ref.read(sessionProvider).valueOrNull;
+    final session = ref.read(viewerProvider);
     final body = _controller.text;
     if (session == null) return;
     if (body.trim().isEmpty || body.length > postMaxLength) {
@@ -137,7 +137,7 @@ class _ComposeState extends ConsumerState<_Compose> {
     ref.invalidate(postProvider(parentId));
     ref.invalidate(threadProvider(parentId));
     ref.invalidate(feedProvider(const LatestFeed()));
-    ref.invalidate(profileProvider(ref.read(sessionProvider).valueOrNull!.account.handle));
+    ref.invalidate(profileProvider(ref.read(viewerProvider)!.account.handle));
   }
 
   /// An edit comes back fully formed, so write it straight into everything holding it.
@@ -151,7 +151,7 @@ class _ComposeState extends ConsumerState<_Compose> {
   /// Keep it without posting it. Editing an existing post is not a draft — there is
   /// already a published thing to change — so it is only offered for new writing.
   bool get _canDraft =>
-      widget.kind != ComposeKind.edit && ref.read(sessionProvider).valueOrNull != null;
+      widget.kind != ComposeKind.edit && ref.read(viewerProvider) != null;
 
   Future<void> _saveDraft() async {
     final body = _controller.text;
@@ -182,7 +182,7 @@ class _ComposeState extends ConsumerState<_Compose> {
   Widget build(BuildContext context) {
     final palette = context.palette;
     final theme = Theme.of(context).textTheme;
-    final handle = ref.watch(sessionProvider).valueOrNull?.account.handle ?? '';
+    final handle = ref.watch(viewerProvider)?.account.handle ?? '';
     final remaining = postMaxLength - _controller.text.length;
 
     return Container(

@@ -67,7 +67,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final session = ref.watch(sessionProvider).valueOrNull;
+    final session = ref.watch(viewerProvider);
     final signedIn = session != null;
     final tabs = HomeTab.visible(signedIn: signedIn);
 

@@ -318,7 +318,7 @@ class _WriteAction extends ConsumerWidget {
     return Pressable(
       hitPadding: const EdgeInsets.symmetric(horizontal: space2, vertical: space3),
       onTap: () async {
-        if (ref.read(sessionProvider).valueOrNull == null) {
+        if (ref.read(viewerProvider) == null) {
           await openCompose(ref);
           return;
         }
@@ -345,7 +345,7 @@ class _You extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final handle =
-        ref.watch(sessionProvider).valueOrNull?.account.handle ??
+        ref.watch(viewerProvider)?.account.handle ??
         ref.watch(identityProvider).valueOrNull;
     return GestureDetector(
       onTap: () => showAccount(context, path: path),

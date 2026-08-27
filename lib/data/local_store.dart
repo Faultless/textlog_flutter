@@ -1,5 +1,6 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../core/models.dart';
 import '../core/notification_plan.dart';
 
 /// Everything the app keeps on the device, in one place.
@@ -33,6 +34,41 @@ abstract final class LocalStore {
     }
   }
 
+  /// The session as of [prime], held so it can be read without waiting.
+  ///
+  /// Only these two values, rather than the whole store: caching the store itself
+  /// would outlive `SharedPreferences.setMockInitialValues` between tests and hand
+  /// one test the previous one's data.
+  static String? _primedToken;
+  static String? _primedHandle;
+
+  /// Open storage once, before the first frame, so what the app already knows is
+  /// available *synchronously* from then on.
+  ///
+  /// This is what stops a cold start showing a signed-out app for a moment. The
+  /// session used to be read asynchronously and then confirmed over the network, so
+  /// the first frames were drawn with no account at all — the header offered `sign
+  /// in`, the account tabs were missing, and the whole thing rearranged itself once
+  /// the answer arrived. Awaiting one local read here costs a few milliseconds and
+  /// removes all of it.
+  static Future<void> prime() async {
+    final preferences = await _open();
+    _primedToken = preferences?.getString(_token);
+    _primedHandle = preferences?.getString(_handle);
+  }
+
+  /// The stored session, or null, without waiting. Only meaningful after [prime].
+  static Session? primedSession() {
+    final token = _primedToken;
+    final handle = _primedHandle;
+    if (token == null || handle == null) return null;
+    return Session(
+      token: token,
+      expiresAt: DateTime.now(),
+      account: Account(handle: handle, bio: '', canPost: true),
+    );
+  }
+
   // -- session ---------------------------------------------------------------
 
   static Future<String?> token() async => (await _open())?.getString(_token);
@@ -40,12 +76,16 @@ abstract final class LocalStore {
   static Future<String?> handle() async => (await _open())?.getString(_handle);
 
   static Future<void> saveSession(String token, String handle) async {
+    _primedToken = token;
+    _primedHandle = handle;
     final preferences = await _open();
     await preferences?.setString(_token, token);
     await preferences?.setString(_handle, handle);
   }
 
   static Future<void> clearSession() async {
+    _primedToken = null;
+    _primedHandle = null;
     final preferences = await _open();
     await preferences?.remove(_token);
     await preferences?.remove(_handle);

@@ -30,7 +30,7 @@ class _BioSheet extends ConsumerStatefulWidget {
 
 class _BioSheetState extends ConsumerState<_BioSheet> {
   late final _field = TextEditingController(
-    text: ref.read(sessionProvider).valueOrNull?.account.bio ?? '',
+    text: ref.read(viewerProvider)?.account.bio ?? '',
   );
   var _busy = false;
 
@@ -41,7 +41,7 @@ class _BioSheetState extends ConsumerState<_BioSheet> {
   }
 
   Future<void> _save() async {
-    final session = ref.read(sessionProvider).valueOrNull;
+    final session = ref.read(viewerProvider);
     if (session == null || _busy) return;
 
     setState(() => _busy = true);

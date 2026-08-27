@@ -123,3 +123,18 @@ Map<String, String> queryOf(FeedSource source) => switch (source) {
   SearchFeed(:final query) => {'q': query},
   _ => const {},
 };
+
+/// Which feeds are worth keeping on disk between sessions, and under what key.
+///
+/// Only the two the app can open on: `hot` and `latest`. A cold start shows one of
+/// them, so having them already on screen is the whole win — whereas keeping every
+/// tag page and every search anyone ever opened would fill a phone with feeds nobody
+/// is about to look at.
+///
+/// The signed-in feeds are deliberately absent: `for you` and `to me` are activity,
+/// and a stale copy of who replied to you is worse than an honest moment of loading.
+String? coldStorageKeyOf(FeedSource source) => switch (source) {
+  LatestFeed() => 'feed:latest',
+  HotFeed() => 'feed:hot',
+  _ => null,
+};

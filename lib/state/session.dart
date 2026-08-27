@@ -15,6 +15,14 @@ final sessionProvider = AsyncNotifierProvider<SessionNotifier, Session?>(Session
 class SessionNotifier extends AsyncNotifier<Session?> {
   @override
   Future<Session?> build() async {
+    // What the device already knows, without waiting for anything. Storage was
+    // opened before the first frame, so this is available immediately — and that is
+    // the difference between opening the app signed in and watching it decide.
+    if (LocalStore.primedSession() case final stored?) {
+      _confirm(stored.token);
+      return stored;
+    }
+
     try {
       final token = await LocalStore.token();
       if (token == null) return null;
@@ -30,6 +38,31 @@ class SessionNotifier extends AsyncNotifier<Session?> {
     } catch (_) {
       // Offline, or the request timed out. Trust what we stored.
       return _stored();
+    }
+  }
+
+  /// Check the stored token behind the reader's back, and fill in the rest of the
+  /// account — the stored copy is only a handle, since that is all the background
+  /// poller ever needed.
+  ///
+  /// Deliberately not awaited by [build]: a slow or absent network must not hold up
+  /// a session the device is already sure of. Only a *rejected* token clears it;
+  /// being offline is not evidence that anyone signed out.
+  Future<void> _confirm(String token) async {
+    try {
+      final account = await ref.read(apiProvider).me(token);
+      final current = state.valueOrNull;
+      // The reader may have signed out, or signed in as someone else, while this
+      // was in flight. Whatever is current wins.
+      if (current == null || current.token != token) return;
+      state = AsyncData(current.withAccount(account));
+    } on ApiFailure catch (failure) {
+      if (!failure.isUnauthorized) return;
+      if (state.valueOrNull?.token != token) return;
+      await _clear();
+      state = const AsyncData(null);
+    } catch (_) {
+      // Offline. What we stored still stands.
     }
   }
 
@@ -88,7 +121,26 @@ class SessionNotifier extends AsyncNotifier<Session?> {
   Future<void> _clear() => LocalStore.clearSession();
 }
 
+/// The session the app has, as far as it knows *right now*.
+///
+/// [sessionProvider] is asynchronous, and an `AsyncNotifier`'s first state is
+/// `loading` even when its `build` returns without awaiting anything. Reading
+/// `valueOrNull` there gives null, which is how a cold start came to draw a
+/// signed-out app — `sign in` in the header, no account tabs — and then rearrange
+/// itself a moment later.
+///
+/// So this falls back to what the device had stored, but only while the real answer
+/// is still coming. Once it arrives, or once someone signs out, it is the only
+/// answer: a cleared session is not a loading one.
+///
+/// **The UI reads this.** [sessionProvider] is for the token and for the actions on
+/// its notifier; anything asking "who am I" or "am I signed in" wants this.
+final viewerProvider = Provider<Session?>((ref) {
+  final live = ref.watch(sessionProvider);
+  return live.valueOrNull ?? (live.isLoading ? LocalStore.primedSession() : null);
+});
+
 /// The handle the app is acting as, from a real session or the handle you typed.
 final viewerHandleProvider = Provider<String?>((ref) {
-  return ref.watch(sessionProvider).valueOrNull?.account.handle;
+  return ref.watch(viewerProvider)?.account.handle;
 });
