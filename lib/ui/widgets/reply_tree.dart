@@ -9,7 +9,7 @@ import '../theme.dart';
 import 'post_actions.dart';
 import 'link_preview_view.dart';
 import 'poll_view.dart';
-import 'post_body.dart';
+import 'translatable_body.dart';
 import 'post_tile.dart';
 import 'todo_view.dart';
 import 'post_meta.dart';
@@ -115,7 +115,7 @@ class _NodeState extends ConsumerState<_Node> {
                 ],
               ),
               const SizedBox(height: space2),
-              PostBody(node.post.body),
+              TranslatableBody(node.post),
               PollView(node.post),
               TodoView(node.post),
               LinkPreviews(node.post),

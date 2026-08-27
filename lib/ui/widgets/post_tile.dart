@@ -11,7 +11,7 @@ import 'parent_quote.dart';
 import 'link_preview_view.dart';
 import 'poll_view.dart';
 import 'post_actions.dart';
-import 'post_body.dart';
+import 'translatable_body.dart';
 import 'post_meta.dart';
 import 'todo_view.dart';
 
@@ -63,10 +63,15 @@ class PostTile extends ConsumerWidget {
       onTap: isSubject ? null : () => openPost(context, post.id),
       child: Container(
         width: double.infinity,
-        padding: EdgeInsets.symmetric(horizontal: gutterOf(context), vertical: space5),
+        padding: EdgeInsets.symmetric(
+          horizontal: gutterOf(context),
+          vertical: space5,
+        ),
         decoration: BoxDecoration(
           border: Border(
-            top: showTopBorder ? BorderSide(color: palette.soft) : BorderSide.none,
+            top: showTopBorder
+                ? BorderSide(color: palette.soft)
+                : BorderSide.none,
           ),
         ),
         child: Column(
@@ -78,11 +83,17 @@ class PostTile extends ConsumerWidget {
               onTap: () => openPost(context, post.id),
             ),
             const SizedBox(height: space3),
-            PostBody(
-              post.body,
+            TranslatableBody(
+              post,
               style: large
                   ? Theme.of(context).textTheme.bodyMedium!.copyWith(
-                      fontSize: math.min(20.0, math.max(16.0, MediaQuery.sizeOf(context).width * 0.025)),
+                      fontSize: math.min(
+                        20.0,
+                        math.max(
+                          16.0,
+                          MediaQuery.sizeOf(context).width * 0.025,
+                        ),
+                      ),
                       height: 1.55,
                       letterSpacing: -0.5,
                     )

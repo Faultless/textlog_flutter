@@ -155,6 +155,15 @@ class _Settings extends ConsumerWidget {
                   ),
                   const SizedBox(height: space4),
                   _Toggle(
+                    title: 'offer translations',
+                    // Says where the translation comes from, because "translate" on
+                    // a phone usually means a request to somebody's cloud.
+                    note: 'when textlog finds a post is not in English',
+                    value: settings.translate,
+                    onChanged: notifier.setTranslate,
+                  ),
+                  const SizedBox(height: space4),
+                  _Toggle(
                     title: 'barebones',
                     note: 'characters instead of icons, no ripples, no animation',
                     value: settings.barebones,
@@ -185,7 +194,7 @@ class _Notifications extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = context.palette;
     final theme = Theme.of(context).textTheme;
-    final signedIn = ref.watch(sessionProvider).valueOrNull != null;
+    final signedIn = ref.watch(viewerProvider) != null;
     final preferences = ref.watch(notifyProvider).valueOrNull ?? NotifyPreferences.off;
     final notifier = ref.read(notifyProvider.notifier);
 
@@ -401,3 +410,4 @@ class _Toggle extends StatelessWidget {
     );
   }
 }
+

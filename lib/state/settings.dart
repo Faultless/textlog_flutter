@@ -11,6 +11,7 @@ final class Settings {
     this.font = FontChoice.jetbrains,
     this.textSize = TextSize.regular,
     this.barebones = false,
+    this.translate = true,
   });
 
   final ThemeChoice theme;
@@ -28,6 +29,11 @@ final class Settings {
   /// buttons, no switches, no spinners, no page slides.
   final bool barebones;
 
+  /// Offer to translate a post the server found was not English. Cheap to leave on:
+  /// nothing is shown unless the server already stored a translation.
+  final bool translate;
+
+
   Chrome get chrome => Chrome(plain: barebones, scale: textSize.scale);
 
   Settings copyWith({
@@ -37,6 +43,7 @@ final class Settings {
     FontChoice? font,
     TextSize? textSize,
     bool? barebones,
+    bool? translate,
   }) => Settings(
     theme: theme ?? this.theme,
     accent: accent ?? this.accent,
@@ -44,6 +51,7 @@ final class Settings {
     font: font ?? this.font,
     textSize: textSize ?? this.textSize,
     barebones: barebones ?? this.barebones,
+    translate: translate ?? this.translate,
   );
 }
 
@@ -58,6 +66,7 @@ class SettingsNotifier extends AsyncNotifier<Settings> {
   static const _fontKey = 'font';
   static const _textSizeKey = 'text_size';
   static const _barebonesKey = 'barebones';
+  static const _translateKey = 'translate';
 
   @override
   Future<Settings> build() async {
@@ -72,6 +81,7 @@ class SettingsNotifier extends AsyncNotifier<Settings> {
         font: FontChoice.fromId(preferences.getString(_fontKey)),
         textSize: TextSize.fromId(preferences.getString(_textSizeKey)),
         barebones: preferences.getBool(_barebonesKey) ?? false,
+        translate: preferences.getBool(_translateKey) ?? true,
       );
     } catch (_) {
       return const Settings();
@@ -107,6 +117,17 @@ class SettingsNotifier extends AsyncNotifier<Settings> {
     state = AsyncData((state.valueOrNull ?? const Settings()).copyWith(barebones: enabled));
     await _writeFlag(_barebonesKey, enabled);
   }
+
+  Future<void> setTranslate(bool enabled) async {
+    state = AsyncData((state.valueOrNull ?? const Settings()).copyWith(translate: enabled));
+    await _writeFlag(_translateKey, enabled);
+  }
+
+
+
+
+
+
 
   Future<void> _writeFlag(String key, bool value) async {
     try {

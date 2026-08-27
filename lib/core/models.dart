@@ -39,6 +39,7 @@ final class Post {
     this.depth,
     this.poll,
     this.linkPreviews = const {},
+    this.translation,
   });
 
   final int id;
@@ -72,6 +73,24 @@ final class Post {
   /// Unfurled cards for the links in the body, keyed by URL.
   final Map<String, LinkPreview> linkPreviews;
 
+  /// An English translation, when the server decided the body was not English.
+  ///
+  /// Server-side on purpose: detection and translation both happen there, once per
+  /// post, so every reader gets the same words and nobody's post is sent to a
+  /// third-party translator by the app. Null on an English post — and the server
+  /// stores nothing when it detects English, so null is the common case.
+  final String? translation;
+
+  /// Worth offering a translation: there is one, and it actually says something
+  /// different. The translator sometimes hands back the input unchanged, and a
+  /// button that swaps a body for itself is worse than no button.
+  bool get isTranslatable {
+    final translated = translation?.trim();
+    return translated != null &&
+        translated.isNotEmpty &&
+        translated != body.trim();
+  }
+
   bool get isReply => parentId != null;
 
   /// True when the author replied to themselves — the site says "continued" rather
@@ -98,6 +117,7 @@ final class Post {
       final Map<String, dynamic> poll => Poll.fromJson(poll),
       _ => null,
     },
+    translation: json['translation'] as String?,
     linkPreviews: {
       for (final entry in (json['link_previews'] as Map<String, dynamic>? ?? const {}).entries)
         entry.key: LinkPreview.fromJson(entry.value as Map<String, dynamic>),
@@ -119,6 +139,7 @@ final class Post {
     depth: depth,
     poll: poll ?? this.poll,
     linkPreviews: linkPreviews,
+    translation: translation,
   );
 
   @override
