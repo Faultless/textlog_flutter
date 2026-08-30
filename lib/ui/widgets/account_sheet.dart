@@ -86,6 +86,7 @@ class _Account extends ConsumerWidget {
                   },
                   () => context.push('/drafts'),
                 ),
+              if (session != null) item('bookmarks', () => context.push('/bookmarks')),
               item('account settings', () => openAccount(ref)),
               item('browser sessions', () => openSessions(ref)),
               item(

@@ -218,6 +218,15 @@ final class TextlogApi {
     token: token,
   );
 
+  /// Keep a post, or stop keeping it. Repeating either is safe — the server treats
+  /// both as idempotent, which is what lets the app answer a tap without first
+  /// asking whether the post is already kept.
+  Future<void> bookmark(String token, int id, {required bool bookmarked}) => _send(
+    bookmarked ? 'POST' : 'DELETE',
+    'posts/$id/bookmark',
+    token: token,
+  );
+
   Future<void> report(String token, int id, String reason) =>
       _send('POST', 'posts/$id/report', token: token, body: {'reason': reason});
 

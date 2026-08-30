@@ -7,6 +7,7 @@ import '../core/app_links.dart';
 import '../core/body_tokens.dart' show linkOrigin;
 
 import '../state/session.dart';
+import 'screens/bookmarks.dart';
 import 'screens/drafts.dart';
 import 'screens/explore.dart';
 import 'screens/home.dart';
@@ -34,6 +35,7 @@ GoRouter buildRouter(Ref ref) => GoRouter(
       GoRoute(path: tab.path, builder: (_, _) => HomeScreen(tab: tab)),
     GoRoute(path: '/me', builder: (_, _) => const MeScreen()),
     GoRoute(path: '/drafts', builder: (_, _) => const DraftsScreen()),
+    GoRoute(path: '/bookmarks', builder: (_, _) => const BookmarksScreen()),
     GoRoute(path: '/explore', builder: (_, _) => const ExploreScreen()),
     GoRoute(
       path: '/search',

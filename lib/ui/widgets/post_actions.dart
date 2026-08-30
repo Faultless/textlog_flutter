@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/models.dart';
+import '../../state/bookmarks.dart';
 import '../../state/cache.dart';
 import '../../state/drafts.dart';
 import '../../state/feed.dart';
@@ -34,6 +35,13 @@ List<Widget> postActions(
   final meta = style ?? Theme.of(context).textTheme.bodySmall!;
   final session = ref.watch(viewerProvider);
   final mine = session != null && session.account.handle == post.author.handle;
+  // Absent means the app has not been told either way, and the menu offers to keep
+  // it — repeating that request is safe. See bookmarksProvider.
+  final kept = ref.watch(bookmarksProvider)[post.id] ?? false;
+  final bookmark = MenuEntry(
+    kept ? 'remove bookmark' : 'bookmark',
+    () => _bookmark(context, ref, post, kept: kept),
+  );
 
   return [
     if (locked)
@@ -71,6 +79,7 @@ List<Widget> postActions(
       PostMenu(
         style: meta,
         entries: [
+          bookmark,
           MenuEntry('edit', () => showCompose(context, kind: ComposeKind.edit, target: post)),
           MenuEntry(
             'move to drafts',
@@ -86,7 +95,7 @@ List<Widget> postActions(
     else if (session != null)
       PostMenu(
         style: meta,
-        entries: [MenuEntry('report', () => _report(context, ref, post))],
+        entries: [bookmark, MenuEntry('report', () => _report(context, ref, post))],
       ),
   ];
 }
@@ -193,6 +202,25 @@ Future<void> _confirmDelete(
       final parent = post.parentId;
       parent == null ? context.go('/') : context.go('/post/$parent');
     }
+  } on ApiFailure catch (failure) {
+    if (context.mounted) toast(context, failure.message);
+  }
+}
+
+/// Keep a post, or stop keeping it.
+///
+/// Says so afterwards, briefly: unlike every other action in this menu there is
+/// nothing on screen that changes, so without a word the tap looks like it did
+/// nothing at all.
+Future<void> _bookmark(
+  BuildContext context,
+  WidgetRef ref,
+  Post post, {
+  required bool kept,
+}) async {
+  try {
+    await ref.read(bookmarksProvider.notifier).toggle(post.id, bookmarked: !kept);
+    if (context.mounted) toast(context, kept ? 'bookmark removed' : 'bookmarked');
   } on ApiFailure catch (failure) {
     if (context.mounted) toast(context, failure.message);
   }

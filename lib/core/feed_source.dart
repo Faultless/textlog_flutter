@@ -92,6 +92,21 @@ final class RepliesFeed extends FeedSource {
   int get hashCode => Object.hash(RepliesFeed, postId, depth);
 }
 
+/// The posts you kept.
+///
+/// Signed in only — it is your own collection, and the server answers 401 without a
+/// token. Ordered by when you bookmarked them rather than when they were written,
+/// which the app does not have to know about: the cursor comes back with the page.
+final class BookmarksFeed extends FeedSource {
+  const BookmarksFeed();
+
+  @override
+  bool operator ==(Object other) => other is BookmarksFeed;
+
+  @override
+  int get hashCode => (BookmarksFeed).hashCode;
+}
+
 /// Full-text search, server side. Its cursor is an offset rather than an id, which
 /// the pagination code does not need to know.
 final class SearchFeed extends FeedSource {
@@ -115,6 +130,7 @@ String pathOf(FeedSource source) => switch (source) {
   TagFeed(:final tag) => 'tags/${Uri.encodeComponent(tag)}/posts',
   RepliesFeed(:final postId) => 'posts/$postId/replies',
   SearchFeed() => 'search',
+  BookmarksFeed() => 'bookmarks',
 };
 
 /// Query parameters beyond `limit` and `cursor`.
