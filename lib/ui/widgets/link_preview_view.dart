@@ -53,6 +53,28 @@ class LinkPreviews extends StatelessWidget {
   }
 }
 
+/// The map card for a `#map` post.
+///
+/// Same card as an unfurled link, because that is what the server sends: a tile it
+/// rendered itself and a caption from the geocoder. Tapping it opens whichever maps
+/// site the server chose — this app does not pick, and no coordinates of the
+/// reader's ever leave the phone.
+class LocationPreview extends StatelessWidget {
+  const LocationPreview(this.post, {super.key});
+
+  final Post post;
+
+  @override
+  Widget build(BuildContext context) {
+    final location = post.location;
+    if (location == null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: space3),
+      child: _Card(url: location.url.toString(), preview: location.preview),
+    );
+  }
+}
+
 class _Card extends StatelessWidget {
   const _Card({required this.url, required this.preview});
 

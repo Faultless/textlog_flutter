@@ -6,7 +6,10 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/body_analysis.dart';
 import '../../core/body_tokens.dart';
+import '../../core/execution.dart';
+import '../../core/highlight.dart';
 import '../../core/markdown.dart';
+import '../../core/models.dart';
 import '../../state/settings.dart';
 import '../router.dart';
 import '../theme.dart';
@@ -203,13 +206,13 @@ class _Rendered extends StatelessWidget {
         ],
       ),
     ),
-    CodeBlock(:final text) => _Scrollable(
+    CodeBlock(:final text, :final language) => _Scrollable(
       fill: true,
       child: Container(
         padding: const EdgeInsets.all(space3),
         color: palette.tagBg,
-        child: Text(
-          text,
+        child: Text.rich(
+          _highlighted(text, language, base, palette),
           style: base.copyWith(height: 1.35, color: palette.ink),
         ),
       ),
@@ -230,6 +233,29 @@ class _Rendered extends StatelessWidget {
 
   Widget _paragraph(BuildContext context, ParagraphBlock block, Palette palette) =>
       _text(context, block.spans, base, palette);
+
+  /// A `js` or `python` fence, coloured the way the site colours it. Any other
+  /// language comes back as one run, so this costs a fence nothing.
+  TextSpan _highlighted(
+    String text,
+    String? language,
+    TextStyle base,
+    Palette palette,
+  ) => TextSpan(
+    children: [
+      for (final span in highlightCode(text, language: language))
+        TextSpan(
+          text: span.text,
+          style: switch (span.kind) {
+            CodeToken.plain => null,
+            CodeToken.keyword => TextStyle(color: palette.accentDark),
+            CodeToken.comment => TextStyle(color: palette.muted),
+            // Strings and numbers share a colour on the site too.
+            CodeToken.string || CodeToken.number => TextStyle(color: palette.selfInk),
+          },
+        ),
+    ],
+  );
 
   Widget _table(BuildContext context, TableBlock block, Palette palette) {
     TextAlign align(int column) => switch (
@@ -406,6 +432,45 @@ class _Tex extends StatelessWidget {
       onErrorFallback: (_) => Text(
         tex,
         style: style.copyWith(backgroundColor: palette.tagBg),
+      ),
+    );
+  }
+}
+
+/// What a `#exec` post printed, under the code that printed it.
+///
+/// The server ran the fence once, when the post was written, and stored the output;
+/// nothing executes on this device and every reader sees the same characters. Drawn
+/// like a code fence because that is what it is — output, monospaced, scrolled
+/// sideways rather than wrapped, and cut to the same ten lines the site shows.
+class ExecutionOutput extends StatelessWidget {
+  const ExecutionOutput(this.post, {super.key});
+
+  final Post post;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!hasExecutionOutput(post.executionOutput)) return const SizedBox.shrink();
+    final palette = context.palette;
+    final base = Theme.of(context).textTheme.bodyMedium!;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: space3),
+      child: _Scrollable(
+        fill: true,
+        child: Container(
+          padding: const EdgeInsets.all(space3),
+          decoration: BoxDecoration(
+            color: palette.tagBg,
+            border: Border(left: BorderSide(color: palette.accent, width: 2)),
+          ),
+          child: Text(
+            displayedExecutionOutput(post.executionOutput!),
+            // The line height code art needs: output is often a drawing, and the
+            // default leading pulls a box apart into stripes.
+            style: base.copyWith(height: 1.15, color: palette.ink),
+          ),
+        ),
       ),
     );
   }

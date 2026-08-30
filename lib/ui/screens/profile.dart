@@ -13,6 +13,7 @@ import '../widgets/feed_view.dart';
 import '../widgets/people_list.dart';
 import '../widgets/post_actions.dart';
 import '../widgets/post_body.dart';
+import '../widgets/post_tile.dart';
 import '../widgets/pressable.dart';
 import '../widgets/shell.dart';
 import '../widgets/status.dart';
@@ -37,6 +38,40 @@ enum ProfileTab {
 
   static ProfileTab fromName(String? name) =>
       values.where((tab) => tab.name == name).firstOrNull ?? ProfileTab.notes;
+}
+
+/// A pinned post, labelled — otherwise it reads as a post out of order.
+Widget? _pinned(Post? post) => post == null ? null : _PinnedPost(post);
+
+class _PinnedPost extends StatelessWidget {
+  const _PinnedPost(this.post);
+
+  final Post post;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: EdgeInsets.only(
+            left: gutterOf(context),
+            right: gutterOf(context),
+            top: space4,
+          ),
+          decoration: BoxDecoration(
+            border: Border(top: BorderSide(color: palette.soft)),
+          ),
+          child: Text(
+            'pinned',
+            style: Theme.of(context).textTheme.labelSmall!.copyWith(color: palette.muted),
+          ),
+        ),
+        PostTile(post),
+      ],
+    );
+  }
 }
 
 class ProfileScreen extends ConsumerWidget {
@@ -85,22 +120,36 @@ class ProfileScreen extends ConsumerWidget {
                 '/u/$handle${tabs[index] == ProfileTab.notes ? '' : '?tab=${tabs[index].name}'}',
               ),
             ),
-            Expanded(child: _pane(active, header)),
+            Expanded(child: _pane(active, header, profile.valueOrNull)),
           ],
         ),
       ),
     );
   }
 
-  Widget _pane(ProfileTab tab, Widget header) => switch (tab) {
+  Widget _pane(ProfileTab tab, Widget header, Profile? profile) => switch (tab) {
+    // A pinned post is drawn above the list and left out of it. The site sorts it to
+    // the top of the same list instead, which the API does not do for us — it hands
+    // the pinned post back on the profile itself, so the app puts it there.
     ProfileTab.notes => FeedView(
       NotesFeed(handle),
       emptyMessage: 'No notes yet.',
-      header: SliverToBoxAdapter(child: header),
+      header: SliverToBoxAdapter(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [header, ?_pinned(profile?.pinnedNote)],
+        ),
+      ),
+      skip: {?profile?.pinnedNote?.id},
     ),
     ProfileTab.replies => FeedView(
       UserRepliesFeed(handle),
       emptyMessage: 'No replies yet.',
+      header: switch (_pinned(profile?.pinnedReply)) {
+        final pinned? => SliverToBoxAdapter(child: pinned),
+        _ => null,
+      },
+      skip: {?profile?.pinnedReply?.id},
     ),
     ProfileTab.following => PeopleList(
       PeopleSource.following(handle),

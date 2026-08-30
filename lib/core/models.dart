@@ -41,6 +41,8 @@ final class Post {
     this.poll,
     this.linkPreviews = const {},
     this.translation,
+    this.executionOutput,
+    this.location,
   });
 
   final int id;
@@ -77,6 +79,18 @@ final class Post {
 
   /// Unfurled cards for the links in the body, keyed by URL.
   final Map<String, LinkPreview> linkPreviews;
+
+  /// What the code in a `#exec` post printed when the server ran it.
+  ///
+  /// The server executes it once, on posting, and stores the output — so every
+  /// reader sees the same thing, and nothing runs on this device. Null on the
+  /// overwhelming majority of posts; an empty string is a program that printed
+  /// nothing, which is not the same thing. See `core/execution.dart` for the rules
+  /// on how much of it is shown.
+  final String? executionOutput;
+
+  /// The place a `#map` post named, geocoded and drawn by the server.
+  final PostLocation? location;
 
   /// An English translation, when the server decided the body was not English.
   ///
@@ -124,6 +138,11 @@ final class Post {
       _ => null,
     },
     translation: json['translation'] as String?,
+    executionOutput: json['execution_output'] as String?,
+    location: switch (json['location']) {
+      final Map<String, dynamic> location => PostLocation.fromJson(location),
+      _ => null,
+    },
     linkPreviews: {
       for (final entry in (json['link_previews'] as Map<String, dynamic>? ?? const {}).entries)
         entry.key: LinkPreview.fromJson(entry.value as Map<String, dynamic>),
@@ -155,6 +174,8 @@ final class Post {
     poll: poll ?? this.poll,
     linkPreviews: linkPreviews,
     translation: translation,
+    executionOutput: executionOutput,
+    location: location,
   );
 
   @override
@@ -177,6 +198,8 @@ final class Profile {
     required this.url,
     this.blockedUserCount,
     this.blockedTagCount,
+    this.pinnedNote,
+    this.pinnedReply,
   });
 
   final String handle;
@@ -195,6 +218,11 @@ final class Profile {
   final int? blockedUserCount;
   final int? blockedTagCount;
 
+  /// The note and the reply this account pinned with `#pin`, which the site puts at
+  /// the top of the matching tab. Null when nothing is pinned — most profiles.
+  final Post? pinnedNote;
+  final Post? pinnedReply;
+
   factory Profile.fromJson(Map<String, dynamic> json) => Profile(
     handle: (json['handle'] as String).toLowerCase(),
     bio: json['bio'] as String? ?? '',
@@ -209,6 +237,14 @@ final class Profile {
     url: Uri.parse(json['url'] as String),
     blockedUserCount: json['blocked_user_count'] as int?,
     blockedTagCount: json['blocked_tag_count'] as int?,
+    pinnedNote: switch (json['pinned_note']) {
+      final Map<String, dynamic> post => Post.fromJson(post),
+      _ => null,
+    },
+    pinnedReply: switch (json['pinned_reply']) {
+      final Map<String, dynamic> post => Post.fromJson(post),
+      _ => null,
+    },
   );
 }
 
@@ -373,6 +409,40 @@ final class LinkPreview {
     imageWidth: json['imageWidth'] as int?,
     imageHeight: json['imageHeight'] as int?,
     mimeType: json['mimeType'] as String?,
+  );
+}
+
+/// A place a post named after `#map`, as the server resolved it.
+///
+/// The app does no geocoding and draws no map: the server geocodes the line, renders
+/// the tile itself and stores it, so a reader's location never goes anywhere and the
+/// picture comes from textlog like every other preview image. [url] is whichever maps
+/// site the server picked for this platform.
+final class PostLocation {
+  const PostLocation({
+    required this.query,
+    required this.displayName,
+    required this.url,
+    required this.preview,
+  });
+
+  /// What the post asked for, verbatim.
+  final String query;
+
+  /// What the geocoder called it: "Kreuzberg, Berlin, Germany".
+  final String displayName;
+
+  final Uri url;
+
+  /// The map tile and its caption, in the same shape as an unfurled link — which is
+  /// how it is drawn, because a place is a card like any other.
+  final LinkPreview preview;
+
+  factory PostLocation.fromJson(Map<String, dynamic> json) => PostLocation(
+    query: json['query'] as String? ?? '',
+    displayName: json['displayName'] as String? ?? '',
+    url: Uri.parse(json['url'] as String),
+    preview: LinkPreview.fromJson(json['preview'] as Map<String, dynamic>),
   );
 }
 

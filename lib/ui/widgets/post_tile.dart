@@ -9,6 +9,7 @@ import '../router.dart';
 import '../theme.dart';
 import 'parent_quote.dart';
 import 'link_preview_view.dart';
+import 'post_body.dart';
 import 'poll_view.dart';
 import 'post_actions.dart';
 import 'swipe_to_reply.dart';
@@ -103,8 +104,10 @@ class PostTile extends ConsumerWidget {
                       )
                     : null,
               ),
+              ExecutionOutput(post),
               PollView(post),
               TodoView(post),
+              LocationPreview(post),
               LinkPreviews(post),
               if (showParent)
                 if (post.parentId case final int parentId)
