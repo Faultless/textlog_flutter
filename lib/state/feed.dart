@@ -1,11 +1,14 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/feed_source.dart';
+import '../core/unread.dart';
+import '../data/api.dart';
 import '../data/feed_store.dart';
 import '../core/models.dart';
 import 'cache.dart';
 import 'rate_limit.dart';
 import 'providers.dart';
+import 'read_queue.dart';
 import 'session.dart';
 
 final class FeedState {
@@ -21,8 +24,10 @@ final class FeedState {
   final List<Post> posts;
   final String? cursor;
 
-  /// Latest feed, signed in: whether anything is unread anywhere in it, and how
-  /// much. Both come from the server; the app does not try to count for itself.
+  /// Latest feed, signed in: whether anything is unread anywhere in it — the
+  /// server's answer, covering the pages not loaded — and how many of them this
+  /// reader is being asked to catch up on, which is the app's own number. See
+  /// `core/unread.dart` for why the two differ.
   final bool hasUnread;
   final int unreadCount;
 
@@ -91,6 +96,21 @@ final _servedFromStore = <String>{};
 class FeedNotifier extends AutoDisposeFamilyAsyncNotifier<FeedState, FeedSource> {
   var _disposed = false;
 
+  /// Held for the queue, which outlives the widget tree by a moment and must not
+  /// reach for a provider after this notifier is gone.
+  TextlogApi? _api;
+  String? _token;
+  late final _queue = ReadQueue<int>(_flush);
+
+  /// What is left of the catch-up set for the pages *after* the first. The first
+  /// page sets it; every later page spends it. See [unreadCatchUp].
+  var _budget = unreadCatchUp;
+
+  /// Marked read during this session. Re-applied to every page that arrives after,
+  /// so a revalidation or a pull-to-refresh cannot put a rail back on a post the
+  /// reader has already scrolled past.
+  final _read = <int>{};
+
   @override
   Future<FeedState> build(FeedSource arg) async {
     cacheFor(ref, feedCacheDuration);
@@ -98,7 +118,9 @@ class FeedNotifier extends AutoDisposeFamilyAsyncNotifier<FeedState, FeedSource>
     ref.onDispose(() {
       _disposed = true;
       _liveFeeds.remove(this);
+      _queue.flush();
     });
+    _api = ref.read(apiProvider);
 
     // A feed kept from a previous session goes up first, and the network lands
     // behind it. Only the feeds a cold start can open on are stored — see
@@ -125,7 +147,12 @@ class FeedNotifier extends AutoDisposeFamilyAsyncNotifier<FeedState, FeedSource>
             ref.read(postCacheProvider).remember(page.items);
             ref.read(repliesCacheProvider).noticeCounts(page.items);
             _revalidate(key, token);
-            return FeedState(posts: page.items, cursor: page.nextCursor);
+            final catchUp = _catchUp(page.items, first: true);
+            return FeedState(
+              posts: catchUp.posts,
+              cursor: page.nextCursor,
+              unreadCount: catchUp.unread,
+            );
           }
         } catch (_) {
           // Stored by a version that shaped it differently. Fetch instead.
@@ -143,11 +170,14 @@ class FeedNotifier extends AutoDisposeFamilyAsyncNotifier<FeedState, FeedSource>
     ref.read(postCacheProvider).remember(page.items);
     ref.read(repliesCacheProvider).noticeCounts(page.items);
     if (key != null) await FeedStore.save(key, json);
+    final catchUp = _catchUp(page.items, first: true);
     return FeedState(
-      posts: page.items,
+      posts: catchUp.posts,
       cursor: page.nextCursor,
       hasUnread: page.hasUnread,
-      unreadCount: page.unreadCount,
+      // Not the server's count: it counts everything back to the last visit, and
+      // this reader is only being offered the newest few of them.
+      unreadCount: catchUp.unread,
     );
   }
 
@@ -193,12 +223,13 @@ class FeedNotifier extends AutoDisposeFamilyAsyncNotifier<FeedState, FeedSource>
       );
       ref.read(postCacheProvider).remember(page.items);
       ref.read(repliesCacheProvider).noticeCounts(page.items);
+      final catchUp = _catchUp(page.items, first: false);
       state = AsyncData(
         FeedState(
-          posts: [...current.posts, ...page.items],
+          posts: [...current.posts, ...catchUp.posts],
           cursor: page.nextCursor,
           hasUnread: page.hasUnread,
-          unreadCount: page.unreadCount,
+          unreadCount: current.unreadCount + catchUp.unread,
         ),
       );
     } catch (error) {
@@ -232,39 +263,70 @@ class FeedNotifier extends AutoDisposeFamilyAsyncNotifier<FeedState, FeedSource>
   /// next build offers the stored page again.
   static void forgetColdStarts() => _servedFromStore.clear();
 
-  /// Mark [postIds] read, and say so on screen before the server has answered.
+  /// A page as this reader should see it: what they have already read stays read,
+  /// and only the newest few of the rest are offered as unread.
   ///
-  /// The server takes 100 an request, so this chunks. A failure is swallowed on
-  /// purpose: the reader has already moved on, and a dot reappearing under them
-  /// would be a worse outcome than one that is briefly optimistic.
-  Future<void> markRead(Iterable<int> postIds) async {
-    final token = ref.read(viewerProvider)?.token;
-    final current = state.valueOrNull;
-    if (token == null || current == null) return;
+  /// [first] resets the budget — a first page is a fresh start, and a later page
+  /// spends what is left of it.
+  ({List<Post> posts, int unread}) _catchUp(List<Post> items, {required bool first}) {
+    final posts = _read.isEmpty
+        ? items
+        : [
+            for (final post in items)
+              _read.contains(post.id) ? post.copyWith(read: true) : post,
+          ];
+    final capped = capUnread(posts, budget: first ? unreadCatchUp : _budget);
+    _budget = first ? unreadCatchUp - capped.unread : _budget - capped.unread;
+    return capped;
+  }
 
-    final wanted = postIds
-        .where((id) => current.posts.any((post) => post.id == id && post.unread == true))
-        .toSet()
-        .toList();
-    if (wanted.isEmpty) return;
-
-    state = AsyncData(current.copyWith(
-      posts: [
-        for (final post in current.posts)
-          wanted.contains(post.id) ? post.copyWith(read: true) : post,
-      ],
-      unreadCount: (current.unreadCount - wanted.length).clamp(0, current.unreadCount),
-    ));
-
+  /// One batch of ids, chunked to the hundred the server takes at a time.
+  ///
+  /// A failure is swallowed on purpose: the reader has already moved on, and a rail
+  /// reappearing under them would be a worse outcome than one that is optimistic.
+  Future<void> _flush(List<int> ids) async {
+    final token = _token;
+    final api = _api;
+    if (token == null || api == null) return;
     try {
-      for (var start = 0; start < wanted.length; start += 100) {
-        await ref
-            .read(apiProvider)
-            .markLatestRead(token, wanted.skip(start).take(100).toList());
+      for (var start = 0; start < ids.length; start += 100) {
+        await api.markLatestRead(token, ids.skip(start).take(100).toList());
       }
     } catch (_) {
       // Left as read locally. The next fetch settles it either way.
     }
+  }
+
+  /// Mark [postIds] read, on screen now and on the server shortly.
+  ///
+  /// Shortly, not now: this is called as posts come into view, so the ids are queued
+  /// and sent once the scrolling stops. See [ReadQueue].
+  ///
+  /// Reading the last of the catch-up set marks the *whole* feed read. That is the
+  /// point of capping it: a reader who has caught up on the newest posts is done,
+  /// and the hundreds behind them — pages that were never even loaded — should not
+  /// be left as a chore to press a button about.
+  Future<void> markRead(Iterable<int> postIds) async {
+    final token = ref.read(viewerProvider)?.token;
+    final current = state.valueOrNull;
+    if (token == null || current == null) return;
+    _token = token;
+
+    final wanted = {...postIds}
+        .where((id) => current.posts.any((post) => post.id == id && post.unread == true))
+        .toList();
+    if (wanted.isEmpty) return;
+
+    _read.addAll(wanted);
+    final posts = [
+      for (final post in current.posts)
+        wanted.contains(post.id) ? post.copyWith(read: true) : post,
+    ];
+    final left = posts.where((post) => post.unread == true).length;
+    state = AsyncData(current.copyWith(posts: posts, unreadCount: left));
+
+    if (left == 0 && current.hasUnread) return markAllRead();
+    _queue.add(wanted);
   }
 
   /// Everything, including the pages not loaded — which is why it is the server's
@@ -274,6 +336,9 @@ class FeedNotifier extends AutoDisposeFamilyAsyncNotifier<FeedState, FeedSource>
     final current = state.valueOrNull;
     if (token == null || current == null) return;
 
+    // Superseded: read-all covers every id that was waiting.
+    _queue.clear();
+    _read.addAll([for (final post in current.posts) post.id]);
     state = AsyncData(current.copyWith(
       posts: [for (final post in current.posts) post.copyWith(read: true)],
       hasUnread: false,

@@ -100,6 +100,10 @@ class NoSession extends SessionNotifier {
   return (container: container, calls: calls, bodies: bodies);
 }
 
+/// Longer than the queue holds ids for. Reads are batched so scrolling through a
+/// feed is one request rather than one a row, so a test has to let it fire.
+Future<void> settle() => Future<void>.delayed(const Duration(milliseconds: 500));
+
 void main() {
   test('decodes a post row and a relationship row differently', () async {
     final t = harness(
@@ -157,6 +161,9 @@ void main() {
         isFalse,
       );
       await pending;
+      // Rows are marked as they scroll into view now, so the ids wait a moment for
+      // whatever else the same flick reads. See ReadQueue.
+      await settle();
 
       expect(t.calls.last, 'POST /api/v1/activities/for-you/read');
       expect(jsonDecode(t.bodies.single), {'activity_ids': ['a']});
@@ -182,16 +189,21 @@ void main() {
       expect(t.calls.length, before);
     });
 
-    test('a failure puts the highlight back', () async {
-      // The server still thinks it is unread, so showing it as read would be a lie.
+    test('a failure leaves it read here anyway', () async {
+      // It used to put the dot back, on the grounds that the server still thought
+      // the row unread. That was defensible when marking meant tapping; now a row
+      // is marked as it scrolls into view, and a dot reappearing under a moving
+      // thumb is worse than one that is briefly optimistic. The next fetch settles
+      // it either way.
       final t = harness(rows: [row('a', unread: true)], failWrites: true);
       final notifier = t.container.read(activityProvider(ActivityScope.forYou).notifier);
       await t.container.read(activityProvider(ActivityScope.forYou).future);
 
       await notifier.markRead(['a']);
+      await settle();
       expect(
         t.container.read(activityProvider(ActivityScope.forYou)).value!.items.single.unread,
-        isTrue,
+        isFalse,
       );
     });
 
@@ -226,6 +238,7 @@ void main() {
       await t.container.read(activityProvider(ActivityScope.forYou).future);
 
       await notifier.markRead(many.map((row) => row['id'] as String));
+      await settle();
 
       expect(t.bodies, hasLength(3));
       expect((jsonDecode(t.bodies.first)['activity_ids'] as List), hasLength(100));

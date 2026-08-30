@@ -84,7 +84,16 @@ Future<List<String>> show(WidgetTester tester, int count) async {
     ),
   );
   await tester.pumpAndSettle();
+  await flushReads(tester);
   return marked;
+}
+
+/// Let the batched ids go out. Marking is optimistic and the request is held for a
+/// moment so a fling costs one of them — see ReadQueue — which a test has to wait
+/// out before it can look at what the server was told.
+Future<void> flushReads(WidgetTester tester) async {
+  await tester.pump(const Duration(milliseconds: 500));
+  await tester.pumpAndSettle();
 }
 
 void main() {
@@ -106,6 +115,7 @@ void main() {
 
       await tester.fling(find.byType(CustomScrollView), const Offset(0, -4000), 800);
       await tester.pumpAndSettle();
+      await flushReads(tester);
 
       expect(marked.length, greaterThan(atOpen.length));
     });
@@ -117,6 +127,7 @@ void main() {
         await tester.pumpAndSettle();
         await tester.fling(find.byType(CustomScrollView), const Offset(0, 300), 600);
         await tester.pumpAndSettle();
+        await flushReads(tester);
       }
 
       // The notifier is optimistic, so without a guard a row that has stopped being

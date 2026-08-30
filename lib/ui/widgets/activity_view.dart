@@ -20,7 +20,7 @@ import 'status.dart';
 /// or a relationship event (someone followed someone, or a tag). Unread rows carry a
 /// dot, and opening one marks it read on the spot rather than waiting on the server.
 ///
-/// Reading one also marks it: a row that has been fully on screen has been read, and
+/// Reading one also marks it: a row that has come into view has been read, and
 /// scrolling past everything used to leave every dot in place until you pressed
 /// "mark all as read" — a chore you had already done by reading. See [seenRows] for
 /// where the line is drawn.
@@ -84,10 +84,11 @@ class _ActivityViewState extends ConsumerState<ActivityView> {
     ];
   }
 
-  /// Measure the unread rows and mark the ones fully on screen.
+  /// Measure the unread rows and mark the ones that have come into view.
   ///
-  /// On scroll *end* rather than on every frame: flinging through a feed is not
-  /// reading it, and a request per frame would be absurd besides.
+  /// On every scroll notification: a row is read when it appears, not when the thumb
+  /// finally lets go. A request per frame would be absurd, which is why the ids are
+  /// batched in the notifier rather than sent from here.
   void _sweep() {
     if (!mounted) return;
     final viewport = _controller.hasClients ? context.findRenderObject() : null;
@@ -126,7 +127,7 @@ class _ActivityViewState extends ConsumerState<ActivityView> {
       onRefresh: notifier.refresh,
       color: context.palette.accent,
       backgroundColor: context.palette.panel,
-      child: NotificationListener<ScrollEndNotification>(
+      child: NotificationListener<ScrollNotification>(
         onNotification: (_) {
           _sweep();
           return false;

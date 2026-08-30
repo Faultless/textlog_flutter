@@ -5,6 +5,7 @@ import '../data/api.dart';
 import 'cache.dart';
 import 'providers.dart';
 import 'rate_limit.dart';
+import 'read_queue.dart';
 import 'session.dart';
 
 final class ActivityState {
@@ -60,9 +61,17 @@ final activityUnreadProvider = Provider.autoDispose.family<bool, ActivityScope>(
 
 class ActivityNotifier
     extends AutoDisposeFamilyAsyncNotifier<ActivityState, ActivityScope> {
+  /// Held for the queue, which may still have ids to send once this notifier and
+  /// the screen above it are gone.
+  TextlogApi? _api;
+  String? _token;
+  late final _queue = ReadQueue<String>(_flush);
+
   @override
   Future<ActivityState> build(ActivityScope arg) async {
     cacheFor(ref, feedCacheDuration);
+    _api = ref.read(apiProvider);
+    ref.onDispose(_queue.flush);
     // Await the session rather than reading whatever it holds right now. On a cold
     // start it is still loading, and treating that as "not signed in" would show an
     // empty feed for a moment and then rebuild — which also meant this provider was
@@ -122,32 +131,41 @@ class ActivityNotifier
     await future;
   }
 
-  /// Mark rows read, on screen first and on the server after.
+  /// One batch, chunked to the hundred the server takes at a time.
+  ///
+  /// A failure is swallowed. Rows are marked as they scroll into view now, so the
+  /// alternative — putting a dot back under a reader who is still scrolling — is
+  /// worse than a mark that is briefly optimistic, and the next fetch settles it.
+  Future<void> _flush(List<String> ids) async {
+    final token = _token;
+    final api = _api;
+    if (token == null || api == null) return;
+    try {
+      for (var start = 0; start < ids.length; start += 100) {
+        await api.markRead(token, arg, ids.skip(start).take(100).toList());
+      }
+    } catch (_) {
+      // Read locally. The next fetch settles it either way.
+    }
+  }
+
+  /// Mark rows read, on screen first and on the server shortly after.
   ///
   /// Reading is not a thing to wait for: the row should stop being highlighted the
-  /// instant you open it. If the request fails the highlight comes back, which is
-  /// the honest outcome — the server still thinks it is unread.
+  /// instant it comes into view. The ids are queued rather than sent, because this
+  /// is called while the reader is still scrolling. See [ReadQueue].
   Future<void> markRead(Iterable<String> ids) async {
     final current = state.valueOrNull;
     final token = ref.read(sessionProvider).valueOrNull?.token;
     if (current == null || token == null) return;
+    _token = token;
 
     final unread = ids.where((id) => current.items.any((item) => item.id == id && item.unread));
     final wanted = unread.toSet().toList();
     if (wanted.isEmpty) return;
 
     state = AsyncData(current.copyWith(items: _read(current.items, wanted.toSet())));
-    try {
-      // The server takes a hundred at a time.
-      for (var start = 0; start < wanted.length; start += 100) {
-        await ref
-            .read(apiProvider)
-            .markRead(token, arg, wanted.skip(start).take(100).toList());
-      }
-    } catch (_) {
-      final now = state.valueOrNull;
-      if (now != null) state = AsyncData(now.copyWith(items: current.items));
-    }
+    _queue.add(wanted);
   }
 
   Future<void> markAllRead() async {
@@ -155,6 +173,8 @@ class ActivityNotifier
     final token = ref.read(sessionProvider).valueOrNull?.token;
     if (current == null || token == null) return;
 
+    // Superseded: read-all covers every id that was waiting.
+    _queue.clear();
     state = AsyncData(
       current.copyWith(
         items: _read(current.items, {for (final item in current.items) item.id}),

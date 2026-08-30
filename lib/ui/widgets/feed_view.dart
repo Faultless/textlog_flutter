@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/feed_source.dart';
 import '../../core/feed_tree.dart';
 import '../../core/seen.dart';
+import '../../core/unread.dart';
 import '../../state/feed.dart';
 import '../../core/search.dart';
 import '../theme.dart';
@@ -21,6 +22,7 @@ class FeedView extends ConsumerStatefulWidget {
     this.emptyMessage = 'Nothing here yet.',
     this.allowFilter = true,
     this.group = true,
+    this.skip = const {},
   });
 
   final FeedSource source;
@@ -30,6 +32,10 @@ class FeedView extends ConsumerStatefulWidget {
   /// Off where a server-side query already narrowed the list; filtering the results
   /// of a search reads as the search having broken.
   final bool allowFilter;
+
+  /// Post ids to leave out. A profile draws its pinned note above the list, and
+  /// showing it a second time further down reads as the feed repeating itself.
+  final Set<int> skip;
 
   /// Join replies to parents on the same page into a thread. Off where the feed is
   /// a list of one author's replies and nesting them under each other would misread
@@ -46,10 +52,17 @@ class _FeedViewState extends ConsumerState<FeedView> {
   final _controller = ScrollController();
   final _search = TextEditingController();
 
-  /// Keys for the unread posts on screen, and the ids already sent. Same machinery
-  /// as the activity feeds, for the same reason: scrolling past something is reading
-  /// it, and the reader should not have to say so afterwards.
+  /// Keys for the unread blocks on screen, keyed by the id of the post at the top of
+  /// each. Same machinery as the activity feeds, for the same reason: scrolling past
+  /// something is reading it, and the reader should not have to say so afterwards.
   final _unread = <int, GlobalKey>{};
+
+  /// The unread posts inside each of those blocks. A feed page joins replies to
+  /// parents that are on it, so one block can hold several unread posts while only
+  /// the top of it is measured — and passing the block passes all of them.
+  final _inside = <int, List<int>>{};
+
+  /// Already marked, so a block that is still on screen is not re-sent every frame.
   final _sent = <int>{};
 
   @override
@@ -75,8 +88,9 @@ class _FeedViewState extends ConsumerState<FeedView> {
     }
   }
 
-  /// Mark the unread posts that have been fully on screen. See `core/seen.dart` for
-  /// where the line is drawn and why `fully` is the whole point.
+  /// Mark the unread posts that have come into view. See `core/seen.dart` for where
+  /// the line is drawn — a slice of a post showing is enough, because that is what
+  /// scrolling one into view looks like.
   void _sweep() {
     if (!mounted || _unread.isEmpty) return;
     final viewport = context.findRenderObject();
@@ -85,13 +99,15 @@ class _FeedViewState extends ConsumerState<FeedView> {
 
     final boxes = <String, Rect>{};
     for (final MapEntry(key: id, value: key) in _unread.entries) {
-      if (_sent.contains(id)) continue;
+      if (_inside[id]?.every(_sent.contains) ?? true) continue;
       final box = key.currentContext?.findRenderObject();
       if (box is! RenderBox || !box.hasSize) continue;
       boxes['$id'] = box.localToGlobal(Offset.zero) & box.size;
     }
 
-    final seen = [for (final id in seenRows(boxes, bounds)) int.parse(id)];
+    final seen = [
+      for (final id in seenRows(boxes, bounds)) ...?_inside[int.parse(id)],
+    ];
     if (seen.isEmpty) return;
     _sent.addAll(seen);
     ref.read(feedProvider(widget.source).notifier).markRead(seen);
@@ -111,7 +127,11 @@ class _FeedViewState extends ConsumerState<FeedView> {
       onRefresh: notifier.refresh,
       color: context.palette.accent,
       backgroundColor: context.palette.panel,
-      child: NotificationListener<ScrollEndNotification>(
+      // On every scroll notification rather than only when the scroll stops. A post
+      // is read when it comes into view, not when the thumb finally lets go, and
+      // measuring a dozen boxes is nothing — the requests are what cost, and those
+      // are batched a layer down. See ReadQueue.
+      child: NotificationListener<ScrollNotification>(
         onNotification: (_) {
           _sweep();
           return false;
@@ -127,7 +147,15 @@ class _FeedViewState extends ConsumerState<FeedView> {
               ],
               AsyncData(:final value) => () {
                 final query = widget.allowFilter ? _search.text : '';
-                final posts = searchPosts(value.posts, query);
+                final posts = searchPosts(
+                  widget.skip.isEmpty
+                      ? value.posts
+                      : [
+                          for (final post in value.posts)
+                            if (!widget.skip.contains(post.id)) post,
+                        ],
+                  query,
+                );
                 final filtering = query.trim().isNotEmpty;
                 final filter = SliverToBoxAdapter(
                   child: _Filter(_search, () => setState(() {})),
@@ -157,18 +185,19 @@ class _FeedViewState extends ConsumerState<FeedView> {
                     filter,
                   SliverList.builder(
                     itemCount: threads.length,
-                    itemBuilder: (context, index) => _Thread(
-                      threads[index],
-                      showTopBorder: index > 0 || widget.header != null,
-                      measureKey:
-                          threads[index].root.unread == true &&
-                              !_sent.contains(threads[index].root.id)
-                          ? _unread.putIfAbsent(
-                              threads[index].root.id,
-                              GlobalKey.new,
-                            )
-                          : null,
-                    ),
+                    itemBuilder: (context, index) {
+                      final thread = threads[index];
+                      final inside = unreadIn(thread);
+                      if (inside.isNotEmpty) _inside[thread.root.id] = inside;
+                      final unread = inside.any((id) => !_sent.contains(id));
+                      return _Thread(
+                        thread,
+                        showTopBorder: index > 0 || widget.header != null,
+                        measureKey: unread
+                            ? _unread.putIfAbsent(thread.root.id, GlobalKey.new)
+                            : null,
+                      );
+                    },
                   ),
                   // Fetching more mid-filter would look like the filter had broken.
                   if (!filtering)

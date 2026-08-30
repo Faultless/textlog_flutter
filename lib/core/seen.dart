@@ -10,14 +10,34 @@ library;
 
 import 'dart:ui' show Rect;
 
-/// The rows fully inside [viewport], and therefore read.
+/// How much of a row has to be showing before it counts, in logical pixels.
 ///
-/// *Fully* is the whole point. Half a row showing at the bottom edge is a row you
-/// have not read, and marking it would quietly lose the thing you were scrolling
-/// towards. Both edges have to be inside, so a row taller than the viewport is never
-/// counted at all — the reader can still tap it, and a wall of text should not be
-/// declared read because it happened to pass by.
-Iterable<String> seenRows(Map<String, Rect> rows, Rect viewport) => [
+/// *Some* of it, not all of it. Requiring the whole row was the old rule and it read
+/// as broken: the post you were looking at — the one filling the screen, the one
+/// half-showing at the bottom that you had plainly started — kept its unread rail,
+/// and a post taller than the viewport could never be marked at all. A row you have
+/// scrolled into view is a row you have seen, so the bar is only high enough to
+/// exclude the hairline of the next post that is always poking in at the edge.
+const seenSlice = 24.0;
+
+/// The rows showing in [viewport], and therefore read.
+///
+/// A row counts once [minVisible] pixels of it are inside the viewport, or — for a
+/// row shorter than that — once all of it is. A row taller than the viewport counts
+/// too, which is the point: a wall of text scrolled through has been read the same
+/// way a short one has.
+Iterable<String> seenRows(
+  Map<String, Rect> rows,
+  Rect viewport, {
+  double minVisible = seenSlice,
+}) => [
   for (final MapEntry(key: id, value: box) in rows.entries)
-    if (box.top >= viewport.top && box.bottom <= viewport.bottom) id,
+    if (_showing(box, viewport) case final showing
+        when showing > 0 && showing >= (box.height < minVisible ? box.height : minVisible))
+      id,
 ];
+
+/// The height of the overlap, or a negative number when there is none.
+double _showing(Rect box, Rect viewport) =>
+    (box.bottom < viewport.bottom ? box.bottom : viewport.bottom) -
+    (box.top > viewport.top ? box.top : viewport.top);
