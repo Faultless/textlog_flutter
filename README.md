@@ -53,8 +53,8 @@ see [Building it for your own iPhone](#building-it-for-your-own-iphone).
 
 Read the whole thing in [ROADMAP.md](ROADMAP.md). In short:
 
-**Working today (v0.6.0)**
-- Feeds the site has: **for you**, **to me**, hot and latest — plus a **live** tab, which the
+**Working today (v0.7.0)**
+- Feeds the site has: **@**, **my feed**, hot and all — plus a **live** tab, which the
   website cannot have, streaming new posts as they are written
 - **Search** across every note, server side
 - Nested reply threads you can fold, with a **flat** view for when five levels of indent is
@@ -80,8 +80,14 @@ Read the whole thing in [ROADMAP.md](ROADMAP.md). In short:
 - Light, dark, sepia and dracula themes, a choice of accent, monospace face and text size
 - **Notifications** for replies, mentions and follows — with a reply field and a
   mark-read button right in the notification
-- Activity and the latest feed mark themselves read as you scroll past, rather than
-  waiting for you to press "mark all as read"
+- Activity and the latest feed **mark themselves read as posts come into view**, rather
+  than waiting for you to press "mark all as read". A fresh start offers a dozen posts
+  to catch up on rather than a day's backlog, and reading those marks the rest read
+- **Bookmarks** — keep a post from its menu, and a list of what you kept, shared with
+  the website
+- **`#exec`** output under the code the server ran, **`#map`** places as a card that
+  opens your maps app, **`#pin`**ned notes above a profile's list, and `js` and
+  `python` code fences coloured
 - **Opens where you left it**: already signed in, with the feed it had, before anything
   loads
 - **Yours to arrange**: reorder or hide tabs, turn off timestamps or reply counts, hide

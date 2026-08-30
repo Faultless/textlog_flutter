@@ -570,10 +570,12 @@ and links to it; so does this.
   do. Acting on an account settles it either way.
 - **A thread wider or deeper than one page.** 100 posts at depth 5 covers virtually
   everything; past that, branches advertise what is missing.
-- **A pinned post is not marked as pinned.** `#pin` sorts the latest one first on a
-  profile, and the API already returns them in that order, so the app gets the ordering
-  for free. It cannot draw the badge: `profile_pinned` is on the website's own post shape,
-  not the API's.
+- **A pinned post is drawn separately, not sorted.** The API returns `pinned_note` and
+  `pinned_reply` on the profile rather than sorting them to the top of the list the way
+  the website does — `profile_pinned` is on the website's own post shape, not the API's.
+  So the app draws the pinned post above the list under a `pinned` label and leaves it
+  out of the list, which says the same thing without pretending to an ordering the
+  server did not give.
 - **Moderation.** The server classifies posts and the website has a consent screen for
   showing what it flagged. `moderation_category` and `moderation_score` are on the
   website's own post shape, not the API's, so the app cannot see the flag to act on it.
@@ -632,6 +634,61 @@ Two things about drawing them, both found on a device:
   XHR. Rendering an `<img>` element instead escapes Flutter's layout and fills the screen,
   which is worse than not having the picture — so web gets the compact form.
 
+## Code that ran, and places
+
+Two more things that live on the post shape rather than in the body, and both are the
+same argument: the server did the work, so the app does not.
+
+**`execution_output`** is what the code fence under a `#exec` line printed when the
+server ran it — once, when the post was written. Nothing executes on the phone and
+every reader sees the same characters. How much of it is shown is the client's job,
+and `core/execution.dart` is the site's rule ported rather than invented: ten lines
+with the last one kept, two hundred characters a line, and the sandbox's own kill
+message dropped. An empty string is a program that printed nothing, which is not the
+same as no output, and draws no box.
+
+**`location`** is a `#map` post's place, geocoded by the server, with a map tile the
+server rendered and stored. So the card is a picture from textlog and a link to
+whichever maps site it picked — the app geocodes nothing and the reader's own location
+is never involved. It is drawn as a link preview card, because that is exactly what
+the server sends.
+
+**Coloured code fences** are the one thing here the server cannot hand over: it
+highlights `js` and `python` with highlight.js and sends HTML to a browser, while the
+API sends the body as it was written. `core/highlight.dart` is a hundred-line scanner
+over comments, strings, numbers and keywords in the same four colours the site's
+stylesheet gives those classes. Deliberately not a parser: it cannot fail on code it
+does not understand, and the worst it does is leave a run plain. Every other language
+comes back as one run, so a fence in anything else costs nothing.
+
+## Bookmarks
+
+`POST`/`DELETE /posts/{id}/bookmark` and `GET /bookmarks`, which is a page of posts
+like any other feed — so it is a `FeedSource` and the pagination, errors and rendering
+came along unchanged.
+
+The one wrinkle is that a post does not say whether it is bookmarked: there is no such
+field on the post shape, and the only posts whose state is known are the ones in
+`/bookmarks` and the ones bookmarked here since launch. `state/bookmarks.dart` is
+therefore a `Map<int, bool>` where **absent means unknown**, not "no". The menu offers
+`bookmark` when it does not know, which is safe because both routes are idempotent —
+and the bookmarks screen tells the map what it loaded, so the menu on those posts can
+offer to remove instead.
+
+## The site's names
+
+The site renamed three feeds — `to me` is `@`, `for you` is `my feed`, `latest` is
+`all` — and the app follows it in the two places a person can see: the tab labels and
+their order. The enum names, the app's own routes and the ids in anyone's stored tab
+arrangement deliberately did not change, because those are not words anybody reads and
+changing them would silently reset a setting.
+
+The API paths did not change either. `/feeds/latest` and `/activities/for-you` are
+documented as backward-compatible aliases of the new spellings, which means the old
+names work against every server the app might meet and the new ones only work against
+a new one. `core/app_links.dart` knows both spellings, so a link written a year ago
+still opens in the app rather than bouncing to a browser.
+
 ## Voice clips
 
 A Vocaroo link plays where it was linked, streamed from textlog's own
@@ -673,21 +730,65 @@ by hand — a cache that changes the answer is worse than no cache.
 
 An activity used to become read only if you tapped it, which meant scrolling through
 everything addressed to you left every dot in place — and the only way to clear them
-was "mark all as read", a chore the reader had already done by reading.
+was "mark all as read", a chore the reader had already done by reading. Scrolling
+marks things read now, and getting that to feel right took three separate rules.
 
-A row is read once it has been **fully** on screen. Fully is the whole point: half a
-row at the bottom edge is the thing you were scrolling towards, and marking it would
-quietly lose it. A row taller than the viewport is never counted at all, so a wall of
-text is not declared read for having passed by. `core/seen.dart` is that rule and
-nothing else, so it can be argued with in a test rather than on a device; the widget
-only measures and reports rectangles.
+**A slice showing is enough.** The first version required a row to be *fully* inside
+the viewport, and that was wrong in both directions: the post filling the screen is
+never fully inside it, the post you have obviously started at the bottom edge is not
+either, and a post taller than the viewport could never be marked at all. So a row
+counts once `seenSlice` pixels of it are showing — or, for a row shorter than that,
+once all of it is. The only thing the bar excludes is the hairline of the next post,
+which is always poking in at the edge and is the thing you are scrolling *towards*.
+`core/seen.dart` is that rule and nothing else, so it can be argued with in a test
+rather than on a device; the widget only measures and reports rectangles.
 
-The sweep runs on scroll *end* rather than per frame — flinging through a feed is not
-reading it — and once more after any build that has data, because at open there has
-been no scroll to notice and the first screenful would otherwise be the one part that
-never marks itself. Ids already sent are remembered: the notifier is optimistic, so a
-row stops being unread locally before the request lands and would otherwise be re-sent
-on every scroll past it.
+**Every scroll notification, not only the end of one.** A post is read when it comes
+into view, not when the thumb finally lets go. Measuring a dozen render boxes per
+frame is nothing; it is the *requests* that would be absurd, so `state/read_queue.dart`
+holds the ids for a moment and sends them together — a fling through forty posts is
+one request. The queue also flushes when the notifier is disposed, because the last
+few posts of a session are exactly the ones whose rails would otherwise be back next
+launch. Ids already sent are remembered, since the notifier is optimistic and a row
+stops being unread locally before the request lands.
+
+**A block, not a row.** A feed page joins replies to parents that are on it, so one
+block on screen can hold several unread posts while only its top is measured. Passing
+the block passes all of them — `unreadIn` in `core/unread.dart` — and without that a
+feed that had visibly been read could never empty, because the replies inside it were
+never named to the server.
+
+A sweep also runs after any build that has data: at open there has been no scroll to
+notice, and the first screenful would otherwise be the one part that never marks
+itself.
+
+## The catch-up set
+
+Marking by reading only works if the unread pile is a size a person can read. The
+latest feed is everything anyone wrote, so a day away is hundreds of posts, and
+"scroll past them to clear them" at that size is a joke — which is why everyone
+pressed "mark all as read", the button the reading rule was meant to make
+unnecessary.
+
+So a fresh start takes the newest `unreadCatchUp` unread posts and shows the rest as
+read. `capUnread` in `core/unread.dart` does it, on the first page and on the stored
+page a cold start opens with; later pages spend whatever budget is left. Nothing is
+sent to the server for the posts outside the set — they are read *on this device*
+until the set is finished.
+
+Finishing it is what marks the feed read. When the last post of the catch-up set is
+marked, `FeedNotifier.markRead` calls `markAllRead`, which is the server's `read-all`
+and therefore covers the pages the app never loaded. A reader who has caught up on
+what they were offered is done, and should not have to say so.
+
+Two consequences worth knowing:
+
+- `FeedState.unreadCount` is the app's number, not the server's. The server counts
+  everything back to your last visit; this counts what is left of what you were
+  offered. `hasUnread` stays the server's, because that is what the tab dot is about.
+- Ids marked read this session are re-applied to every page that arrives afterwards,
+  so a revalidation behind a cold start or a pull-to-refresh cannot put a rail back
+  on a post the reader has already scrolled past.
 
 ## Translation
 

@@ -1,11 +1,11 @@
 # Roadmap
 
-## Where we are — v0.6.0
+## Where we are — v0.7.0
 
 | Area | State |
 |---|---|
-| Feeds (latest, hot) | native, paginated |
-| For you, to me | native, paginated, unread tracked, mark-read optimistic |
+| Feeds (all, hot) | native, paginated |
+| My feed, @ | native, paginated, unread tracked, mark-read optimistic |
 | Live firehose | native, SSE, gap-reconciled |
 | Search | native, server side, debounced |
 | Threads | native, nested 5 deep, **one request**, flat/tree toggle |
@@ -26,8 +26,13 @@
 | Barebones mode | characters instead of icons, no ripples, no animation |
 | Feeds | replies join their parent on the page, so a conversation is not repeated |
 | Notifications | replies, mentions and follows; quick reply and mark-read from the shade |
-| Activity | marks itself read as you scroll past, not only on tap |
-| Latest feed | read as you: unread marks, cleared by scrolling or all at once |
+| Activity | marks itself read as a row comes into view, not only on tap |
+| Latest feed | read as you, a dozen posts at a time; finishing them clears the rest |
+| Bookmarks | keep a post, and a list of what you kept, shared with the website |
+| `#exec` | the output the server got when it ran the code, under the code |
+| `#map` | the place the server geocoded, as a card that opens your maps app |
+| `#pin` | a pinned note and reply, above the profile's list rather than lost in it |
+| Code fences | `js` and `python` coloured, the way the site colours them |
 | Cold start | signed in and showing the last feed before anything loads |
 | Reading prefs | tab order and visibility, timestamps, reply counts, follow notices |
 | Gestures | swipe a post to reply |
@@ -88,6 +93,62 @@ removed account's handle would go. All of that is derivable from the inlined par
 ⚠️ **Deliberately not doing:** scraping textlog.cc's HTML for anything the API does not
 serve. Parsing markup means the app breaks on any markup change on the server, which is
 exactly the fragility this project avoided on day one.
+
+---
+
+## v0.7.0 — read by reading, and caught up with the server
+
+**Reading a post is now what marks it read.** Three things were wrong with the old
+rule and each of them left dots on screen that the reader had earned the right to be
+rid of:
+
+- A post had to be *fully* inside the viewport. The post filling the screen was never
+  fully inside it, and neither was the one you had plainly started at the bottom
+  edge — so the ones you actually read were the ones that stayed unread. Now a slice
+  of a post showing is enough, and the only thing excluded is the hairline of the next
+  one always poking in at the edge.
+- Nothing was marked until the scroll *stopped*. Now every scroll notification sweeps,
+  and the ids are batched behind it — so a fling through forty posts is still one
+  request, and the rails go as they pass.
+- A reply grouped under a post on the same page was never marked at all, because only
+  the top of each block was measured. Passing the block passes everything in it.
+
+**And a backlog you can finish.** The latest feed is everything anyone wrote, so a day
+away means hundreds unread — and a rule that says "scroll past it to clear it" is a
+joke at that size, which is why everyone pressed "mark all as read" instead. A fresh
+start now offers a **catch-up set of a dozen posts**: the newest ones, marked unread,
+with everything behind them shown as read. Read those twelve and the app marks the
+whole feed read on the server, pages it never loaded included. The button is still
+there; it should just never be the only way out.
+
+**Caught up with upstream**, which had moved a long way:
+
+- **Bookmarks.** Keep a post from its menu, and `/bookmarks` lists what you kept —
+  server side, so it is the same collection as the website's.
+- **`#exec`.** The server runs the code fence once, when the post is written, and
+  stores what it printed. The output is drawn under the post, clipped to the same ten
+  lines and two hundred characters a line the site clips it to. Nothing executes on
+  the phone.
+- **`#map`.** The server geocodes the place and renders the tile itself, so the card
+  is a picture from textlog and a link to whichever maps site it picked. The reader's
+  own location is never involved.
+- **`#pin`.** A profile's pinned note and pinned reply come back on the profile, so
+  they are drawn above the list and left out of it rather than sitting in date order.
+- **Coloured code fences.** `js` and `python`, in the four colours the site's
+  stylesheet gives them. A hundred lines of scanner rather than a highlighting
+  library: it cannot fail on code it does not understand, and the worst it does is
+  leave a run plain.
+- **The site's new names.** `to me` is `@`, `for you` is `my feed`, `latest` is `all`,
+  and `@` goes first, as it does on the web. Links to the old URLs still open in the
+  app — the site redirects them, and so does the app's own link table.
+
+The endpoints keep their old spellings on purpose: `/feeds/latest` and
+`/activities/for-you` are documented as backward-compatible aliases of `/feeds/all`
+and `/activities/my-feed`, which means the old names work against every server the app
+might meet and the new ones only work against a new one.
+
+Still upstream-only: the `conversations` feeds — the app groups a page into threads
+itself, and has since v0.2.0 — and moderation flags.
 
 ---
 
