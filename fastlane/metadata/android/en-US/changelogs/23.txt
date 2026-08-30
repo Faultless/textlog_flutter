@@ -1,0 +1,7 @@
+A post is read once it comes into view, rather than once it has been fully on screen and you have stopped scrolling. The posts you actually read used to be the ones that stayed unread.
+
+A fresh start offers a dozen posts to catch up on instead of a day's backlog — and reading those marks the rest read, so "mark all as read" stops being the only way out.
+
+Bookmarks, shared with the website. #exec output under the code the server ran, #map places as a card, #pin notes above a profile, and js and python fences coloured.
+
+The site's names: to me is @, for you is my feed, latest is all.

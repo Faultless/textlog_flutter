@@ -25,10 +25,10 @@ RepoType: git
 Repo: https://github.com/Faultless/textlog_flutter.git
 
 Builds:
-  - versionName: 0.6.0
-    versionCode: 22
+  - versionName: 0.7.0
+    versionCode: 23
     # A tag would be ambiguous if it ever moved; F-Droid asks for the hash.
-    commit: cfa058055a478bc56033dd6de19586c8a4b51f61
+    commit: 2cfad9d865533340ac3c7d17f7e9e8fff5f962f0
     # Where pubspec.yaml lives. Root, here.
     subdir: .
     # Flutter comes from F-Droid's own srclib, checked out at the exact version this
@@ -75,5 +75,5 @@ Builds:
 AutoUpdateMode: Version
 UpdateCheckMode: Tags ^v\d+\.\d+\.\d+$
 UpdateCheckData: pubspec.yaml|version:\s.+\+(\d+)|.|version:\s(.+)\+
-CurrentVersion: 0.6.0
-CurrentVersionCode: 22
+CurrentVersion: 0.7.0
+CurrentVersionCode: 23
