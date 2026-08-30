@@ -38,13 +38,17 @@ String? routeForUrl(String url, {required String origin}) {
     ['tag', final tag] => '/tag/${Uri.encodeComponent(tag.toLowerCase())}',
     ['tag', final tag, 'followers'] =>
       '/tag/${Uri.encodeComponent(tag.toLowerCase())}/followers',
-    // The site's own names for the feeds, which the app mirrors.
+    // The site's own names for the feeds, which the app mirrors. It renamed three
+    // of them — `/latest` is `/all`, `/for-you` is `/my-feed`, `/to-me` is `/@` —
+    // and redirects the old ones, so both spellings are in here: a link written a
+    // year ago should still open in the app rather than bouncing to a browser.
     ['hot'] => '/hot',
-    ['latest'] => '/latest',
-    ['for-you'] => '/for-you',
-    ['to-me'] => '/to-me',
+    ['all'] || ['latest'] => '/latest',
+    ['my-feed'] || ['for-you'] => '/for-you',
+    ['@'] || ['to-me'] => '/to-me',
     ['explore'] => '/explore',
     ['drafts'] => '/drafts',
+    ['bookmarks'] => '/bookmarks',
     ['search'] => target.query.isEmpty ? '/search' : '/search?${target.query}',
     // `/enter` is the site's sign-in page; the app has its own.
     ['enter'] => '/me',

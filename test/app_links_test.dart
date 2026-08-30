@@ -33,6 +33,12 @@ void main() {
       expect(route('https://textlog.cc/latest'), '/latest');
       expect(route('https://textlog.cc/for-you'), '/for-you');
       expect(route('https://textlog.cc/to-me'), '/to-me');
+      // The site's newer names for the same three feeds, which it now redirects the
+      // old ones to. Both spellings open in the app.
+      expect(route('https://textlog.cc/all'), '/latest');
+      expect(route('https://textlog.cc/my-feed'), '/for-you');
+      expect(route('https://textlog.cc/@'), '/to-me');
+      expect(route('https://textlog.cc/bookmarks'), '/bookmarks');
       expect(route('https://textlog.cc/explore'), '/explore');
       expect(route('https://textlog.cc/drafts'), '/drafts');
     });

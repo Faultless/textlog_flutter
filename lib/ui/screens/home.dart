@@ -23,14 +23,19 @@ import 'web_action.dart';
 /// The tabs the site offers, in its order, plus `live` — which the site cannot have
 /// and a phone is the right place for.
 ///
-/// `for you` and `to me` need a token, so they are only mounted when there is one.
-/// That is also why the tab list is computed rather than constant: the set changes
-/// when you sign in.
+/// `my feed` and `@` need a token, so they are only mounted when there is one. That
+/// is also why the tab list is computed rather than constant: the set changes when
+/// you sign in.
+///
+/// The site renamed three of these — `to me` is `@`, `for you` is `my feed`,
+/// `latest` is `all` — and put `@` first. The labels and the order follow it; the
+/// enum names, the routes and the ids in anyone's stored arrangement deliberately do
+/// not, because those are not words anybody reads.
 enum HomeTab {
-  forYou('for you', '/for-you', authenticated: true),
-  toMe('to me', '/to-me', authenticated: true),
+  toMe('@', '/to-me', authenticated: true),
+  forYou('my feed', '/for-you', authenticated: true),
   hot('hot', '/hot'),
-  latest('latest', '/latest'),
+  latest('all', '/latest'),
   live('live', '/live');
 
   const HomeTab(this.label, this.path, {this.authenticated = false});
