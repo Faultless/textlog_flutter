@@ -51,3 +51,6 @@ android/key.properties
 
 # Playwright MCP scratch output from a responsiveness pass.
 .playwright-mcp/
+
+# Release APKs built for F-Droid verification (attached to a GitHub release, never committed).
+fdroid/out/

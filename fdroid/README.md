@@ -5,8 +5,12 @@ merge request as `metadata/dev.serge.textlog.yml`. It lives here so it is versio
 with the app it builds: a new Flutter version or a moved output path breaks it, and
 that should be visible in the same commit that caused it.
 
-**It has not been submitted.** Two things have to happen first, and one of them is a
-decision that cannot be taken back.
+**It has not been submitted yet**, but the decision it was waiting on has been taken:
+**reproducible builds**. F-Droid rebuilds from the recipe, compares the result with
+the APK attached to the GitHub release, and publishes *ours*. Same signature, so
+anyone already running a build from GitHub Releases updates in place instead of having
+to uninstall and lose their settings and their session. See
+[Reproducible builds](#reproducible-builds-what-it-takes) for what that costs.
 
 ## What already holds up
 
@@ -28,9 +32,7 @@ decision that cannot be taken back.
   `flutter build apk --release` still succeeds. F-Droid strips signatures and applies
   its own, so the fallback is harmless there.
 
-## What is still open
-
-### 1. The recipe has never been run
+## The recipe has never been run
 
 `fdroid build` needs their Docker environment (~5GB) or a pipeline on an fdroiddata
 fork. Until one of those has produced an APK, treat every line as a hypothesis. The
@@ -42,27 +44,54 @@ parts most likely to be wrong:
 - The 2-hour default build timeout has to cover cloning the Flutter SDK, resolving
   pub, and a release build.
 
-### 2. Whose key signs it — and this one is a one-way door
+## Reproducible builds: what it takes
 
-By default **F-Droid signs with its own key**, generated per app. The consequence is
-not subtle: Android refuses an in-place upgrade across a signature change, so anyone
-already running the APK from GitHub Releases would have to **uninstall first, losing
-their settings and their signed-in session**, to move to the F-Droid build. And per
-F-Droid's own documentation you cannot switch to the other option afterwards.
+By default F-Droid signs with **its own key**, generated per app, and that is a
+one-way door: Android refuses an in-place upgrade across a signature change, so every
+existing reader would have to uninstall — losing their settings and their session —
+and per F-Droid's documentation you cannot switch afterwards. That is why this app
+goes the other way, and why the recipe carries `binary:` and `AllowedAPKSigningKeys`.
 
-The other option is **reproducible builds**: F-Droid rebuilds from this recipe,
-compares the result against the APK attached to the GitHub release, and publishes
-*ours* — same signature, so an existing install updates in place. It needs
-`Binaries:` and `AllowedAPKSigningKeys:` added to the recipe, and it is real work for
-a Flutter app, because Flutter embeds absolute build paths into its compiled
-libraries: the buildserver has to build from the identical path, which is what the
-`sudo: mkdir -p /upstream/path/…` dance in F-Droid's own Flutter template is for.
-There is also a known trap where `apksigner` from build-tools 35+ produces APKs their
-signature-copying tool cannot verify, so release signing has to be pinned to
-build-tools 34.
+The price is that our APK and F-Droid's rebuild have to come out **byte for byte
+identical apart from the signature**. Two things make that hard for a Flutter app, and
+`build-release.sh` beside this file exists for both:
 
-**Nothing should be submitted until that choice is made**, because the first accepted
-build settles it.
+- **The toolchain.** Release builds happen inside F-Droid's own buildserver image
+  (`registry.gitlab.com/fdroid/fdroidserver:buildserver`, x86_64, emulated on an arm
+  Mac), not on whatever a laptop has installed. The Flutter version is the one pinned
+  in `.github/workflows/pages.yml`, which is where the recipe reads it from too.
+- **The path.** Flutter compiles absolute source paths into `libapp.so`, so a build
+  under `/Users/someone/` cannot match one under `/home/…`. Both sides build in
+  **`/home/runner/work/textlog_flutter/textlog_flutter`** — GitHub Actions' own
+  workspace layout, so these builds can move into CI later without breaking anything.
+  The recipe's `prebuild` and `build` do the `mv` dance to get there and back. **That
+  path must never change**: changing it breaks verification for every release after.
+
+So cutting a release is now `fdroid/build-release.sh v0.7.0`, attaching what lands in
+`fdroid/out/` to the GitHub release, and pointing the recipe's `commit:` at the tag.
+
+One trap that does not apply here: `apksigner` from build-tools 35+ produces APKs
+whose signature block F-Droid's copying tool cannot handle. These APKs are signed by
+AGP during the Gradle build, inside that same image, so there is no separate signing
+step to pin to an older build-tools.
+
+Per-ABI rather than one universal APK, unlike the first draft of this recipe. Flutter
+offsets the versionCode itself — 1000 for `armeabi-v7a`, 2000 for `arm64-v8a`, on top
+of the `+23` in pubspec — so the recipe mirrors that in `VercodeOperation`. It is two
+build entries instead of one, and it saves every reader two thirds of the download.
+
+## Submitting
+
+1. `fdroid/build-release.sh <tag>`, and attach `fdroid/out/*.apk` to that release.
+2. Point `commit:`, `versionName`, `versionCode` and `CurrentVersion*` at the tag.
+3. `fdroid lint dev.serge.textlog` inside an fdroiddata checkout — it catches the
+   metadata mistakes their CI would bounce anyway. (`AntiFeatures: []` and the old
+   category names were both caught this way.)
+4. Fork [fdroiddata](https://gitlab.com/fdroid/fdroiddata), copy the recipe to
+   `metadata/dev.serge.textlog.yml`, commit as `New app: textlog`, push the branch and
+   open a merge request. Their CI builds it and reports whether the rebuild matched;
+   a mismatch is a comment on the MR rather than an accepted build with the wrong
+   signature, so the one-way door stays shut until it passes.
 
 ## Fastlane metadata
 
