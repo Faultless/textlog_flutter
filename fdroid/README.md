@@ -7,10 +7,20 @@ moved output path breaks it, and that should be visible in the same commit that 
 it.
 
 It carries no comments, because it cannot. fdroiddata's CI runs `fdroid rewritemeta`
-and fails on any diff, and the canonical form that produces strips every comment and
-reorders the trailing fields. So the explanation lives here instead, and the file
-stays identical to what is submitted — which is the property worth having, since it is
-the one a reader can check.
+and fails on any diff, and the canonical form that produces strips every comment,
+reorders the trailing fields and wraps long values at about ninety columns. So the
+explanation lives here instead, and the file stays identical to what is submitted —
+which is the property worth having, since it is the one a reader can check.
+
+Canonicalise with **fdroidserver master**, not the release on PyPI: their CI installs
+it straight from git, and the two versions wrap lines differently, which is a
+rewritemeta failure over nothing but whitespace.
+
+```sh
+curl -sL https://gitlab.com/fdroid/fdroidserver/-/archive/master/fdroidserver-master.tar.gz \
+  | tar -xz --directory=fdroidserver-master --strip-components=1
+PYTHONPATH=fdroidserver-master python3 fdroidserver-master/fdroid rewritemeta dev.serge.textlog
+```
 
 **It has not been submitted yet**, but the decision it was waiting on has been taken:
 **reproducible builds**. F-Droid rebuilds from the recipe, compares the result with
