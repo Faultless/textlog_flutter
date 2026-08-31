@@ -32,14 +32,14 @@ Repo: https://github.com/Faultless/textlog_flutter.git
 
 Builds:
   # One entry per ABI, and no universal APK. Flutter offsets the versionCode itself —
-  # 1000 for armeabi-v7a, 2000 for arm64-v8a, on top of the `+23` in pubspec — which
+  # 1000 for armeabi-v7a, 2000 for arm64-v8a, on top of the `+24` in pubspec — which
   # is what VercodeOperation at the bottom mirrors. The universal APK is still
   # attached to each GitHub release for anyone who wants one file; it is a third
   # bigger than the slice a phone can use, which is not what to put in a catalogue.
-  - versionName: 0.7.0
-    versionCode: 1023
+  - versionName: 0.7.1
+    versionCode: 1024
     # A tag would be ambiguous if it ever moved; F-Droid asks for the hash.
-    commit: 2cfad9d865533340ac3c7d17f7e9e8fff5f962f0
+    commit: a7410c33d554e5c3758ec2be50bd71585bdffb24
     subdir: .
     output: build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
     binary: https://github.com/Faultless/textlog_flutter/releases/download/v%v/textlog-%v-armeabi-v7a.apk
@@ -96,9 +96,9 @@ Builds:
     # Must match whatever the pinned Flutter resolves to, or the build drifts.
     ndk: r28c
 
-  - versionName: 0.7.0
-    versionCode: 2023
-    commit: 2cfad9d865533340ac3c7d17f7e9e8fff5f962f0
+  - versionName: 0.7.1
+    versionCode: 2024
+    commit: a7410c33d554e5c3758ec2be50bd71585bdffb24
     subdir: .
     output: build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
     binary: https://github.com/Faultless/textlog_flutter/releases/download/v%v/textlog-%v-arm64-v8a.apk
@@ -156,5 +156,5 @@ UpdateCheckData: pubspec.yaml|version:\s.+\+(\d+)|.|version:\s(.+)\+
 VercodeOperation:
   - 1000 + %c
   - 2000 + %c
-CurrentVersion: 0.7.0
-CurrentVersionCode: 2023
+CurrentVersion: 0.7.1
+CurrentVersionCode: 2024

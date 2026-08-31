@@ -84,11 +84,14 @@ keyPassword=$(cat /keys/textlog-release.password)
 keyAlias=textlog
 KEY
 
-    # Per ABI only. These are the two F-Droid rebuilds and compares; the universal
-    # APK on the release is a convenience for people who do not know their target,
-    # is not in the recipe, and asking one emulated container to produce both is
-    # what got the Gradle daemon killed for running out of memory.
-    flutter build apk --release --split-per-abi
+    # One ABI at a time, exactly as the recipe does it — each of its two build
+    # entries runs a single --target-platform. Building all three at once is both
+    # further from what F-Droid runs and slower, and it drags in x86_64, which
+    # nothing ships: it is the emulator slice, and the CMake configure step the
+    # `jni` package runs for it fails under emulation for reasons that have nothing
+    # to do with this app.
+    flutter build apk --release --split-per-abi --target-platform=android-arm
+    flutter build apk --release --split-per-abi --target-platform=android-arm64
 
     apk=build/app/outputs/flutter-apk
     cp "$apk/app-arm64-v8a-release.apk"   "/out/textlog-$VERSION-arm64-v8a.apk"

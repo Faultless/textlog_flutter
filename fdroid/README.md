@@ -32,17 +32,41 @@ to uninstall and lose their settings and their session. See
   `flutter build apk --release` still succeeds. F-Droid strips signatures and applies
   its own, so the fallback is harmless there.
 
-## The recipe has never been run
+## The recipe has been run, and it verifies
 
-`fdroid build` needs their Docker environment (~5GB) or a pipeline on an fdroiddata
-fork. Until one of those has produced an APK, treat every line as a hypothesis. The
-parts most likely to be wrong:
+`fdroid build dev.serge.textlog:2024`, in F-Droid's own buildserver image, against the
+APK attached to the v0.7.1 release:
 
-- `ndk: r28c` has to match whatever the pinned Flutter resolves to.
-- `srclibs: [flutter@stable]` then checking out an exact version assumes that version
-  is reachable from the `stable` branch.
-- The 2-hour default build timeout has to cover cloning the Flutter SDK, resolving
-  pub, and a release build.
+```
+INFO: ...successfully verified
+INFO: compared built binary to supplied reference binary successfully
+INFO: supplied reference binary has allowed signer c9a6e70c…
+INFO: success: dev.serge.textlog
+```
+
+That is the reproducible build proven rather than hoped for: their tooling built from
+source at the recipe's commit, downloaded our published APK, and found them identical
+apart from the signature — which is ours, and is on their allowed list.
+
+Running it found five things that reading the documentation had not:
+
+1. `AntiFeatures: []` — a list, and fdroidserver 2.x wants a dict. Caught by `fdroid lint`.
+2. Two category names that no longer exist. Also `fdroid lint`, but only against a real
+   fdroiddata checkout: linting with fdroidserver's built-in list is not the same test.
+3. `rm:` globs naming `linux/` and `windows/`, directories this repo has never had. A
+   glob that matches nothing is a build failure, not a no-op.
+4. **The signing config had to move onto one line.** F-Droid strips signing out of the
+   build file with a line-based rule, `signingConfig = <no spaces>`; this app split
+   that assignment across two lines, so the rule deleted the first and left the `?:`
+   continuation stranded. Their build could not compile the file at all. Fixed in
+   v0.7.1, which exists for this and nothing else.
+5. The build script and the recipe have to build the *same way* — one ABI per build,
+   `--target-platform` each time. Building all three ABIs at once also drags in
+   x86_64, whose native CMake step fails under emulation and which nothing ships.
+
+`ndk: r28c` and `srclibs: [flutter@stable]`, the two lines this section used to call
+hypotheses, both hold. The r-name needs a mapping their buildserver has and a local
+container does not, which is a local `config.yml` line, not a recipe change.
 
 ## Reproducible builds: what it takes
 
