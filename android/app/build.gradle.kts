@@ -21,10 +21,8 @@ android {
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
-    // The Android Gradle Plugin otherwise writes a signed blob of dependency
-    // metadata into the APK's signing block, for the Play Store to read. F-Droid's
-    // scanner rejects an APK carrying an extra signing block it cannot account for,
-    // and nothing here wants Google reading a dependency list either way.
+    // F-Droid's scanner rejects the dependency-metadata block AGP adds for the Play
+    // Store.
     dependenciesInfo {
         includeInApk = false
         includeInBundle = false
@@ -66,26 +64,16 @@ android {
 
     buildTypes {
         release {
-            // One line on purpose. F-Droid strips signing configuration out of the
-            // build file before it builds, with a line-based regex that matches
-            // `signingConfig = <no-spaces>` — which used to delete the first line of
-            // this expression and leave the `?:` continuation behind as a syntax
-            // error, so their build of this app could not compile at all. With the
-            // whole expression on one line the regex does not match, the line
-            // survives, the release config it looks for is simply not there, and it
-            // falls back to the debug key exactly as an unsigned build should.
+            // One line on purpose: F-Droid's `remove_signing_keys` deletes a
+            // `signingConfig = <no-spaces>` line, and a split expression left the
+            // `?:` behind as a syntax error.
             signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
     }
 }
 
-// Per-ABI version codes, F-Droid's scheme rather than Flutter's.
-//
-// Flutter's own `--split-per-abi` offsets the code by 1000 for armeabi-v7a and 2000
-// for arm64-v8a, which leaves gaps in the hundreds and sorts oddly against the
-// universal build. F-Droid asks for `code * 10 + n`, which keeps every published code
-// ordered and adjacent — 251 and 252 for pubspec's `+25`. Requested in review on
-// fdroiddata!47312, and it is what their other Flutter apps do.
+// F-Droid's per-ABI code scheme, `code * 10 + n`, instead of the 1000/2000 offsets
+// Flutter picks. Asked for in review on fdroiddata!47312.
 val abiCodes = mapOf("armeabi-v7a" to 1, "arm64-v8a" to 2, "x86_64" to 3)
 android.applicationVariants.configureEach {
     val variant = this

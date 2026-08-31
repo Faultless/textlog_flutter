@@ -1,14 +1,7 @@
-/// Colouring a code fence, for the two languages the site colours.
+/// Colouring `js` and `python` fences, the two the site colours. The API sends bodies
+/// as written, so the app scans them itself.
 ///
-/// textlog highlights `js` and `python` fences server-side with highlight.js and
-/// sends the HTML to a browser. The API sends bodies as they were written, so the app
-/// has to do its own — which is this: a small scanner over comments, strings, numbers
-/// and keywords, in the same four colours the site's stylesheet gives those classes.
-///
-/// Deliberately not a parser. It is a hundred lines against a megabyte of
-/// highlight.js, it never fails on code it does not understand — the worst it can do
-/// is leave a run uncoloured — and a phone reading a two-line snippet does not need
-/// more. Anything but those two languages comes back as one plain run.
+/// Not a parser: the worst it can do is leave a run uncoloured.
 library;
 
 enum CodeToken { plain, keyword, string, comment, number }
@@ -30,7 +23,7 @@ final class CodeSpan {
   String toString() => '${kind.name}(${text.replaceAll('\n', r'\n')})';
 }
 
-/// The fence languages worth colouring, and their aliases — the site's own table.
+/// The site's own table of aliases.
 const _languages = {
   'js': _js,
   'javascript': _js,
@@ -80,8 +73,7 @@ final class _Rules {
   final Set<String> keywords;
 }
 
-/// [code] split into coloured runs, in order and losing nothing: joining every
-/// span's text gives the input back exactly.
+/// [code] split into coloured runs. Joining every span gives the input back exactly.
 List<CodeSpan> highlightCode(String code, {String? language}) {
   final rules = _languages[language?.trim().toLowerCase()];
   if (rules == null || code.isEmpty) {
@@ -157,11 +149,10 @@ List<CodeSpan> highlightCode(String code, {String? language}) {
   return spans;
 }
 
-/// Where the string starting at [start] ends: past its closing quote, or at the end
-/// of the line for one that was never closed — an unterminated quote is a typo, and
-/// colouring the rest of the file for it is how a highlighter makes a mess.
+/// Where the string at [start] ends. An unclosed quote ends at the newline rather
+/// than painting the rest of the post.
 int _stringEnd(String code, int start, String quote) {
-  // ''' and """ run across lines, which is most of what a Python docstring is.
+  // Triple quotes run across lines.
   final triple = code.startsWith(quote * 3, start);
   final mark = triple ? quote * 3 : quote;
   var index = start + mark.length;

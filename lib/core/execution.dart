@@ -1,21 +1,11 @@
-/// How much of a `#exec` post's output is shown.
-///
-/// textlog runs the code fence under a `#exec` line once, when the post is written,
-/// and stores whatever it printed. The API hands that back whole; deciding how much
-/// of it to show is the client's job, and the site's rules are these — ten lines,
-/// two hundred characters a line, and the sandbox's own noise dropped. Ported rather
-/// than invented so a post looks the same here as it does on the web.
-///
-/// Pure, so the rules are a test rather than an argument with a device.
+/// How much of a `#exec` post's output is shown. The API returns it whole; these are
+/// the site's display rules, ported so a post looks the same in both.
 library;
 
-/// Lines beyond this are elided, with the last one kept: the end of a program's
-/// output is usually the answer, and dropping it to show more of the middle would
-/// hide the point of running it.
+/// Lines beyond this are elided, keeping the last one — usually the answer.
 const executionLineLimit = 10;
 
-/// Long lines are cut rather than wrapped. A run of a thousand characters is data,
-/// not prose, and wrapping it would push the post off the screen.
+/// Long lines are cut, not wrapped.
 const executionLineLength = 200;
 
 /// The sandbox says this to itself when it is killed. It is not output.
@@ -45,7 +35,7 @@ String displayedExecutionOutput(String output) {
   ].join('\n');
 }
 
-/// Whether there is anything worth drawing. An empty string is a program that
-/// printed nothing, and a box with nothing in it says less than no box at all.
+/// Whether there is anything worth drawing — an empty string is a program that
+/// printed nothing.
 bool hasExecutionOutput(String? output) =>
     output != null && displayedExecutionOutput(output).trim().isNotEmpty;

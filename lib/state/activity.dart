@@ -61,8 +61,7 @@ final activityUnreadProvider = Provider.autoDispose.family<bool, ActivityScope>(
 
 class ActivityNotifier
     extends AutoDisposeFamilyAsyncNotifier<ActivityState, ActivityScope> {
-  /// Held for the queue, which may still have ids to send once this notifier and
-  /// the screen above it are gone.
+  /// Held for the queue, which may flush after this notifier is gone.
   TextlogApi? _api;
   String? _token;
   late final _queue = ReadQueue<String>(_flush);
@@ -131,11 +130,8 @@ class ActivityNotifier
     await future;
   }
 
-  /// One batch, chunked to the hundred the server takes at a time.
-  ///
-  /// A failure is swallowed. Rows are marked as they scroll into view now, so the
-  /// alternative — putting a dot back under a reader who is still scrolling — is
-  /// worse than a mark that is briefly optimistic, and the next fetch settles it.
+  /// One batch, chunked to the hundred the server takes. A failure is swallowed —
+  /// a dot reappearing under a moving thumb is worse.
   Future<void> _flush(List<String> ids) async {
     final token = _token;
     final api = _api;
@@ -149,11 +145,7 @@ class ActivityNotifier
     }
   }
 
-  /// Mark rows read, on screen first and on the server shortly after.
-  ///
-  /// Reading is not a thing to wait for: the row should stop being highlighted the
-  /// instant it comes into view. The ids are queued rather than sent, because this
-  /// is called while the reader is still scrolling. See [ReadQueue].
+  /// Mark rows read: on screen now, on the server once the scrolling stops.
   Future<void> markRead(Iterable<String> ids) async {
     final current = state.valueOrNull;
     final token = ref.read(sessionProvider).valueOrNull?.token;

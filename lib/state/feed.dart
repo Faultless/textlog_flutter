@@ -24,10 +24,8 @@ final class FeedState {
   final List<Post> posts;
   final String? cursor;
 
-  /// Latest feed, signed in: whether anything is unread anywhere in it — the
-  /// server's answer, covering the pages not loaded — and how many of them this
-  /// reader is being asked to catch up on, which is the app's own number. See
-  /// `core/unread.dart` for why the two differ.
+  /// [hasUnread] is the server's, covering pages not loaded. [unreadCount] is the
+  /// app's: what is left of the catch-up set. See `core/unread.dart`.
   final bool hasUnread;
   final int unreadCount;
 
@@ -96,19 +94,16 @@ final _servedFromStore = <String>{};
 class FeedNotifier extends AutoDisposeFamilyAsyncNotifier<FeedState, FeedSource> {
   var _disposed = false;
 
-  /// Held for the queue, which outlives the widget tree by a moment and must not
-  /// reach for a provider after this notifier is gone.
+  /// Held for the queue, which may flush after this notifier is gone.
   TextlogApi? _api;
   String? _token;
   late final _queue = ReadQueue<int>(_flush);
 
-  /// What is left of the catch-up set for the pages *after* the first. The first
-  /// page sets it; every later page spends it. See [unreadCatchUp].
+  /// What is left of the catch-up set. A first page sets it, later pages spend it.
   var _budget = unreadCatchUp;
 
-  /// Marked read during this session. Re-applied to every page that arrives after,
-  /// so a revalidation or a pull-to-refresh cannot put a rail back on a post the
-  /// reader has already scrolled past.
+  /// Marked read this session, re-applied to later pages so a refresh cannot put a
+  /// rail back.
   final _read = <int>{};
 
   @override
@@ -263,11 +258,7 @@ class FeedNotifier extends AutoDisposeFamilyAsyncNotifier<FeedState, FeedSource>
   /// next build offers the stored page again.
   static void forgetColdStarts() => _servedFromStore.clear();
 
-  /// A page as this reader should see it: what they have already read stays read,
-  /// and only the newest few of the rest are offered as unread.
-  ///
-  /// [first] resets the budget — a first page is a fresh start, and a later page
-  /// spends what is left of it.
+  /// A page as this reader should see it. [first] resets the budget.
   ({List<Post> posts, int unread}) _catchUp(List<Post> items, {required bool first}) {
     final posts = _read.isEmpty
         ? items
@@ -280,10 +271,8 @@ class FeedNotifier extends AutoDisposeFamilyAsyncNotifier<FeedState, FeedSource>
     return capped;
   }
 
-  /// One batch of ids, chunked to the hundred the server takes at a time.
-  ///
-  /// A failure is swallowed on purpose: the reader has already moved on, and a rail
-  /// reappearing under them would be a worse outcome than one that is optimistic.
+  /// One batch, chunked to the hundred the server takes. A failure is swallowed —
+  /// a rail reappearing under a moving thumb is worse.
   Future<void> _flush(List<int> ids) async {
     final token = _token;
     final api = _api;
@@ -297,15 +286,10 @@ class FeedNotifier extends AutoDisposeFamilyAsyncNotifier<FeedState, FeedSource>
     }
   }
 
-  /// Mark [postIds] read, on screen now and on the server shortly.
+  /// Mark [postIds] read: on screen now, on the server once the scrolling stops.
   ///
-  /// Shortly, not now: this is called as posts come into view, so the ids are queued
-  /// and sent once the scrolling stops. See [ReadQueue].
-  ///
-  /// Reading the last of the catch-up set marks the *whole* feed read. That is the
-  /// point of capping it: a reader who has caught up on the newest posts is done,
-  /// and the hundreds behind them — pages that were never even loaded — should not
-  /// be left as a chore to press a button about.
+  /// Reading the last of the catch-up set marks the whole feed read, pages that were
+  /// never loaded included.
   Future<void> markRead(Iterable<int> postIds) async {
     final token = ref.read(viewerProvider)?.token;
     final current = state.valueOrNull;

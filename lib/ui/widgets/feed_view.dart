@@ -33,8 +33,7 @@ class FeedView extends ConsumerStatefulWidget {
   /// of a search reads as the search having broken.
   final bool allowFilter;
 
-  /// Post ids to leave out. A profile draws its pinned note above the list, and
-  /// showing it a second time further down reads as the feed repeating itself.
+  /// Post ids to leave out — a profile draws its pinned note above the list instead.
   final Set<int> skip;
 
   /// Join replies to parents on the same page into a thread. Off where the feed is
@@ -52,17 +51,14 @@ class _FeedViewState extends ConsumerState<FeedView> {
   final _controller = ScrollController();
   final _search = TextEditingController();
 
-  /// Keys for the unread blocks on screen, keyed by the id of the post at the top of
-  /// each. Same machinery as the activity feeds, for the same reason: scrolling past
-  /// something is reading it, and the reader should not have to say so afterwards.
+  /// Keys for the unread blocks on screen, by the id of the post at the top of each.
   final _unread = <int, GlobalKey>{};
 
-  /// The unread posts inside each of those blocks. A feed page joins replies to
-  /// parents that are on it, so one block can hold several unread posts while only
-  /// the top of it is measured — and passing the block passes all of them.
+  /// The unread posts inside each block — a page nests replies under parents, so one
+  /// block can hold several.
   final _inside = <int, List<int>>{};
 
-  /// Already marked, so a block that is still on screen is not re-sent every frame.
+  /// Already marked, so an on-screen block is not re-sent every frame.
   final _sent = <int>{};
 
   @override
@@ -88,9 +84,7 @@ class _FeedViewState extends ConsumerState<FeedView> {
     }
   }
 
-  /// Mark the unread posts that have come into view. See `core/seen.dart` for where
-  /// the line is drawn — a slice of a post showing is enough, because that is what
-  /// scrolling one into view looks like.
+  /// Mark the unread posts that have come into view. The rule is in `core/seen.dart`.
   void _sweep() {
     if (!mounted || _unread.isEmpty) return;
     final viewport = context.findRenderObject();
@@ -127,10 +121,8 @@ class _FeedViewState extends ConsumerState<FeedView> {
       onRefresh: notifier.refresh,
       color: context.palette.accent,
       backgroundColor: context.palette.panel,
-      // On every scroll notification rather than only when the scroll stops. A post
-      // is read when it comes into view, not when the thumb finally lets go, and
-      // measuring a dozen boxes is nothing — the requests are what cost, and those
-      // are batched a layer down. See ReadQueue.
+      // Every notification, not just the end: a post is read when it appears. The
+      // requests are batched in ReadQueue.
       child: NotificationListener<ScrollNotification>(
         onNotification: (_) {
           _sweep();

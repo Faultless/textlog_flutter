@@ -80,13 +80,8 @@ final class Post {
   /// Unfurled cards for the links in the body, keyed by URL.
   final Map<String, LinkPreview> linkPreviews;
 
-  /// What the code in a `#exec` post printed when the server ran it.
-  ///
-  /// The server executes it once, on posting, and stores the output — so every
-  /// reader sees the same thing, and nothing runs on this device. Null on the
-  /// overwhelming majority of posts; an empty string is a program that printed
-  /// nothing, which is not the same thing. See `core/execution.dart` for the rules
-  /// on how much of it is shown.
+  /// What a `#exec` post printed when the server ran it. An empty string is a
+  /// program that printed nothing, which is not the same as null.
   final String? executionOutput;
 
   /// The place a `#map` post named, geocoded and drawn by the server.
@@ -218,8 +213,7 @@ final class Profile {
   final int? blockedUserCount;
   final int? blockedTagCount;
 
-  /// The note and the reply this account pinned with `#pin`, which the site puts at
-  /// the top of the matching tab. Null when nothing is pinned — most profiles.
+  /// What this account pinned with `#pin`. Null on most profiles.
   final Post? pinnedNote;
   final Post? pinnedReply;
 
@@ -412,12 +406,8 @@ final class LinkPreview {
   );
 }
 
-/// A place a post named after `#map`, as the server resolved it.
-///
-/// The app does no geocoding and draws no map: the server geocodes the line, renders
-/// the tile itself and stores it, so a reader's location never goes anywhere and the
-/// picture comes from textlog like every other preview image. [url] is whichever maps
-/// site the server picked for this platform.
+/// A place a `#map` post named, geocoded and drawn by the server. The app does no
+/// geocoding and the reader's own location is never involved.
 final class PostLocation {
   const PostLocation({
     required this.query,
@@ -434,8 +424,7 @@ final class PostLocation {
 
   final Uri url;
 
-  /// The map tile and its caption, in the same shape as an unfurled link — which is
-  /// how it is drawn, because a place is a card like any other.
+  /// Same shape as an unfurled link, and drawn as one.
   final LinkPreview preview;
 
   factory PostLocation.fromJson(Map<String, dynamic> json) => PostLocation(

@@ -1,17 +1,11 @@
 import 'dart:async';
 
-/// Ids the reader has scrolled past, held for a moment so a fling is one request.
-///
-/// Reading now marks a post the instant it comes into view rather than when the
-/// scroll stops, which is the behaviour a reader expects and also several marks a
-/// second while a thumb is moving. On screen that is free — the notifier is
-/// optimistic, so the rail goes immediately — but one request per post would be
-/// absurd, so the ids pile up here and go out together once the reader pauses.
+/// Ids the reader has scrolled past, held for a moment so a fling costs one request
+/// rather than one per post.
 class ReadQueue<T> {
   ReadQueue(this._send, {this.delay = const Duration(milliseconds: 400)});
 
-  /// Sends one batch. Chunking to whatever the endpoint accepts is its business,
-  /// as is swallowing a failure: by then the reader has moved on.
+  /// Sends one batch. Chunking and swallowing failures are its business.
   final Future<void> Function(List<T> ids) _send;
 
   final Duration delay;
@@ -26,9 +20,8 @@ class ReadQueue<T> {
     _timer = Timer(delay, flush);
   }
 
-  /// Send what has piled up, now. Called on the timer, and again when the feed is
-  /// disposed — leaving the last few posts of a session unsent would mean their
-  /// rails came back next launch, which is exactly the complaint.
+  /// Send what has piled up. Also called on dispose, or the last posts of a session
+  /// would come back unread.
   void flush() {
     _timer?.cancel();
     _timer = null;
@@ -38,7 +31,7 @@ class ReadQueue<T> {
     unawaited(_send(going).catchError((Object _) {}));
   }
 
-  /// Drop what is pending, for when a "mark everything" request supersedes it.
+  /// Drop what is pending, when "mark everything" supersedes it.
   void clear() {
     _timer?.cancel();
     _timer = null;
