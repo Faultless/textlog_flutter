@@ -44,7 +44,11 @@ echo "textlog $version · $(git -C "$root" rev-parse --short "$commit") · flutt
 
 # --platform: the buildserver image is x86_64, and so is the machine F-Droid rebuilds
 # on. Emulated on an arm Mac, which is slow and correct.
+# Named volumes for the SDK and Gradle's caches. Nothing in them reaches the APK —
+# they exist so a second run does not spend a quarter of an hour re-downloading an
+# Android SDK through an emulator.
 docker run --rm --platform linux/amd64 \
+  -v textlog-android-sdk:/opt/android-sdk -v textlog-gradle:/root/.gradle \
   -v "$root":/src:ro -v "$out":/out -v "$KEYS":/keys:ro \
   -e "REPRO=$REPRO" -e "FLUTTER_VERSION=$flutter_version" -e "VERSION=$version" \
   -e "COMMIT=$(git -C "$root" rev-parse "$commit")" \
@@ -80,17 +84,19 @@ keyPassword=$(cat /keys/textlog-release.password)
 keyAlias=textlog
 KEY
 
+    # Per ABI only. These are the two F-Droid rebuilds and compares; the universal
+    # APK on the release is a convenience for people who do not know their target,
+    # is not in the recipe, and asking one emulated container to produce both is
+    # what got the Gradle daemon killed for running out of memory.
     flutter build apk --release --split-per-abi
-    flutter build apk --release
 
     apk=build/app/outputs/flutter-apk
     cp "$apk/app-arm64-v8a-release.apk"   "/out/textlog-$VERSION-arm64-v8a.apk"
     cp "$apk/app-armeabi-v7a-release.apk" "/out/textlog-$VERSION-armeabi-v7a.apk"
-    cp "$apk/app-release.apk"             "/out/textlog-$VERSION.apk"
     rm -f android/key.properties
   '
 
 echo
 sha256sum "$out"/*.apk
 echo
-echo "Attach these to the v$version release — the ones F-Droid will compare against."
+echo "Attach these to the v$version release — the ones F-Droid rebuilds and compares."

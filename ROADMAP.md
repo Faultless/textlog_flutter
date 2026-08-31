@@ -1,6 +1,6 @@
 # Roadmap
 
-## Where we are — v0.7.0
+## Where we are — v0.7.1
 
 | Area | State |
 |---|---|
@@ -93,6 +93,23 @@ removed account's handle would go. All of that is derivable from the inlined par
 ⚠️ **Deliberately not doing:** scraping textlog.cc's HTML for anything the API does not
 serve. Parsing markup means the app breaks on any markup change on the server, which is
 exactly the fragility this project avoided on day one.
+
+---
+
+## v0.7.1 — buildable by F-Droid
+
+One line, and no change anyone can see. F-Droid builds from source, and before it
+builds it strips signing configuration out of `build.gradle.kts` with a line-based
+rule: `signingConfig = <something with no spaces>`. This app's release signing config
+was written across two lines, so the rule deleted the first and left the `?:`
+continuation behind — their build could not compile the file at all. It is one line
+now, which the rule does not match, and the fallback to the debug key that F-Droid
+wants happens by itself once the `signingConfigs` block above it is removed.
+
+Found by running `fdroid build` against the recipe for the first time rather than by
+reading the documentation, which is also how three metadata errors and a pair of `rm:`
+globs pointing at directories this repo has never had came to light. See
+[fdroid/README.md](fdroid/README.md).
 
 ---
 

@@ -56,8 +56,15 @@ android {
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.findByName("release")
-                ?: signingConfigs.getByName("debug")
+            // One line on purpose. F-Droid strips signing configuration out of the
+            // build file before it builds, with a line-based regex that matches
+            // `signingConfig = <no-spaces>` — which used to delete the first line of
+            // this expression and leave the `?:` continuation behind as a syntax
+            // error, so their build of this app could not compile at all. With the
+            // whole expression on one line the regex does not match, the line
+            // survives, the release config it looks for is simply not there, and it
+            // falls back to the debug key exactly as an unsigned build should.
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
     }
 }
