@@ -1,3 +1,0 @@
-Everything in 0.7.0, plus the one change that made this build possible on F-Droid: the signing configuration is written on a single line, because F-Droid strips signing out of the build file with a line-based rule that used to leave a syntax error behind.
-
-0.7.0: a post is read once it comes into view rather than once it has been fully on screen and you have stopped scrolling; a fresh start offers a dozen posts to catch up on instead of a day's backlog, and reading those marks the rest read; bookmarks; #exec output; #map cards; #pin on profiles; coloured js and python fences; and the site's names — to me is @, for you is my feed, latest is all.

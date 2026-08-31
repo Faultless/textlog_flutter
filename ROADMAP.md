@@ -1,6 +1,6 @@
 # Roadmap
 
-## Where we are — v0.7.1
+## Where we are — v0.7.2
 
 | Area | State |
 |---|---|
@@ -93,6 +93,25 @@ removed account's handle would go. All of that is derivable from the inlined par
 ⚠️ **Deliberately not doing:** scraping textlog.cc's HTML for anything the API does not
 serve. Parsing markup means the app breaks on any markup change on the server, which is
 exactly the fragility this project avoided on day one.
+
+---
+
+## v0.7.2 — what F-Droid review asked for
+
+Two changes, neither of them visible in the app.
+
+**Per-ABI version codes on F-Droid's scheme.** Flutter offsets a split build's code by
+1000 for `armeabi-v7a` and 2000 for `arm64-v8a`, which leaves holes in the hundreds and
+sorts strangely against the universal build. F-Droid asks for `code * 10 + n`, so
+pubspec's `+25` becomes 251 and 252 — adjacent, ordered, and the same scheme their
+other Flutter apps use. Done in `build.gradle.kts` with the snippet from the review on
+[fdroiddata!47312](https://gitlab.com/fdroid/fdroiddata/-/merge_requests/47312).
+
+**No dependency metadata in the signature.** The Android Gradle Plugin writes a signed
+blob listing the app's dependencies into the APK signing block, for the Play Store to
+read. F-Droid's scanner rejects an APK carrying a signing block it cannot account for,
+which is the right call, and nothing here wanted Google reading a dependency list
+either. `dependenciesInfo { includeInApk = false }`.
 
 ---
 
