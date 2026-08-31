@@ -1,0 +1,16 @@
+# The environment fdroiddata's "fdroid rewritemeta" job runs in: debian trixie, the
+# Debian fdroidserver package for its dependencies, then fdroidserver master from git
+# on top. The YAML wrapping is a function of the ruamel.yaml version underneath, so
+# only this combination produces the file their CI accepts.
+FROM debian:trixie-slim
+RUN apt-get --allow-releaseinfo-change update \
+ && apt-get -qy dist-upgrade \
+ && apt-get install -qy --no-install-recommends fdroidserver git curl ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+RUN mkdir -p /opt/fdroidserver \
+ && curl --silent https://gitlab.com/fdroid/fdroidserver/-/archive/master/fdroidserver-master.tar.gz \
+    | tar -xz --directory=/opt/fdroidserver --strip-components=1
+ENV PATH=/opt/fdroidserver:$PATH
+ENV PYTHONPATH=/opt/fdroidserver:/opt/fdroidserver/examples
+ENV PYTHONUNBUFFERED=true
+ENV serverwebroot=/tmp

@@ -12,15 +12,22 @@ reorders the trailing fields and wraps long values at about ninety columns. So t
 explanation lives here instead, and the file stays identical to what is submitted —
 which is the property worth having, since it is the one a reader can check.
 
-Canonicalise with **fdroidserver master**, not the release on PyPI: their CI installs
-it straight from git, and the two versions wrap lines differently, which is a
-rewritemeta failure over nothing but whitespace.
+Canonicalise it **in their environment**, not with whatever is installed locally. The
+line wrapping comes from `ruamel.yaml`, and its version decides where lines fold:
+Debian trixie ships 0.18.10, a pip install today gives 0.19.1, and the two disagree —
+which is a rewritemeta failure over nothing but whitespace, twice over, in both
+directions. Their job is `debian:trixie-slim` + the Debian `fdroidserver` package for
+its dependencies + fdroidserver master from git, so that is what
+`Dockerfile.rewrite` builds:
 
 ```sh
-curl -sL https://gitlab.com/fdroid/fdroidserver/-/archive/master/fdroidserver-master.tar.gz \
-  | tar -xz --directory=fdroidserver-master --strip-components=1
-PYTHONPATH=fdroidserver-master python3 fdroidserver-master/fdroid rewritemeta dev.serge.textlog
+docker build --platform linux/amd64 -f Dockerfile.rewrite -t fdroid-rewrite .
+docker run --rm --platform linux/amd64 -v "$PWD/fdroiddata":/repo -w /repo \
+  fdroid-rewrite fdroid rewritemeta dev.serge.textlog
 ```
+
+Two clues that you are looking at this problem: the diff is only whitespace, and it
+reverses direction when you change tool versions.
 
 **It has not been submitted yet**, but the decision it was waiting on has been taken:
 **reproducible builds**. F-Droid rebuilds from the recipe, compares the result with
@@ -108,6 +115,14 @@ And from the fdroiddata pipeline, on the first submission:
 9. **Builds run unprivileged.** `mkdir -p /home/runner/work` cannot work there, and a
    local container running as root will never tell you so. The build path moved to
    `/tmp/build`.
+10. **An extra signing block.** The Android Gradle Plugin writes a signed blob of
+    dependency metadata into the APK signing block for the Play Store; their scanner
+    rejects any block it cannot account for. `dependenciesInfo { includeInApk = false }`,
+    in v0.7.2.
+11. **Version codes on their scheme.** Asked for in review: `code * 10 + n` per ABI,
+    not the 1000/2000 offsets Flutter picks, done in `build.gradle.kts` and mirrored in
+    `VercodeOperation`. Also v0.7.2.
+12. **The canonical form depends on a YAML library version.** See above.
 
 `ndk: r28c` and `srclibs: [flutter@stable]`, the two lines this section used to call
 hypotheses, both hold. The r-name needs a mapping their buildserver has and a local
