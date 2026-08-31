@@ -22,9 +22,11 @@
 set -euo pipefail
 
 IMAGE=registry.gitlab.com/fdroid/fdroidserver:buildserver
-# The path both this build and F-Droid's rebuild happen in. GitHub Actions' own
-# workspace layout, so moving these builds into CI later changes nothing.
-REPRO=/home/runner/work/textlog_flutter/textlog_flutter
+# The path both this build and F-Droid's rebuild happen in. Under /tmp because their
+# builds run as an unprivileged user: anywhere else needs a root `sudo:` block in the
+# recipe to create and chown it first, which is a dependency on the name of their
+# build user. This needs nothing.
+REPRO=/tmp/build/textlog_flutter
 KEYS=${KEYSTORE_DIR:-$HOME/keystores}
 
 root=$(cd "$(dirname "$0")/.." && pwd)

@@ -1,9 +1,16 @@
 # Packaging for F-Droid
 
-`dev.serge.textlog.yml` is the recipe to paste into an [fdroiddata](https://gitlab.com/fdroid/fdroiddata)
-merge request as `metadata/dev.serge.textlog.yml`. It lives here so it is versioned
-with the app it builds: a new Flutter version or a moved output path breaks it, and
-that should be visible in the same commit that caused it.
+`dev.serge.textlog.yml` is the recipe, byte for byte as it is submitted to
+[fdroiddata](https://gitlab.com/fdroid/fdroiddata) as `metadata/dev.serge.textlog.yml`.
+It lives here so it is versioned with the app it builds: a new Flutter version or a
+moved output path breaks it, and that should be visible in the same commit that caused
+it.
+
+It carries no comments, because it cannot. fdroiddata's CI runs `fdroid rewritemeta`
+and fails on any diff, and the canonical form that produces strips every comment and
+reorders the trailing fields. So the explanation lives here instead, and the file
+stays identical to what is submitted — which is the property worth having, since it is
+the one a reader can check.
 
 **It has not been submitted yet**, but the decision it was waiting on has been taken:
 **reproducible builds**. F-Droid rebuilds from the recipe, compares the result with
@@ -32,6 +39,22 @@ to uninstall and lose their settings and their session. See
   `flutter build apk --release` still succeeds. F-Droid strips signatures and applies
   its own, so the fallback is harmless there.
 
+## What the recipe says, and why
+
+Every choice in it, since the file itself cannot explain them:
+
+| Field | Why |
+|---|---|
+| two `Builds` entries | one per ABI. Flutter offsets the versionCode itself — 1000 for `armeabi-v7a`, 2000 for `arm64-v8a`, on top of the `+24` in pubspec — which is what `VercodeOperation` mirrors. The universal APK stays on the GitHub release for anyone who wants one file; it is three times the size of the slice a phone can use, which is not what belongs in a catalogue. |
+| `commit:` a hash, not a tag | a tag would be ambiguous if it ever moved. |
+| no `subdir:` | the app is at the repo root, which is the default. Their schema rejects `subdir: .` outright. |
+| `binary:` + `AllowedAPKSigningKeys` | the reproducible build. See below. |
+| `srclibs: [flutter@stable]` then a checkout | the Flutter version comes from `.github/workflows/pages.yml`, read by `prebuild`, so the recipe and CI cannot drift apart. |
+| `rm:` without `linux`/`windows` | this repo has never had those directories, and a glob matching nothing is a build failure. |
+| `PUB_CACHE` inside the tree | so their scanner sees every Dart dependency rather than skipping a directory it does not know about, with `scandelete` dropping the archives. |
+| `ndk: r28c` | must match what the pinned Flutter resolves to. |
+| no `AntiFeatures` | textlog.cc is AGPL and self-hostable and the app reads its instance origin from one constant, so it is not a client of one service in the sense the flag means. |
+
 ## The recipe has been run, and it verifies
 
 `fdroid build dev.serge.textlog:2024`, in F-Droid's own buildserver image, against the
@@ -48,7 +71,8 @@ That is the reproducible build proven rather than hoped for: their tooling built
 source at the recipe's commit, downloaded our published APK, and found them identical
 apart from the signature — which is ours, and is on their allowed list.
 
-Running it found five things that reading the documentation had not:
+Running it found five things that reading the documentation had not, and their
+pipeline then found four more — the ones a root container could never have shown:
 
 1. `AntiFeatures: []` — a list, and fdroidserver 2.x wants a dict. Caught by `fdroid lint`.
 2. Two category names that no longer exist. Also `fdroid lint`, but only against a real
@@ -64,9 +88,24 @@ Running it found five things that reading the documentation had not:
    `--target-platform` each time. Building all three ABIs at once also drags in
    x86_64, whose native CMake step fails under emulation and which nothing ships.
 
+And from the fdroiddata pipeline, on the first submission:
+
+6. `subdir: '.'` is rejected by their metadata schema. Root is the default; the field
+   was redundant.
+7. `fdroid rewritemeta` must produce no diff, and its canonical form deletes every
+   comment. The recipe cannot document itself.
+8. `checkupdates` fails the same way for the same reason.
+9. **Builds run unprivileged.** `mkdir -p /home/runner/work` cannot work there, and a
+   local container running as root will never tell you so. The build path moved to
+   `/tmp/build`.
+
 `ndk: r28c` and `srclibs: [flutter@stable]`, the two lines this section used to call
 hypotheses, both hold. The r-name needs a mapping their buildserver has and a local
 container does not, which is a local `config.yml` line, not a recipe change.
+
+The lesson worth keeping: a local verification is only as good as the ways it differs
+from theirs. Ours ran as root, which hid a whole class of failure until the pipeline
+ran it as a normal user.
 
 ## Reproducible builds: what it takes
 
@@ -86,10 +125,16 @@ identical apart from the signature**. Two things make that hard for a Flutter ap
   in `.github/workflows/pages.yml`, which is where the recipe reads it from too.
 - **The path.** Flutter compiles absolute source paths into `libapp.so`, so a build
   under `/Users/someone/` cannot match one under `/home/…`. Both sides build in
-  **`/home/runner/work/textlog_flutter/textlog_flutter`** — GitHub Actions' own
-  workspace layout, so these builds can move into CI later without breaking anything.
-  The recipe's `prebuild` and `build` do the `mv` dance to get there and back. **That
-  path must never change**: changing it breaks verification for every release after.
+  **`/tmp/build/textlog_flutter`**, and the recipe's `prebuild` and `build` do the
+  `mv` dance to get there and back. **That path must never change**: changing it
+  breaks verification for every release after.
+
+  Under `/tmp` for a reason. F-Droid runs builds as an unprivileged user, so a path
+  anywhere else — `/home/runner/...`, as this recipe first had it — needs a root
+  `sudo:` block in the recipe to create and chown it, which also hardcodes the name of
+  their build user. `/tmp` needs neither. This was not caught locally because the
+  verification container ran as root, where every path is writable; it was caught by
+  their pipeline, which does not.
 
 So cutting a release is now `fdroid/build-release.sh v0.7.0`, attaching what lands in
 `fdroid/out/` to the GitHub release, and pointing the recipe's `commit:` at the tag.

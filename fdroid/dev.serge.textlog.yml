@@ -1,19 +1,3 @@
-# The recipe to paste into an fdroiddata merge request as
-# metadata/dev.serge.textlog.yml. Kept here so it is versioned with the app it
-# builds, and so a change that breaks it (a new Flutter version, a moved output
-# path) is visible in the same commit.
-#
-# NOT YET SUBMITTED. It has to be validated by `fdroid build` — either locally in
-# their Docker environment or by the pipelines on an fdroiddata fork — before the MR
-# is worth opening. See fdroid/README.md.
-#
-# This is a *reproducible build* recipe: `binary:` points at the APK attached to the
-# GitHub release, `AllowedAPKSigningKeys` is the certificate that signed it, and
-# F-Droid publishes our APK rather than one signed with a key of theirs. That is what
-# keeps an existing install upgradable in place — a signature change would make every
-# reader uninstall and lose their session — and it is why the build below goes to such
-# lengths about the *path* it builds in.
-
 Categories:
   - Internet
   - Social Network
@@ -23,67 +7,42 @@ SourceCode: https://github.com/Faultless/textlog_flutter
 IssueTracker: https://github.com/Faultless/textlog_flutter/issues
 Changelog: https://github.com/Faultless/textlog_flutter/releases
 
-# No AntiFeatures. textlog.cc is AGPL and self-hostable, and the app reads its
-# instance origin from one constant, so this is not hardwired to a single server —
-# a client of one service is the usual reason for a TetheredNet flag.
-
 RepoType: git
 Repo: https://github.com/Faultless/textlog_flutter.git
 
 Builds:
-  # One entry per ABI, and no universal APK. Flutter offsets the versionCode itself —
-  # 1000 for armeabi-v7a, 2000 for arm64-v8a, on top of the `+24` in pubspec — which
-  # is what VercodeOperation at the bottom mirrors. The universal APK is still
-  # attached to each GitHub release for anyone who wants one file; it is a third
-  # bigger than the slice a phone can use, which is not what to put in a catalogue.
   - versionName: 0.7.1
     versionCode: 1024
-    # A tag would be ambiguous if it ever moved; F-Droid asks for the hash.
     commit: a7410c33d554e5c3758ec2be50bd71585bdffb24
-    subdir: .
     output: build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
     binary: https://github.com/Faultless/textlog_flutter/releases/download/v%v/textlog-%v-armeabi-v7a.apk
-    # Flutter comes from F-Droid's own srclib, checked out at the exact version this
-    # release was built with. That version lives in the CI workflow, and prebuild
-    # reads it from there rather than repeating it, so the two cannot drift.
     srclibs:
       - flutter@stable
-    # Nothing here is used by an Android build.
-    # Only what exists: fdroidserver errors on a glob that matches nothing, and
-    # this repo has no linux/ or windows/ directory to remove.
     rm:
       - ios
       - macos
       - web
       - test
     prebuild:
-      # POSIX classes, not \s/\S: those are GNU extensions, so this same line can
-      # be checked on a Mac before it is trusted on their Debian buildserver.
-      - FLUTTER_VERSION=$(sed -n -E 's/.*flutter-version:[[:space:]]*([^[:space:]]+).*/\1/p' .github/workflows/pages.yml)
+      - FLUTTER_VERSION=$(sed -n -E 's/.*flutter-version:[[:space:]]*([^[:space:]]+).*/\1/p'
+        .github/workflows/pages.yml)
       - '[[ $FLUTTER_VERSION ]]'
       - git -C $$flutter$$ checkout -f $FLUTTER_VERSION
       - $$flutter$$/bin/flutter config --no-analytics
-      # Everything below is about building at *the same absolute path* the release
-      # APK was built at. Flutter compiles absolute source paths into libapp.so, so
-      # a build under a different directory differs byte for byte from ours and the
-      # reproducible check fails on a difference nobody wrote. See fdroid/README.md.
-      - export REPRO=/home/runner/work/textlog_flutter
+      - export REPRO=/tmp/build
       - mkdir -p $REPRO
       - cd ..
       - mv dev.serge.textlog $REPRO/textlog_flutter
       - pushd $REPRO/textlog_flutter
-      # Pub's cache inside the build tree, so the scanner sees every Dart dependency
-      # rather than skipping over a directory it does not know about.
       - export PUB_CACHE=$(pwd)/.pub-cache
       - $$flutter$$/bin/flutter pub get --enforce-lockfile
       - popd
       - mv $REPRO/textlog_flutter dev.serge.textlog
       - cd dev.serge.textlog
-    # The Dart packages are sources plus a pub cache of archives; the archives go.
     scandelete:
       - .pub-cache
     build:
-      - export REPRO=/home/runner/work/textlog_flutter
+      - export REPRO=/tmp/build
       - mkdir -p $REPRO
       - cd ..
       - mv dev.serge.textlog $REPRO/textlog_flutter
@@ -93,30 +52,27 @@ Builds:
       - popd
       - mv $REPRO/textlog_flutter dev.serge.textlog
       - cd dev.serge.textlog
-    # Must match whatever the pinned Flutter resolves to, or the build drifts.
     ndk: r28c
 
   - versionName: 0.7.1
     versionCode: 2024
     commit: a7410c33d554e5c3758ec2be50bd71585bdffb24
-    subdir: .
     output: build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
     binary: https://github.com/Faultless/textlog_flutter/releases/download/v%v/textlog-%v-arm64-v8a.apk
     srclibs:
       - flutter@stable
-    # Only what exists: fdroidserver errors on a glob that matches nothing, and
-    # this repo has no linux/ or windows/ directory to remove.
     rm:
       - ios
       - macos
       - web
       - test
     prebuild:
-      - FLUTTER_VERSION=$(sed -n -E 's/.*flutter-version:[[:space:]]*([^[:space:]]+).*/\1/p' .github/workflows/pages.yml)
+      - FLUTTER_VERSION=$(sed -n -E 's/.*flutter-version:[[:space:]]*([^[:space:]]+).*/\1/p'
+        .github/workflows/pages.yml)
       - '[[ $FLUTTER_VERSION ]]'
       - git -C $$flutter$$ checkout -f $FLUTTER_VERSION
       - $$flutter$$/bin/flutter config --no-analytics
-      - export REPRO=/home/runner/work/textlog_flutter
+      - export REPRO=/tmp/build
       - mkdir -p $REPRO
       - cd ..
       - mv dev.serge.textlog $REPRO/textlog_flutter
@@ -129,7 +85,7 @@ Builds:
     scandelete:
       - .pub-cache
     build:
-      - export REPRO=/home/runner/work/textlog_flutter
+      - export REPRO=/tmp/build
       - mkdir -p $REPRO
       - cd ..
       - mv dev.serge.textlog $REPRO/textlog_flutter
@@ -141,20 +97,13 @@ Builds:
       - cd dev.serge.textlog
     ndk: r28c
 
-# The certificate that signs every release APK, so F-Droid can publish ours instead of
-# rebuilding and signing with a key of its own. `keytool -printcert -jarfile` on any
-# attached APK prints it; it is the same one on the GitHub releases going back to
-# v0.1.0, and it must never change.
 AllowedAPKSigningKeys: c9a6e70cea72c16c2f146789eb2a7919cecfb36baad3666972fd001423cfe6d6
 
-# `version: 0.4.0+20` in pubspec.yaml, read the way F-Droid's own docs give the
-# Flutter case: the code from after the `+`, the name from before it.
 AutoUpdateMode: Version
 UpdateCheckMode: Tags ^v\d+\.\d+\.\d+$
-UpdateCheckData: pubspec.yaml|version:\s.+\+(\d+)|.|version:\s(.+)\+
-# Flutter's own ABI offsets, mirrored so an automatic update gets the codes right.
 VercodeOperation:
   - 1000 + %c
   - 2000 + %c
+UpdateCheckData: pubspec.yaml|version:\s.+\+(\d+)|.|version:\s(.+)\+
 CurrentVersion: 0.7.1
 CurrentVersionCode: 2024
