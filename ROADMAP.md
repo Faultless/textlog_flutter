@@ -1,6 +1,6 @@
 # Roadmap
 
-## Where we are — v0.7.2
+## Where we are — v0.7.3
 
 | Area | State |
 |---|---|
@@ -93,6 +93,21 @@ removed account's handle would go. All of that is derivable from the inlined par
 ⚠️ **Deliberately not doing:** scraping textlog.cc's HTML for anything the API does not
 serve. Parsing markup means the app breaks on any markup change on the server, which is
 exactly the fragility this project avoided on day one.
+
+---
+
+## v0.7.3 — an update nobody could install
+
+0.7.2 adopted F-Droid's per-ABI version code scheme, `code * 10 + n`. Every previous
+release used Flutter's own offsets, so arm64 had gone 2021, 2022, 2023, 2024 — and the
+new scheme produced **252**. Lower. Android refuses a lower version code, so the
+update was uninstallable; [#8](https://github.com/Faultless/textlog_flutter/issues/8)
+is Obtainium saying exactly that.
+
+The scheme is right and stays. The base moved instead: pubspec's build number jumps
+from 25 to **300**, so the codes are 3001 and 3002, clear of everything published
+before. A version code can never go down, and adopting any new scheme has to start
+above the old one.
 
 ---
 

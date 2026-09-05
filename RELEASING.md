@@ -7,6 +7,12 @@ Manual for now: build the APK, create a GitHub release, attach it.
 `pubspec.yaml`, `version: <name>+<code>`. The build number must go **up** every release or
 Android refuses to install over the previous one.
 
+The published code is not the build number: `android/app/build.gradle.kts` gives each
+ABI `code * 10 + n`, so `+300` ships 3001 and 3002. Releases up to 0.7.1 used Flutter's
+own 1000/2000 offsets and reached 2024, which is why the base starts at 300 — see
+[#8](https://github.com/Faultless/textlog_flutter/issues/8), where 0.7.2 shipped a
+lower code and could not be installed over 0.7.1.
+
 ```yaml
 version: 0.0.1+1
 ```

@@ -1,0 +1,3 @@
+Fixes an update that could not be installed. 0.7.2 moved to F-Droid's per-ABI version code scheme, which produced 252 where 0.7.1 had shipped 2024 — a lower number, so Android and Obtainium both refused it as a downgrade. The build number now starts at 300, well clear of every code this app has published, so 0.7.3 installs over anything.
+
+Reported in issue #8. No other changes.
