@@ -61,12 +61,14 @@ Every scrollable list of posts in the app is one of these:
 ```dart
 sealed class FeedSource {}
   LatestFeed()                    -> feeds/latest
+  NewFeed()                       -> feeds/new
   HotFeed()                       -> feeds/hot
   NotesFeed(handle)               -> users/{handle}/notes
   UserRepliesFeed(handle)         -> users/{handle}/replies
   TagFeed(tag)                    -> tags/{tag}/posts
   RepliesFeed(postId, depth: n)   -> posts/{id}/replies?depth=n
   SearchFeed(query)               -> search?q=…
+  BookmarksFeed()                 -> bookmarks
 ```
 
 The server returns the same envelope for all of them, so one notifier
@@ -137,8 +139,17 @@ URL. Bodies render identically to the website.
 
 `core/body_tokens.dart` is a port of the server's `linkTokens` / `linkify`, and
 `core/content.dart` a port of its `content.ts`. Between them they decide what a body *is*:
-which hashtags count (unicode, capped at five, ignoring anything inside code or a URL),
-whether it is ASCII art, and where a spoiler splits it.
+which hashtags count, whether it is ASCII art, and where a spoiler splits it.
+
+A hashtag is unicode, capped at fifteen to a post, ignored inside code, inside a URL or
+behind a `\` escape, and **normalised the way the server indexes it**: lowercased, with
+underscores removed and the word made singular. `#Cats`, `#cats` and `#cat` are one tag,
+`#ascii_art` and `#asciiart` are one tag, and the exceptions the server names — `#news`,
+`#emacs`, a double `s`, a `-us`, a `-sis` — stay whole. Every special tag the app looks
+for is matched against that form, so `#Lock` and `#locks` close a thread too. The one
+deliberate divergence: the server also applies Unicode NFC, and Dart has no normaliser in
+its core library, so a tag written with decomposed accents can differ. Documented in
+`content.dart` rather than silently wrong.
 
 The split that matters is **what is always rendered versus what is opt-in**:
 
@@ -146,9 +157,19 @@ The split that matters is **what is always rendered versus what is opt-in**:
   something the author did not write: inline `` `code` ``, ``` fences, `$x$` and `$$x$$`
   LaTeX, `[label](url)`, `*bold*`, `_underline_`, `/italics/`, `~strikethrough~` (one
   tilde, not just two), `|redacted|`, bare and schemeless URLs, mentions, hashtags,
-  spoilers, `>` quoted lines, polls and quizzes.
-- **Behind the `markdown` setting**, because the site keeps a post body flat: headings,
-  ordered and unordered lists, task lists, tables and rules.
+  spoilers, `>` quoted lines, polls and quizzes — and, since the site grew them,
+  **tables, lists and horizontal rules**.
+- **Behind the `markdown` setting**, because the site still keeps these flat: headings,
+  task-list checkboxes, and the looser CommonMark spellings of the blocks above —
+  indented quotes, nested lists, a one-item list.
+
+Tables, lists and rules moved out of the setting when upstream started rendering them in
+an ordinary post body. They are parsed by ports of the site's own `markdownTable`,
+`markdownList` and `markdownHorizontalRule`, which are stricter than CommonMark in ways
+that matter: a delimiter row needs **three** dashes, a list needs **two** items (one
+dashed line is a sentence), and a table cell splits on `|` while respecting `\|` escapes
+and backtick code spans. Both modes share those parsers, so the setting cannot change
+what a table *is* — only whether the extra CommonMark around it is drawn.
 
 The emphasis markers are worth stating plainly, because three of them read as something
 else in every other dialect: `*x*` is **bold**, `_x_` is <u>underline</u>, and italics is
@@ -453,7 +474,7 @@ a test for exactly that.
 ## Nested threads
 
 `/posts/{id}/replies` takes a `depth` of 1 to 20 and returns the **whole subtree, flat** —
-every reply carrying its own `depth` and `parent_id`. So a thread is one request, and
+every reply carrying its own `depth` and `parent_id`. So opening a thread is one request, and
 `state/thread.dart` groups the response by parent and hands it to the pure assembler in
 `core/reply_tree.dart`.
 
@@ -461,11 +482,26 @@ It did not used to be. The endpoint returned direct children only, so a nested t
 request per branching node: `maxThreadRequests` was 8, the walk was breadth-first and
 concurrent, and a wide thread still ran out of budget. All of that machinery is gone.
 
+**Read as the reader.** `GET /posts/{id}` and `/posts/{id}/replies` both carry the session
+token. This is not a nicety: the server decides reply visibility from who is asking. A
+`#meta` thread is invisible to an anonymous request, a `#whisper` thread is visible only to
+the people in it, and `#HiddenReplies` opens only to someone who has already replied. Read
+signed out, all three are a post with no replies — under a count the feed had just shown,
+because feeds *did* carry the token. That asymmetry was the bug.
+
+**Two levels a request, not five.** `threadFetchDepth` is deliberately shallower than
+`maxThreadDepth`. The page is the **newest** `repliesPerNode` of the subtree, not the top
+ones, so asking for five levels lets one busy branch deep in a thread fill the whole page and
+push the thread's own direct replies off it. Two levels spends the page on the levels a
+reader starts on; everything below arrives per branch, through the same `+ N more replies`
+path that already existed for what sits past the nesting cap. The nesting cap itself is
+unchanged — this is about what one request asks for, not how deep the tree draws.
+
 What remains is the part that was always the good idea: **`reply_count` is the change
 signal.** Every post says how many replies it has, so a node whose children the response
-could not reach — because it sat past `maxThreadDepth`, or because the 100-post page cut it
-off — shows `+ N more replies` rather than a silently short branch. Tapping it is one more
-request for that subtree.
+could not reach — because it sat past `threadFetchDepth`, past `maxThreadDepth`, or because
+the 100-post page cut it off — shows `+ N more replies` rather than a silently short branch.
+Tapping it is one more request for that subtree.
 
 Two subtleties in the grouping, both covered by tests:
 
@@ -496,9 +532,10 @@ three showed up as "the +N more link does nothing":
   observed when those replies were cached, and says nothing when it never saw one.
 
 Because ids only ever increase, a post that made it into a page brings all its
-descendants with it — a page can never separate a node from its own children. So
-in-place expansion exists for one case only: a branch whose cached replies were dropped
-because the server reported a different count.
+descendants with it — a page can never separate a node from its own children. So within
+one request's depth, in-place expansion is for one case only: a branch whose cached
+replies were dropped because the server reported a different count. Below that depth it
+is the ordinary path, and the one the thread now hangs off.
 
 ### A page whose newest replies are all deep
 
@@ -518,8 +555,8 @@ the thread is never blank when it has replies.
 that a *subtree* rooted at some id was fetched to some depth. The children are what the tree
 is assembled from; the mark is what stops reopening a thread paying for it again.
 
-The depth is recorded per node, not just per request: a node three levels into a five-level
-fetch has two levels below it, so it is marked as covered to depth two. Without that,
+The depth is recorded per node, not just per request: a node one level into a two-level
+fetch has one level below it, so it is marked as covered to depth one. Without that,
 opening that node's own page would reuse the cache and show a shallower tree than a fresh
 request would.
 
@@ -640,12 +677,21 @@ Two more things that live on the post shape rather than in the body, and both ar
 same argument: the server did the work, so the app does not.
 
 **`execution_output`** is what the code fence under a `#exec` line printed when the
-server ran it — once, when the post was written. Nothing executes on the phone and
-every reader sees the same characters. How much of it is shown is the client's job,
-and `core/execution.dart` is the site's rule ported rather than invented: ten lines
-with the last one kept, two hundred characters a line, and the sandbox's own kill
-message dropped. An empty string is a program that printed nothing, which is not the
-same as no output, and draws no box.
+server ran it — once, when the post was written — and, since upstream added `#mermaid`,
+also the ASCII a diagram was rendered to. Both arrive in the same field, which is why
+mermaid needed no renderer here at all. Nothing executes on the phone and every reader
+sees the same characters.
+
+How much of it is shown is the client's job, and `core/execution.dart` is the site's rule
+ported rather than invented: a hundred lines, two hundred characters a line, and the
+sandbox's own kill message dropped. Past a hundred the **middle** is folded behind a `…`
+the reader can open — not truncated, which is what the app used to do, at ten lines, from
+an early misreading. That went unnoticed while output meant a program's one-line answer;
+`#mermaid` made it visible, because a modest diagram is twenty-five lines. An empty string
+is a program that printed nothing, which is not the same as no output, and draws no box.
+
+The fence that produced either one folds behind **show code**, as the site folds it: the
+post is about the output, and the listing is the working.
 
 **`location`** is a `#map` post's place, geocoded by the server, with a map tile the
 server rendered and stored. So the card is a picture from textlog and a link to
