@@ -9,6 +9,7 @@ import '../../core/body_tokens.dart';
 import '../../core/execution.dart';
 import '../../core/highlight.dart';
 import '../../core/markdown.dart';
+import 'pressable.dart';
 import '../../core/models.dart';
 import '../../state/settings.dart';
 import '../router.dart';
@@ -206,17 +207,11 @@ class _Rendered extends StatelessWidget {
         ],
       ),
     ),
-    CodeBlock(:final text, :final language) => _Scrollable(
-      fill: true,
-      child: Container(
-        padding: const EdgeInsets.all(space3),
-        color: palette.tagBg,
-        child: Text.rich(
-          _highlighted(text, language, base, palette),
-          style: base.copyWith(height: 1.35, color: palette.ink),
-        ),
-      ),
-    ),
+    CodeBlock(:final text, :final language, :final collapsed) => collapsed
+        ? _ShowCode(
+            child: _codeFence(text, language, palette),
+          )
+        : _codeFence(text, language, palette),
     MathBlock(:final tex) => _Scrollable(
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: space2),
@@ -230,6 +225,18 @@ class _Rendered extends StatelessWidget {
     ),
     TableBlock() => _Scrollable(child: _table(context, block, palette)),
   };
+
+  Widget _codeFence(String text, String? language, Palette palette) => _Scrollable(
+    fill: true,
+    child: Container(
+      padding: const EdgeInsets.all(space3),
+      color: palette.tagBg,
+      child: Text.rich(
+        _highlighted(text, language, base, palette),
+        style: base.copyWith(height: 1.35, color: palette.ink),
+      ),
+    ),
+  );
 
   Widget _paragraph(BuildContext context, ParagraphBlock block, Palette palette) =>
       _text(context, block.spans, base, palette);
@@ -293,11 +300,19 @@ class _Rendered extends StatelessWidget {
               cell(spans, column, header: true),
           ],
         ),
-        for (final row in block.rows)
+        for (final (index, row) in block.rows.indexed)
           TableRow(
+            // An all-dashes row is a section rule — what separates a `cloc` table's
+            // total from its rows. Drawn as a band rather than a row of dashes.
+            decoration: block.separators.contains(index)
+                ? BoxDecoration(color: palette.soft)
+                : null,
             children: [
               for (var column = 0; column < block.header.length; column++)
-                cell(column < row.length ? row[column] : const [], column, header: false),
+                if (block.separators.contains(index))
+                  const SizedBox(height: space1)
+                else
+                  cell(column < row.length ? row[column] : const [], column, header: false),
             ],
           ),
       ],
@@ -437,12 +452,14 @@ class _Tex extends StatelessWidget {
   }
 }
 
-/// What a `#exec` post printed, under the code that printed it.
+/// What a `#exec` post printed, or the diagram a `#mermaid` post drew.
 ///
-/// The server ran the fence once, when the post was written, and stored the output;
-/// nothing executes on this device and every reader sees the same characters. Drawn
-/// like a code fence because that is what it is — output, monospaced, scrolled
-/// sideways rather than wrapped, and cut to the same ten lines the site shows.
+/// Both arrive the same way: the server ran the fence once, when the post was
+/// written, and stored what came back — a program's output, or `mermaid-ascii`'s
+/// rendering of the diagram. Nothing executes on this device and every reader sees
+/// the same characters. Drawn like a code fence because that is what it is —
+/// monospaced, scrolled sideways rather than wrapped, and cut to the same fifteen
+/// lines the site shows.
 class ExecutionOutput extends StatelessWidget {
   const ExecutionOutput(this.post, {super.key});
 
@@ -472,6 +489,50 @@ class ExecutionOutput extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// The source behind a `#exec` or `#mermaid` post, folded away.
+///
+/// The post is about what the program printed or what the diagram looks like; the
+/// listing is the working. The site puts it behind a "show code" control and so does
+/// this — closed to begin with, and remembered only for as long as the tile lives.
+class _ShowCode extends StatefulWidget {
+  const _ShowCode({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_ShowCode> createState() => _ShowCodeState();
+}
+
+class _ShowCodeState extends State<_ShowCode> {
+  var _shown = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final base = Theme.of(context).textTheme.bodyMedium!;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: space1),
+          child: Pressable(
+            onTap: () => setState(() => _shown = !_shown),
+            semanticLabel: _shown ? 'hide code' : 'show code',
+            builder: (context, pressed) => Text(
+              _shown ? 'hide code' : 'show code',
+              style: base
+                  .asLink(palette)
+                  .copyWith(color: pressed ? palette.accentDark : null),
+            ),
+          ),
+        ),
+        if (_shown) widget.child,
+      ],
     );
   }
 }

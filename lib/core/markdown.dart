@@ -2,12 +2,18 @@
 ///
 /// Two levels, deliberately:
 ///
-/// * **Always on** — fenced code blocks and display `$$…$$` maths. textlog.cc
-///   renders both, so leaving them out would show the reader something the author
-///   did not write.
-/// * **Behind the `markdown` setting** — headings, emphasis, lists, task lists,
-///   blockquotes, tables and rules. The site does *not* render these in a post body,
-///   so they are opt-in: on means the app shows structure textlog.cc keeps flat.
+/// * **Always on** — fenced code blocks, display `$$…$$` maths, blockquotes, and —
+///   since the site grew them — tables, horizontal rules and lists. textlog.cc
+///   renders all of these in an ordinary post body, so leaving them out would show
+///   the reader something the author did not write.
+/// * **Behind the `markdown` setting** — headings, task-list checkboxes, and the
+///   looser CommonMark spellings of the blocks above (indented quotes, nested and
+///   single-item lists). The site does *not* render these, so they are opt-in: on
+///   means the app shows structure textlog.cc keeps flat.
+///
+/// The always-on parsers are ports of the site's own `markdownTable`, `markdownList`
+/// and `markdownHorizontalRule`, so the setting cannot change what a table *is* —
+/// only whether the extra CommonMark around it is drawn.
 ///
 /// Nothing here touches Flutter, so all of it is unit tested against strings.
 library;
@@ -60,7 +66,12 @@ final class QuoteBlock extends BodyBlock {
 }
 
 final class CodeBlock extends BodyBlock {
-  const CodeBlock(this.text, {this.language});
+  const CodeBlock(this.text, {this.language, this.collapsed = false});
+
+  /// This fence is the source the server ran — a `#exec` program, or the `#mermaid`
+  /// diagram it drew. The site folds those behind a "show code" control, because the
+  /// point of the post is the output underneath, not the listing that produced it.
+  final bool collapsed;
   final String text;
   final String? language;
 }
@@ -76,7 +87,17 @@ final class RuleBlock extends BodyBlock {
 }
 
 final class TableBlock extends BodyBlock {
-  const TableBlock({required this.header, required this.rows, required this.alignments});
+  const TableBlock({
+    required this.header,
+    required this.rows,
+    required this.alignments,
+    this.separators = const {},
+  });
+
+  /// Indices into [rows] that were written as all dashes — `| --- | --- |` part way
+  /// down a table. The site draws those as a heavier rule rather than a row of
+  /// dashes, which is how a `cloc` table gets its total separated off.
+  final Set<int> separators;
 
   final List<List<BodyToken>> header;
   final List<List<List<BodyToken>>> rows;
@@ -100,8 +121,162 @@ final _plainQuote = RegExp(r'^>\s?');
 final _bullet = RegExp(r'^(\s*)[-*+]\s+(.*)$');
 final _ordered = RegExp(r'^(\s*)(\d{1,9})[.)]\s+(.*)$');
 final _task = RegExp(r'^\[([ xX])\]\s+(.*)$');
-final _tableRow = RegExp(r'^\s*\|(.+)\|\s*$');
-final _tableRule = RegExp(r'^\s*\|(\s*:?-{1,}:?\s*\|)+\s*$');
+// The site's own rules, for the blocks it renders in every post body. Ported from
+// `markdownHorizontalRule`, `markdownList` and `markdownTable` in its `utils.ts`,
+// and deliberately stricter than the CommonMark ones above: this is what textlog.cc
+// actually draws, so it is what the app draws with the setting off.
+final _siteRule = RegExp(r'^ {0,3}(?:(?:\*[ \t]*){3,}|(?:-[ \t]*){3,}|(?:_[ \t]*){3,})$');
+final _siteListItem = RegExp(r'^ {0,3}(?:(\d+)\.|[-+*])[ \t]+(.+)$');
+final _siteDelimiter = RegExp(r'^:?-{3,}:?$');
+
+/// Split one table line into cells, the way the site does.
+///
+/// Not a plain `split('|')`: a `\|` is an escaped pipe and a run of backticks opens a
+/// code span in which pipes are literal. Leading and trailing empties come from the
+/// outer pipes and are dropped. Null when the line is not a table row at all.
+List<String>? _siteTableCells(String line) {
+  if (!line.contains('|')) return null;
+  final cells = <String>[];
+  final cell = StringBuffer();
+  var codeTicks = 0;
+
+  for (var index = 0; index < line.length; index++) {
+    final character = line[index];
+    if (character == r'\' && index + 1 < line.length && line[index + 1] == '|') {
+      cell.write('|');
+      index++;
+    } else if (character == '`') {
+      var ticks = 1;
+      while (index + ticks < line.length && line[index + ticks] == '`') {
+        ticks++;
+      }
+      if (codeTicks == 0) {
+        codeTicks = ticks;
+      } else if (codeTicks == ticks) {
+        codeTicks = 0;
+      }
+      cell.write('`' * ticks);
+      index += ticks - 1;
+    } else if (character == '|' && codeTicks == 0) {
+      cells.add(cell.toString().trim());
+      cell.clear();
+    } else {
+      cell.write(character);
+    }
+  }
+  cells.add(cell.toString().trim());
+
+  if (cells.isNotEmpty && cells.first.isEmpty) cells.removeAt(0);
+  if (cells.isNotEmpty && cells.last.isEmpty) cells.removeLast();
+  return cells.length > 1 ? cells : null;
+}
+
+/// A table starting at [index], or null. Header, delimiter rule, then rows.
+({TableBlock block, int end})? _siteTable(List<String> lines, int index) {
+  if (index + 1 >= lines.length) return null;
+  final headers = _siteTableCells(lines[index]);
+  final delimiters = _siteTableCells(lines[index + 1]);
+  if (headers == null || delimiters == null) return null;
+  if (headers.length != delimiters.length) return null;
+  if (!delimiters.every(_siteDelimiter.hasMatch)) return null;
+
+  final rows = <List<List<BodyToken>>>[];
+  final separators = <int>{};
+  var scan = index + 2;
+  for (; scan < lines.length; scan++) {
+    final cells = _siteTableCells(lines[scan]);
+    if (cells == null) break;
+    // An all-dashes row is a section rule, not data.
+    if (cells.every((cell) => RegExp(r'^-{3,}$').hasMatch(cell))) {
+      separators.add(rows.length);
+    }
+    rows.add([
+      for (var column = 0; column < headers.length; column++)
+        _spans(column < cells.length ? cells[column] : ''),
+    ]);
+  }
+
+  return (
+    block: TableBlock(
+      header: [for (final header in headers) _spans(header)],
+      alignments: [
+        for (final cell in delimiters)
+          if (cell.startsWith(':') && cell.endsWith(':'))
+            TextAlignment.center
+          else if (cell.endsWith(':'))
+            TextAlignment.end
+          else
+            TextAlignment.start,
+      ],
+      rows: rows,
+      separators: separators,
+    ),
+    end: scan - 1,
+  );
+}
+
+/// A run of list items starting at [index], or null. The site wants **two** — one
+/// dashed line on its own is a sentence, not a list.
+({List<ListItemBlock> items, int end})? _siteList(List<String> lines, int index) {
+  final first = _siteListItem.firstMatch(lines[index]);
+  if (first == null) return null;
+  final ordered = first[1] != null;
+
+  final items = <ListItemBlock>[];
+  var scan = index;
+  for (; scan < lines.length; scan++) {
+    final item = _siteListItem.firstMatch(lines[scan]);
+    if (item == null || (item[1] != null) != ordered) break;
+    items.add(ListItemBlock(
+      indent: 0,
+      ordinal: ordered ? int.parse(item[1]!) : null,
+      spans: _spans(item[2]!),
+    ));
+  }
+  return items.length < 2 ? null : (items: items, end: scan - 1);
+}
+
+/// The line a `#exec` or `#mermaid` marker sits on, outside any fence.
+///
+/// The site's rule: the marker ends its line, and the fence it claims is the first
+/// one after it — any language for `#exec`, and `mermaid` specifically for
+/// `#mermaid`. Ported from `executableFenceIndexes`.
+final _executionMarker = RegExp(r'(?:^|\s)#(exec|mermaid)\s*$');
+
+/// Indices of the fence-opening lines whose code the site folds away.
+Set<int> _collapsedFenceLines(List<String> lines) {
+  final markers = <({int line, String kind})>[];
+  final fences = <({int line, String language})>[];
+
+  var inFence = false;
+  for (var index = 0; index < lines.length; index++) {
+    final line = lines[index];
+    if (_fenceOpen.firstMatch(line) case final open? when !inFence) {
+      fences.add((line: index, language: open[1]!.trim().toLowerCase()));
+      inFence = true;
+      continue;
+    }
+    if (inFence) {
+      if (_fenceClose.hasMatch(line)) inFence = false;
+      continue;
+    }
+    if (_executionMarker.firstMatch(line) case final marker?) {
+      markers.add((line: index, kind: marker[1]!));
+    }
+  }
+
+  return {
+    for (final marker in markers)
+      ...switch (fences.where((fence) =>
+          fence.line > marker.line &&
+          (marker.kind == 'exec'
+              ? fence.language.isNotEmpty
+              : fence.language == 'mermaid'))) {
+        final matches when matches.isNotEmpty => [matches.first.line],
+        _ => const <int>[],
+      },
+  };
+}
 
 /// Split a body into blocks.
 ///
@@ -110,6 +285,7 @@ final _tableRule = RegExp(r'^\s*\|(\s*:?-{1,}:?\s*\|)+\s*$');
 List<BodyBlock> markdownBlocks(String body, {required bool extended}) {
   final normalized = body.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
   final lines = normalized.split('\n');
+  final collapsed = _collapsedFenceLines(lines);
   final blocks = <BodyBlock>[];
   final pending = <String>[];
 
@@ -149,7 +325,11 @@ List<BodyBlock> markdownBlocks(String body, {required bool extended}) {
       blocks.add(
         language == 'latex' || language == 'tex'
             ? MathBlock(text)
-            : CodeBlock(text, language: language.isEmpty ? null : language),
+            : CodeBlock(
+                text,
+                language: language.isEmpty ? null : language,
+                collapsed: collapsed.contains(index),
+              ),
       );
       index = scan;
       continue;
@@ -193,26 +373,65 @@ List<BodyBlock> markdownBlocks(String body, {required bool extended}) {
 /// literal, exactly as the site keeps it.
 List<BodyBlock> _plainBlocks(String text) {
   final lines = text.split('\n');
-  // A drawing is full of `>`, and turning its first column into quotes would take it
-  // apart. The site leaves art alone for the same reason.
-  if (containsAsciiArt(text) || !lines.any(_plainQuote.hasMatch)) {
-    return [ParagraphBlock(_spans(text))];
-  }
+  // A drawing is full of `>`, `-` and `|`, and reading those as quotes, rules and
+  // tables would take it apart. The site leaves art alone for the same reason.
+  if (containsAsciiArt(text)) return [ParagraphBlock(_spans(text))];
 
   final blocks = <BodyBlock>[];
-  for (var index = 0; index < lines.length;) {
-    // Consecutive lines of the same kind are one quote, not one per line.
-    final quoted = _plainQuote.hasMatch(lines[index]);
-    final group = <String>[];
-    while (index < lines.length && _plainQuote.hasMatch(lines[index]) == quoted) {
-      group.add(quoted ? lines[index].replaceFirst(_plainQuote, '') : lines[index]);
-      index++;
-    }
-    final joined = group.join('\n');
-    if (!quoted && joined.trim().isEmpty) continue;
-    // Recursed, so `> > x` nests the way it reads.
-    blocks.add(quoted ? QuoteBlock(_plainBlocks(joined)) : ParagraphBlock(_spans(joined)));
+  final paragraph = <String>[];
+
+  // Blank lines are *not* a paragraph break here: the site renders a body
+  // `white-space: pre-wrap`, so the gaps an author typed are the gaps they meant.
+  // Only a block starting flushes what came before it.
+  void flushParagraph() {
+    if (paragraph.isEmpty) return;
+    final joined = paragraph.join('\n');
+    paragraph.clear();
+    if (joined.trim().isEmpty) return;
+    blocks.add(ParagraphBlock(_spans(joined)));
   }
+
+  for (var index = 0; index < lines.length; index++) {
+    final line = lines[index];
+
+    // Consecutive `>` lines are one quote, not one per line.
+    if (_plainQuote.hasMatch(line)) {
+      flushParagraph();
+      final quoted = <String>[];
+      var scan = index;
+      for (; scan < lines.length && _plainQuote.hasMatch(lines[scan]); scan++) {
+        quoted.add(lines[scan].replaceFirst(_plainQuote, ''));
+      }
+      // Recursed, so `> > x` nests the way it reads.
+      blocks.add(QuoteBlock(_plainBlocks(quoted.join('\n'))));
+      index = scan - 1;
+      continue;
+    }
+
+    if (_siteRule.hasMatch(line)) {
+      flushParagraph();
+      blocks.add(const RuleBlock());
+      continue;
+    }
+
+    if (_siteTable(lines, index) case final table?) {
+      flushParagraph();
+      blocks.add(table.block);
+      index = table.end;
+      continue;
+    }
+
+    if (_siteList(lines, index) case final list?) {
+      flushParagraph();
+      blocks.addAll(list.items);
+      index = list.end;
+      continue;
+    }
+
+    paragraph.add(line);
+  }
+
+  flushParagraph();
   return blocks;
 }
 
@@ -260,19 +479,11 @@ List<BodyBlock> _extendedBlocks(String text) {
       continue;
     }
     // A table needs its `|---|` rule on the next line, or it is just text with pipes.
-    if (_tableRow.hasMatch(line) &&
-        index + 1 < lines.length &&
-        _tableRule.hasMatch(lines[index + 1])) {
+    // The same parser the site uses, so the setting cannot change what a table is.
+    if (_siteTable(lines, index) case final table?) {
       flushParagraph();
-      final header = _tableCells(line);
-      final alignments = _alignments(lines[index + 1]);
-      final rows = <List<List<BodyToken>>>[];
-      var scan = index + 2;
-      for (; scan < lines.length && _tableRow.hasMatch(lines[scan]); scan++) {
-        rows.add(_tableCells(lines[scan]));
-      }
-      blocks.add(TableBlock(header: header, rows: rows, alignments: alignments));
-      index = scan - 1;
+      blocks.add(table.block);
+      index = table.end;
       continue;
     }
     if (_ordered.firstMatch(line) case final match?) {
@@ -306,22 +517,6 @@ int _indentLevel(String whitespace) {
   final spaces = whitespace.replaceAll('\t', '  ').length;
   return (spaces ~/ 2).clamp(0, 4);
 }
-
-List<List<BodyToken>> _tableCells(String line) => [
-  for (final cell in _tableRow.firstMatch(line)![1]!.split('|'))
-    _spans(cell.trim()),
-];
-
-List<TextAlignment> _alignments(String rule) => [
-  for (final cell in _tableRule.firstMatch(rule) == null
-      ? const <String>[]
-      : rule.trim().replaceAll(RegExp(r'^\||\|$'), '').split('|'))
-    switch (cell.trim()) {
-      final value when value.startsWith(':') && value.endsWith(':') => TextAlignment.center,
-      final value when value.endsWith(':') => TextAlignment.end,
-      _ => TextAlignment.start,
-    },
-];
 
 /// The block layer adds no inline emphasis of its own.
 ///

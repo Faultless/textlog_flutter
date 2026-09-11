@@ -65,7 +65,7 @@ void main() {
     testWidgets('a table is not stretched to the column', (tester) async {
       // Only code carries a background worth filling; a table drawn to full width
       // would put its border out where its last column is not.
-      await show(tester, '| a | b |\n| - | - |\n| 1 | 2 |', markdown: true);
+      await show(tester, '| a | b |\n| --- | --- |\n| 1 | 2 |', markdown: true);
 
       expect(tester.takeException(), isNull);
       expect(tester.getSize(find.byType(Table)).width, lessThan(390));

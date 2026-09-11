@@ -1,9 +1,18 @@
-/// How much of a `#exec` post's output is shown. The API returns it whole; these are
-/// the site's display rules, ported so a post looks the same in both.
+/// How much of a `#exec` or `#mermaid` post's output is shown. The API returns it
+/// whole; these are the site's display rules, ported so a post looks the same in both.
+///
+/// `#mermaid` is the same machinery seen from the other end: the server renders the
+/// diagram to ASCII with `mermaid-ascii` and stores it in the very same
+/// `execution_output` field, so a diagram arrives here already drawn and this file
+/// needs to know nothing about mermaid beyond leaving it room.
 library;
 
 /// Lines beyond this are elided, keeping the last one — usually the answer.
-const executionLineLimit = 10;
+///
+/// Fifteen because that is what the server allows, raised from ten when mermaid
+/// landed: a diagram is a good deal taller than a program's answer, and cutting one
+/// at ten lines takes the bottom off the drawing.
+const executionLineLimit = 15;
 
 /// Long lines are cut, not wrapped.
 const executionLineLength = 200;

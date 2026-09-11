@@ -6,9 +6,10 @@ library;
 
 import 'tlds.dart';
 
-/// The server caps a post at five hashtags, and anything past the fifth is ordinary
-/// text — including for the ASCII-art check, so a drawing tagged sixth is not art.
-const maxHashtagsPerPost = 5;
+/// The server caps a post at fifteen hashtags, and anything past the fifteenth is
+/// ordinary text — including for the ASCII-art check, so a drawing tagged sixteenth is
+/// not art.
+const maxHashtagsPerPost = 15;
 
 /// `[\p{L}\p{M}\p{N}_]` — the site's hashtag alphabet. Unicode, not ASCII: `#café`
 /// and `#日本語` are tags on textlog.
@@ -166,22 +167,81 @@ Iterable<String> _lines(String body) =>
         .map((match) => match[0]!)
         .where((line) => line.isNotEmpty);
 
-String normalizeHashtag(String tag) => tag.toLowerCase();
+/// The tag as the server indexes it: spelling folded, then made singular.
+///
+/// `#Cats`, `#cat` and `#CATS` are one tag, and so are `#ascii_art` and `#asciiart` —
+/// which is why the app cannot simply lowercase and compare. Every special tag the
+/// app looks for (`#lock`, `#spoiler`, `#ascii`) is matched against this form.
+String normalizeHashtag(String tag) => singularHashtag(normalizeHashtagSpelling(tag));
 
-/// Every hashtag the server would index for this post, in order, capped at five and
-/// ignoring anything inside code or inside a URL.
-List<String> extractHashtags(String body) {
-  final tags = <String>{};
+/// Case and underscores folded away, but the word left as written.
+///
+/// The server also applies Unicode NFC here. Dart has no normaliser in its core
+/// library and this app will not carry a package for it, so a tag written with
+/// decomposed accents — `#café` rather than `#café` — is the one case where the app
+/// and the site can disagree about what a tag is.
+String normalizeHashtagSpelling(String tag) =>
+    tag.toLowerCase().replaceAll('_', '');
+
+/// Words the server keeps plural, because the singular is a different word or no
+/// word at all.
+const _neverSingular = {'news', 'emacs', 'treatwarningsaserrors', 'hiddenreplies'};
+
+/// `#cats` and `#cat` are the same tag. The server's rule, exactly.
+String singularHashtag(String tag) {
+  if (_neverSingular.contains(tag)) return tag;
+  if (tag.length > 2 && tag.endsWith('ses')) return tag.substring(0, tag.length - 2);
+  return tag.length > 1 &&
+          tag.endsWith('s') &&
+          !tag.endsWith('ss') &&
+          !tag.endsWith('us') &&
+          !tag.endsWith('sis')
+      ? tag.substring(0, tag.length - 1)
+      : tag;
+}
+
+/// A tag as it was written, beside the tag it indexes as.
+final class ExtractedHashtag {
+  const ExtractedHashtag(this.tag, this.authored);
+
+  /// Normalised — what the server indexes and what a tag page is keyed by.
+  final String tag;
+
+  /// As the author typed it, which is what the site prints when it is PascalCase.
+  final String authored;
+}
+
+/// `#PascalCase` is shown as written; anything else is shown normalised.
+///
+/// The site's one concession to spelling: `#ClaudeCode` reads better than
+/// `#claudecode`, and an author who bothered to capitalise meant it.
+String? pascalCaseHashtagDisplayName(String authored) =>
+    RegExp(r'^[A-Z][a-z\d]+(?:[A-Z][a-z\d]+)+$').hasMatch(authored) ? authored : null;
+
+/// Every hashtag the server would index, in order, each with the spelling it was
+/// written in. Capped, and ignoring anything inside code or inside a URL.
+List<ExtractedHashtag> extractAuthoredHashtags(String body) {
+  final tags = <String, String>{};
   final searchable = withoutMarkdownCode(body);
   final urls = matchUrls(searchable);
   var count = 0;
   for (final match in _hashtag.allMatches(searchable)) {
+    // `\#notatag` is an escape, and an even run of backslashes escapes itself.
+    var slashes = 0;
+    while (match.start > slashes && searchable[match.start - slashes - 1] == r'\') {
+      slashes++;
+    }
+    if (slashes.isOdd) continue;
     if (urls.any((url) => match.start >= url.start && match.start < url.end)) continue;
     if (count++ == maxHashtagsPerPost) break;
-    tags.add(normalizeHashtag(match[1]!));
+    tags.putIfAbsent(normalizeHashtag(match[1]!), () => match[1]!);
   }
-  return tags.toList();
+  return [for (final entry in tags.entries) ExtractedHashtag(entry.key, entry.value)];
 }
+
+/// Every hashtag the server would index for this post, normalised.
+List<String> extractHashtags(String body) =>
+    [for (final tag in extractAuthoredHashtags(body)) tag.tag];
 
 List<String> extractMentions(String body) => {
   for (final match in _mention.allMatches(body)) match[1]!.toLowerCase(),
@@ -191,7 +251,7 @@ List<String> extractMentions(String body) => {
 /// markup at all, because art drawn on a character grid falls apart otherwise — and
 /// because it is full of `_`, `*` and `~`, which emphasis rules would eat.
 bool containsAsciiArt(String body) =>
-    extractHashtags(body).any((tag) => tag == 'ascii' || tag == 'ascii_art');
+    extractHashtags(body).any((tag) => tag == 'ascii' || tag == 'asciiart');
 
 /// A `#spoiler` line splits a body: everything up to and including that line is
 /// shown, everything after it waits behind a "reveal".
@@ -204,9 +264,25 @@ final class SpoilerBody {
   bool get hasSpoiler => hidden.isNotEmpty;
 }
 
+/// The tags that hide what follows them. `#spoiler` is the one people know; the rest
+/// are the content-warning spellings the site treats identically.
+const spoilerHashtags = {
+  'spoiler',
+  'tldr',
+  'sensitive',
+  'contentwarning',
+  'cw',
+  'triggerwarning',
+};
+
+bool containsSpoilerTag(String body) =>
+    extractHashtags(body).any(spoilerHashtags.contains);
+
 SpoilerBody splitSpoilerBody(String body) {
   final lines = body.split('\n');
-  final marker = lines.indexWhere((line) => extractHashtags(line).contains('spoiler'));
+  // Searched with code blanked out, so a `#spoiler` inside a fence is a string
+  // literal rather than a marker — while the split itself uses the real lines.
+  final marker = withoutMarkdownCode(body).split('\n').indexWhere(containsSpoilerTag);
   if (marker < 0) return SpoilerBody(body, '');
   return SpoilerBody(
     lines.sublist(0, marker + 1).join('\n'),

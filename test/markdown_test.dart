@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:textlog/core/body_tokens.dart';
+import 'package:textlog/core/content.dart';
 import 'package:textlog/core/markdown.dart';
 import 'package:textlog/core/polls.dart';
 
@@ -232,22 +233,161 @@ void main() {
       expect(extractHashtags('un #café et #日本語'), ['café', '日本語']);
     });
 
-    test('the sixth hashtag is ordinary text', () {
-      expect(extractHashtags('#a #b #c #d #e #f'), ['a', 'b', 'c', 'd', 'e']);
+    test('the sixteenth hashtag is ordinary text', () {
+      final sixteen = [for (var index = 0; index < 16; index++) '#t$index'].join(' ');
+      expect(extractHashtags(sixteen), hasLength(maxHashtagsPerPost));
+      expect(extractHashtags(sixteen), isNot(contains('t15')));
     });
 
     test('a hash inside code is not a tag', () {
-      expect(extractHashtags('`#nope` but #yes'), ['yes']);
-      expect(extractHashtags('```\n#nope\n```\n#yes'), ['yes']);
+      expect(extractHashtags('`#nope` but #ok'), ['ok']);
+      expect(extractHashtags('```\n#nope\n```\n#ok'), ['ok']);
     });
 
     test('a fragment in a url is not a tag', () {
-      expect(extractHashtags('https://example.com/a#nope and #yes'), ['yes']);
+      expect(extractHashtags('https://example.com/a#nope and #ok'), ['ok']);
+    });
+
+    test('an escaped hash is not a tag', () {
+      expect(extractHashtags(r'\#nope but #ok'), ['ok']);
+      // An even run of backslashes escapes itself, so the tag survives.
+      expect(extractHashtags(r'\\#ok'), ['ok']);
+    });
+
+    test('a tag is indexed singular, with underscores folded away', () {
+      // The server's own rule — verified against textlog.cc, where `#cats` resolves
+      // to the `cat` page.
+      expect(extractHashtags('#cats'), ['cat']);
+      expect(extractHashtags('#Cat'), ['cat']);
+      expect(extractHashtags('#ascii_art'), ['asciiart']);
+      // Words it keeps whole: a double s, a -us, a -sis, and the named exceptions.
+      expect(extractHashtags('#news #bus #analysis #chess'), [
+        'news',
+        'bus',
+        'analysis',
+        'chess',
+      ]);
+      // `-ses` loses two letters, not one.
+      expect(extractHashtags('#glasses'), ['glass']);
+    });
+
+    test('a PascalCase tag keeps the spelling it was written in', () {
+      final tags = extractAuthoredHashtags('#ClaudeCode and #plain');
+      expect(tags.map((tag) => tag.tag), ['claudecode', 'plain']);
+      expect(pascalCaseHashtagDisplayName(tags.first.authored), 'ClaudeCode');
+      expect(pascalCaseHashtagDisplayName(tags.last.authored), isNull);
     });
 
     test('ascii art is opt-in by tag, and the cap applies to it too', () {
       expect(containsAsciiArt('┌──┐ #ascii'), isTrue);
-      expect(containsAsciiArt('#a #b #c #d #e #ascii'), isFalse);
+      // The underscored spelling folds onto the same tag.
+      expect(containsAsciiArt('┌──┐ #ascii_art'), isTrue);
+      final past = [for (var index = 0; index < 15; index++) '#t$index'].join(' ');
+      expect(containsAsciiArt('$past #ascii'), isFalse);
+    });
+  });
+
+  // ------------------------------------------------------ exec and mermaid sources
+
+  group('the fence behind #exec and #mermaid is folded away', () {
+    // The post is about what the server printed or drew; the listing is the working.
+    CodeBlock fence(String body) =>
+        markdownBlocks(body, extended: false).whereType<CodeBlock>().single;
+
+    test('a #exec marker claims the next fence with a language', () {
+      expect(fence('run it #exec\n```js\nconsole.log(1)\n```').collapsed, isTrue);
+    });
+
+    test('a #mermaid marker claims a mermaid fence', () {
+      expect(fence('#mermaid\n```mermaid\ngraph TD;\n```').collapsed, isTrue);
+    });
+
+    test('a #mermaid marker does not claim some other language', () {
+      expect(fence('#mermaid\n```js\nnot a diagram\n```').collapsed, isFalse);
+    });
+
+    test('an ordinary fence is left alone', () {
+      expect(fence('look at this\n```js\nconsole.log(1)\n```').collapsed, isFalse);
+    });
+
+    test('a marker inside a fence is a string, not a marker', () {
+      final blocks = markdownBlocks(
+        '```text\n#exec\n```\n```js\nconsole.log(1)\n```',
+        extended: false,
+      ).whereType<CodeBlock>().toList();
+      expect(blocks.every((block) => !block.collapsed), isTrue);
+    });
+
+    test('only the first matching fence is claimed', () {
+      final blocks = markdownBlocks(
+        '#exec\n```js\none\n```\nand\n```js\ntwo\n```',
+        extended: false,
+      ).whereType<CodeBlock>().toList();
+      expect(blocks.map((block) => block.collapsed), [true, false]);
+    });
+  });
+
+  // ------------------------------------------------- blocks the site always draws
+
+  group('blocks the site draws with the setting off', () {
+    // textlog.cc renders tables, rules and lists in an ordinary post body now, so
+    // leaving them behind the `markdown` setting showed the reader something the
+    // author did not write.
+    List<BodyBlock> plain(String body) => markdownBlocks(body, extended: false);
+
+    test('a table', () {
+      final table = plain('| a | b |\n| --- | ---: |\n| 1 | 2 |')
+          .whereType<TableBlock>()
+          .single;
+      expect(table.header.map(textOf), ['a', 'b']);
+      expect(table.rows.single.map(textOf), ['1', '2']);
+      expect(table.alignments, [TextAlignment.start, TextAlignment.end]);
+    });
+
+    test('a table row of all dashes is a section rule', () {
+      final table = plain(
+        '| lang | code |\n| --- | ---: |\n| dart | 10 |\n| --- | --- |\n| sum | 10 |',
+      ).whereType<TableBlock>().single;
+      expect(table.rows, hasLength(3));
+      expect(table.separators, {1});
+    });
+
+    test('a pipe inside a code span does not split a cell', () {
+      final table = plain('| a | b |\n| --- | --- |\n| `x | y` | 2 |')
+          .whereType<TableBlock>()
+          .single;
+      expect(table.rows.single.length, 2);
+      expect(textOf(table.rows.single.last), '2');
+    });
+
+    test('a horizontal rule', () {
+      expect(plain('before\n---\nafter').whereType<RuleBlock>(), hasLength(1));
+      expect(plain('before\n* * *\nafter').whereType<RuleBlock>(), hasLength(1));
+    });
+
+    test('a list, but only once it has two items', () {
+      final items = plain('- one\n- two').whereType<ListItemBlock>().toList();
+      expect(items.map((item) => textOf(item.spans)), ['one', 'two']);
+      expect(
+        plain('- lonely').whereType<ListItemBlock>(),
+        isEmpty,
+        reason: 'one dashed line is a sentence, as the site has it',
+      );
+    });
+
+    test('an ordered list keeps the number it started on', () {
+      final items = plain('3. three\n4. four').whereType<ListItemBlock>().toList();
+      expect(items.map((item) => item.ordinal), [3, 4]);
+    });
+
+    test('and none of it touches ascii art', () {
+      final art = plain('#ascii\n| a | b |\n| --- | --- |\n---\n- one\n- two');
+      expect(art.single, isA<ParagraphBlock>());
+    });
+
+    test('blank lines inside a paragraph survive, because the site is pre-wrap', () {
+      final paragraph = plain('one\n\nthree').whereType<ParagraphBlock>().single;
+      expect(textOf(paragraph.spans), 'one\n\nthree');
     });
   });
 
@@ -265,6 +405,19 @@ void main() {
       final split = splitSpoilerBody('nothing hidden');
       expect(split.hasSpoiler, isFalse);
       expect(split.visible, 'nothing hidden');
+    });
+
+    test('the content-warning spellings hide just the same', () {
+      for (final tag in spoilerHashtags) {
+        final split = splitSpoilerBody('warning #$tag\nthe rest');
+        expect(split.hasSpoiler, isTrue, reason: '#$tag splits a body');
+        expect(split.hidden, 'the rest');
+      }
+    });
+
+    test('a spoiler tag inside a fence is a string, not a marker', () {
+      final split = splitSpoilerBody('```\n#spoiler\n```\nstill visible');
+      expect(split.hasSpoiler, isFalse);
     });
   });
 
@@ -360,8 +513,14 @@ void main() {
       expect(quote.blocks.whereType<ParagraphBlock>(), hasLength(1));
     });
 
-    test('a table needs its rule line', () {
-      final table = markdownBlocks('| a | b |\n|---|--:|\n| 1 | 2 |', extended: true)
+    test('a table needs its rule line, of at least three dashes', () {
+      // The site's rule is `^:?-{3,}:?$` — two dashes is not a delimiter.
+      expect(
+        markdownBlocks('| a | b |\n| - | - |\n| 1 | 2 |', extended: true)
+            .whereType<TableBlock>(),
+        isEmpty,
+      );
+      final table = markdownBlocks('| a | b |\n|---|---:|\n| 1 | 2 |', extended: true)
           .whereType<TableBlock>()
           .single;
       expect(table.header.map(textOf), ['a', 'b']);

@@ -149,9 +149,9 @@ class _Settings extends ConsumerWidget {
                     title: 'render markdown',
                     // Say what the trade-off is rather than leaving people to wonder
                     // why a post looks different here than on the site. Code, TeX,
-                    // links and strikethrough are not part of this — the site does
-                    // those, so the app always does too.
-                    note: 'headings, lists and tables, which textlog.cc keeps flat',
+                    // links, strikethrough — and now tables, rules and lists — are not
+                    // part of this: the site renders those, so the app always does too.
+                    note: 'headings and checklists, which textlog.cc keeps flat',
                     value: settings.markdown,
                     onChanged: notifier.setMarkdown,
                   ),
