@@ -107,6 +107,12 @@ class PostMeta extends ConsumerWidget {
       builder: (context, pressed) {
         final link = base.asLink(palette).copyWith(color: pressed ? palette.accentDark : null);
         return Text.rich(
+          // One line, abbreviated rather than wrapped: on a crowded row this is the
+          // last part to give way, and when it does it must not take a second line
+          // — or push the controls beside it off the edge.
+          maxLines: 1,
+          softWrap: false,
+          overflow: TextOverflow.ellipsis,
           TextSpan(
             children: [
               if (showTime) TextSpan(text: relativeTime(createdAt), style: link),
@@ -131,6 +137,11 @@ class PostMeta extends ConsumerWidget {
 
 /// `and mentioned you:` or plain `:`, as the server appends it.
 String _tail(PostContext relation) => relation.mentionedYou ? ' and mentioned you:' : ':';
+
+/// Every text part of a single-line meta row abbreviates rather than overflowing.
+/// Without this the parts that carry no handle — the label and its punctuation —
+/// kept their full width and pushed the controls off the end of a narrow row.
+const _clip = TextOverflow.ellipsis;
 
 /// `.posttop` — `@alice replied to @bob:` and the stamp, on one line.
 ///
@@ -203,7 +214,7 @@ class PostContextLine extends ConsumerWidget {
     final label = switch (relation) {
       PostContext(hasLabel: false) => null,
       PostContext(target: final target?) => (
-        Text(relation.label!, style: quiet, maxLines: 1),
+        Text(relation.label!, style: quiet, maxLines: 1, overflow: _clip),
         // The punctuation has to hug the handle, or the line reads "@bob :".
         Row(
           mainAxisSize: MainAxisSize.min,
@@ -219,11 +230,17 @@ class PostContextLine extends ConsumerWidget {
                 ellipsize: singleLine,
               ),
             ),
-            Text(_tail(relation), style: quiet, maxLines: 1),
+            // Flexible too: the tail is ` and mentioned you:` on a reply that did,
+            // which is wider than the handle it follows. Fixed, it was the part that
+            // pushed a crowded row over the edge.
+            Flexible(child: Text(_tail(relation), style: quiet, maxLines: 1, overflow: _clip)),
           ],
         ),
       ),
-      _ => (Text('${relation.label!}${_tail(relation)}', style: quiet, maxLines: 1), null),
+      _ => (
+        Text('${relation.label!}${_tail(relation)}', style: quiet, maxLines: 1, overflow: _clip),
+        null,
+      ),
     };
 
     final meta = PostMeta(
@@ -257,8 +274,11 @@ class PostContextLine extends ConsumerWidget {
           Flexible(child: target),
         ],
         if (label case (final word, null)) Flexible(child: word),
-        // The stamp and the controls keep their room; the handles above give way.
-        meta,
+        // The handles give way first — a loose Flexible takes its natural width
+        // while there is room, so the stamp only shortens once they have nothing
+        // left to give. The controls keep their room throughout: they are fixed
+        // boxes, and a control that is clipped is a control nobody can press.
+        Flexible(child: meta),
         ...trailing,
       ],
     );

@@ -34,14 +34,13 @@ Post reply({
   ),
 );
 
-/// A fold control, standing in for the real one.
-const _fold = SizedBox(width: 24, height: 22, key: Key('fold'));
-
 Future<Size> show(
   WidgetTester tester, {
   required double width,
   required bool singleLine,
   bool withControl = true,
+  bool showReplyCount = false,
+  int controls = 1,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -55,8 +54,13 @@ Future<Size> show(
               child: PostContextLine(
                 post: reply(),
                 singleLine: singleLine,
-                showReplyCount: false,
-                trailing: withControl ? const [_fold] : const [],
+                showReplyCount: showReplyCount,
+                trailing: withControl
+                    ? [
+                        for (var index = 0; index < controls; index++)
+                          SizedBox(width: 24, height: 22, key: Key('fold$index')),
+                      ]
+                    : const [],
               ),
             ),
           ),
@@ -83,7 +87,7 @@ void main() {
     testWidgets('keeps the control on the line', (tester) async {
       await show(tester, width: 320, singleLine: true);
       final line = tester.getRect(find.byType(PostContextLine));
-      final fold = tester.getRect(find.byKey(const Key('fold')));
+      final fold = tester.getRect(find.byKey(const Key('fold0')));
 
       expect(fold.right, lessThanOrEqualTo(line.right + 0.5));
       // Vertically inside the row rather than pushed below it.
@@ -125,6 +129,48 @@ void main() {
     testWidgets('never overflows, at any width', (tester) async {
       for (final width in [240.0, 280.0, 320.0, 390.0, 500.0, 760.0]) {
         await show(tester, width: width, singleLine: true);
+        expect(tester.takeException(), isNull, reason: 'at $width');
+        expect(
+          tester.getSize(find.byType(PostContextLine)).width,
+          lessThanOrEqualTo(width),
+          reason: 'at $width',
+        );
+      }
+    });
+  });
+
+  group('a crowded meta line', () {
+    // What the reader actually sees in a feed: the stamp *and* the reply count, a
+    // "replied to @someone:" label, and the controls that sit on the same row. Every
+    // part of that is optional on its own, and all of them together did not fit.
+    testWidgets('never overflows with the reply count on', (tester) async {
+      for (final width in [240.0, 280.0, 320.0, 390.0]) {
+        await show(tester, width: width, singleLine: true, showReplyCount: true);
+        expect(tester.takeException(), isNull, reason: 'at $width');
+        expect(
+          tester.getSize(find.byType(PostContextLine)).width,
+          lessThanOrEqualTo(width),
+          reason: 'at $width',
+        );
+      }
+    });
+
+    testWidgets('never overflows with several controls on the line', (tester) async {
+      for (final width in [240.0, 280.0, 320.0, 390.0]) {
+        await show(
+          tester,
+          width: width,
+          singleLine: true,
+          showReplyCount: true,
+          controls: 3,
+        );
+        expect(tester.takeException(), isNull, reason: 'at $width');
+      }
+    });
+
+    testWidgets('nor when it is allowed to wrap', (tester) async {
+      for (final width in [240.0, 280.0, 320.0]) {
+        await show(tester, width: width, singleLine: false, showReplyCount: true);
         expect(tester.takeException(), isNull, reason: 'at $width');
         expect(
           tester.getSize(find.byType(PostContextLine)).width,
