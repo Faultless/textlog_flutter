@@ -29,8 +29,9 @@ docker run --rm --platform linux/amd64 -v "$PWD/fdroiddata":/repo -w /repo \
 Two clues that you are looking at this problem: the diff is only whitespace, and it
 reverses direction when you change tool versions.
 
-**It has not been submitted yet**, but the decision it was waiting on has been taken:
-**reproducible builds**. F-Droid rebuilds from the recipe, compares the result with
+**It is published**, at
+[f-droid.org/packages/dev.serge.textlog](https://f-droid.org/packages/dev.serge.textlog/),
+as a **reproducible build**. F-Droid rebuilds from the recipe, compares the result with
 the APK attached to the GitHub release, and publishes *ours*. Same signature, so
 anyone already running a build from GitHub Releases updates in place instead of having
 to uninstall and lose their settings and their session. See
@@ -174,7 +175,9 @@ offsets the versionCode itself — 1000 for `armeabi-v7a`, 2000 for `arm64-v8a`,
 of the `+23` in pubspec — so the recipe mirrors that in `VercodeOperation`. It is two
 build entries instead of one, and it saves every reader two thirds of the download.
 
-## Submitting
+## Submitting a new app
+
+That has been done once, and this is what it took:
 
 1. `fdroid/build-release.sh <tag>`, and attach `fdroid/out/*.apk` to that release.
 2. Point `commit:`, `versionName`, `versionCode` and `CurrentVersion*` at the tag.
@@ -186,6 +189,35 @@ build entries instead of one, and it saves every reader two thirds of the downlo
    open a merge request. Their CI builds it and reports whether the rebuild matched;
    a mismatch is a comment on the MR rather than an accepted build with the wrong
    signature, so the one-way door stays shut until it passes.
+
+## Releasing an update
+
+**No merge request.** The recipe carries `AutoUpdateMode: Version` and
+`UpdateCheckMode: Tags`, so once it is in fdroiddata their bots do the editing:
+`checkupdates` sees a new `v*` tag, reads `versionName` and `versionCode` back out of
+`pubspec.yaml` through `UpdateCheckData`, applies `VercodeOperation` to get the two
+per-ABI codes, and commits the new `Builds:` entries and `CurrentVersion*` itself.
+
+What that leaves for us, and what it will not forgive:
+
+1. **Bump `pubspec.yaml`** — `version: <name>+<code>`. The code must rise; the per-ABI
+   codes are `code * 10 + 1` and `+ 2`.
+2. **A changelog per ABI code**, `fastlane/metadata/android/en-US/changelogs/<code>.txt`.
+   F-Droid reads these straight from this repository, so both codes need one. Keep them
+   under about 500 characters.
+3. **Build with `fdroid/build-release.sh`**, not `flutter build`. The reproducible build
+   is the whole arrangement: a laptop build will not match theirs, and a mismatch means
+   they publish nothing rather than publishing the wrong thing.
+4. **Attach the APKs under the names `binary:` expects** —
+   `textlog-<version>-arm64-v8a.apk` and `textlog-<version>-armeabi-v7a.apk`. The URL is
+   built from `%v`, so a renamed asset is a 404 and the verification never runs.
+5. **Tag `vMAJOR.MINOR.PATCH`**, matching `UpdateCheckMode: Tags ^v\d+\.\d+\.\d+$`.
+6. **Update the copy of the recipe here** to match what their bot will write, so the
+   versioned copy does not drift from what is deployed.
+
+Anything that changes the toolchain — a Flutter bump in `.github/workflows/pages.yml`, a
+new dependency, a moved output path — is a reproducibility risk, and the recipe reads that
+workflow for the Flutter version precisely so the two cannot disagree.
 
 ## Fastlane metadata
 

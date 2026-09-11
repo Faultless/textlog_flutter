@@ -20,6 +20,8 @@ wide window. Those departures are marked as such in the code.
 
 ---
 
+[<img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png" alt="Get it on F-Droid" height="80">](https://f-droid.org/packages/dev.serge.textlog/)
+
 **[Try it in a browser](https://faultless.github.io/textlog_flutter/)** — the same code as the
 app, built for web on every push.
 
@@ -27,77 +29,50 @@ app, built for web on every push.
 
 ## Install
 
-**Android** — grab an `.apk` from [Releases](../../releases) and open it. Android asks once
-for permission to install apps from your browser or files app; that is expected for anything
-outside the Play Store.
+**Android — [F-Droid](https://f-droid.org/packages/dev.serge.textlog/)**, which is where this
+should come from. Updates arrive with the rest of your apps, and F-Droid builds it from the
+source in this repository rather than taking our word for it.
 
-Take `textlog-<version>-arm64-v8a.apk` if you are not sure — it fits virtually every phone
-sold in the last decade and is a third of the size. `textlog-<version>.apk` is the universal
-build that runs on anything.
+The build is [reproducible](fdroid/README.md): F-Droid rebuilds each release, checks it
+against the APK attached here, and ships **ours** — same signature — so moving between the
+two never asks you to uninstall.
 
-**macOS** — a `.dmg` is attached to each release. It is ad-hoc signed rather than notarised,
-because notarising needs a paid Apple developer account, so the first launch needs one extra
-step: open it, let macOS refuse, then **System Settings → Privacy & Security → Open Anyway**.
-Or from a terminal, `xattr -dr com.apple.quarantine /Applications/textlog.app`.
+If you would rather not install F-Droid, the same signed APKs are on
+[Releases](../../releases). Take `textlog-<version>-arm64-v8a.apk` unless you know you need
+otherwise; `textlog-<version>.apk` is the universal build, three times the size.
 
-**iOS** — no downloads. Apple requires a paid developer account to hand someone an
-installable build, and this project is AGPL, which has historically been incompatible with
-the App Store. You can build it for your own phone in a few minutes though —
-see [Building it for your own iPhone](#building-it-for-your-own-iphone).
+**macOS** — a `.dmg` on each release, ad-hoc signed rather than notarised. First launch: open
+it, let macOS refuse, then **System Settings → Privacy & Security → Open Anyway**.
 
-> Builds up to and including the first v0.0.4 upload were signed with a debug key. Releases
-> from now on are properly signed, which means **you must uninstall an older build first** —
-> Android refuses to replace an app whose signature changed.
+**iOS** — no downloads, and none coming while this is AGPL. You can build it for your own
+phone in a few minutes — see [Building it for your own iPhone](#building-it-for-your-own-iphone).
 
 ## Roadmap
 
 Read the whole thing in [ROADMAP.md](ROADMAP.md). In short:
 
-**Working today (v0.7.0)**
-- Feeds the site has: **@**, **my feed**, hot and all — plus a **live** tab, which the
-  website cannot have, streaming new posts as they are written
-- **Search** across every note, server side
-- Nested reply threads you can fold, with a **flat** view for when five levels of indent is
-  four too many on a phone
-- Profiles with notes, replies, following, followers and followed hashtags; hashtag pages
-  with their own counts and followers
-- Sign in with a code sent to your email, then post, reply, edit, delete, follow, block,
-  report, and edit your bio
-- Posts render the way the site renders them: inline and fenced code, **LaTeX**, markdown
-  links, bold, underline, italics, strikethrough, **redactions** you press to reveal,
-  `>` quotes, spoilers, and ASCII art on its own line grid
-- **Polls** you can vote in, **quizzes** that tell you whether you got it and why,
-  **link previews**, **voice clips** played in place, and **`#todo` checklists** you tick
-  from the post itself
-- **Links back to textlog open in the app**, not the browser — a post, a profile, a hashtag
-  or a feed
-- A `#lock`ed thread says so where the reply link would be, rather than after you write
-  one
-- **Drafts** kept on the server, so one started on the website is here and vice versa
-- **Explore** — people and hashtags to follow — and hashtags you can follow or block
-- Optional block markdown on top — headings, lists, task lists, tables, quotes
-- **Barebones mode**: characters instead of icons, no ripples, no animation
-- Light, dark, sepia and dracula themes, a choice of accent, monospace face and text size
-- **Notifications** for replies, mentions and follows — with a reply field and a
-  mark-read button right in the notification
-- Activity and the latest feed **mark themselves read as posts come into view**, rather
-  than waiting for you to press "mark all as read". A fresh start offers a dozen posts
-  to catch up on rather than a day's backlog, and reading those marks the rest read
-- **Bookmarks** — keep a post from its menu, and a list of what you kept, shared with
-  the website
-- **`#exec`** output under the code the server ran, **`#map`** places as a card that
-  opens your maps app, **`#pin`**ned notes above a profile's list, and `js` and
-  `python` code fences coloured
-- **Opens where you left it**: already signed in, with the feed it had, before anything
-  loads
-- **Yours to arrange**: reorder or hide tabs, turn off timestamps or reply counts, hide
-  follow notices, swipe a post to reply
-- **Read a post in English** when textlog found it was not — the translation is the
-  server's, so nothing is sent anywhere
-- Feeds join a reply to its parent when both are on the page, so one conversation is one
-  block instead of the same words repeated down the screen
-- A whole thread in one request, quoted parents with no request at all, and threads cached
-  for the session
+**Working today (v0.8.0)**
+
+- **Every feed the site has** — **@**, **my feed**, hot, new and all — plus a **live** tab
+  the website cannot have, streaming posts as they are written. Server-side search across
+  every note.
+- **Threads** you can fold, with a **flat** view for when five levels of indent is four too
+  many on a phone. Shallow levels arrive with the post; deeper branches load when you ask.
+- **Posts render the way the site renders them** — code, **LaTeX**, tables, lists, rules,
+  quotes, bold, italics, strikethrough, **redactions** you press to reveal, spoilers, and
+  ASCII art on its own line grid. `#exec` output and **`#mermaid` diagrams** under the code
+  that made them, `#map` places as a card, `#todo` checklists you tick, **polls** and
+  **quizzes** you answer in place, link previews, and voice clips played where they sit.
+- **An account, fully** — sign in by email code, then post, reply, edit, delete, follow,
+  block, report, bookmark, keep drafts shared with the website, and edit your bio.
+- **Notifications** for replies, mentions and follows, answerable from the notification
+  itself. Feeds **mark themselves read as you scroll**, and a fresh start offers a dozen
+  posts rather than a day's backlog.
+- **Yours to arrange** — reorder or hide tabs, four themes, a choice of accent, monospace
+  face and text size, and a **barebones mode** with characters instead of icons. Optional
+  block markdown on top of what the site draws.
+- **Opens where you left it**, already signed in, with the feed it had, before anything
+  loads. Links back to textlog open in the app rather than the browser.
 
 **Next**
 - Share a post or profile through the system share sheet
@@ -107,6 +82,9 @@ Read the whole thing in [ROADMAP.md](ROADMAP.md). In short:
 **Then — distribution**
 - Automated builds attached to each release
 - iOS, once there is a way to ship it that people can actually install
+
+Android distribution is done: the app is **on F-Droid**, built reproducibly from this
+repository. See [fdroid/README.md](fdroid/README.md) for what that took.
 
 **Signing up stays in a browser on purpose**, because that is where the server puts its
 abuse controls, and the API deliberately refuses to be a way around them.

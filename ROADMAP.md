@@ -1,14 +1,14 @@
 # Roadmap
 
-## Where we are — v0.7.3
+## Where we are — v0.8.0
 
 | Area | State |
 |---|---|
-| Feeds (all, hot) | native, paginated |
+| Feeds (all, hot, new) | native, paginated |
 | My feed, @ | native, paginated, unread tracked, mark-read optimistic |
 | Live firehose | native, SSE, gap-reconciled |
 | Search | native, server side, debounced |
-| Threads | native, nested 5 deep, **one request**, flat/tree toggle |
+| Threads | native, nested 5 deep, **read as you**, two levels a request, flat/tree toggle |
 | Profiles | notes, replies, following, followers, followed hashtags |
 | Hashtags | feed, counts, followers |
 | Blocks | block, unblock, and a list you can undo from |
@@ -20,7 +20,7 @@
 | Sign up | browser tab onto textlog.cc, on purpose |
 | Filter a loaded timeline | native, client-side |
 | Bodies | code, fences, LaTeX, markdown links, bold, underline, italics, strikethrough, redactions, quotes, spoilers, ASCII art |
-| Block markdown | opt-in: headings, lists, task lists, tables, quotes, rules |
+| Block markdown | tables, lists and rules always, as the site draws them; headings and checklists opt-in |
 | Fonts | JetBrains Mono, Fira Code or system, four sizes |
 | Themes | light, dark, sepia, dracula + accent |
 | Barebones mode | characters instead of icons, no ripples, no animation |
@@ -29,7 +29,7 @@
 | Activity | marks itself read as a row comes into view, not only on tap |
 | Latest feed | read as you, a dozen posts at a time; finishing them clears the rest |
 | Bookmarks | keep a post, and a list of what you kept, shared with the website |
-| `#exec` | the output the server got when it ran the code, under the code |
+| `#exec`, `#mermaid` | the output the server got, under code that folds away |
 | `#map` | the place the server geocoded, as a card that opens your maps app |
 | `#pin` | a pinned note and reply, above the profile's list rather than lost in it |
 | Code fences | `js` and `python` coloured, the way the site colours them |
@@ -50,6 +50,52 @@
 | Voice clips | played in place, streamed through textlog's own proxy |
 
 ---
+
+## v0.8.0 — replies, and what the site grew
+
+**Nobody could see a reply.** Tapping a post showed the post and nothing under it. The
+cause was not in the thread code, which assembles a tree correctly against every thread
+on the server: it was that **the thread was read signed out**. Feeds carry the reader's
+token; `GET /posts/{id}` and `/posts/{id}/replies` did not. The server decides reply
+visibility from the reader, and upstream spent this cycle adding reasons for it to:
+`#meta` threads are invisible to an anonymous request, `#whisper` threads are visible
+only to the people in them, and the new `#HiddenReplies` gate opens only to someone who
+has already replied. Read signed out, all three are a post with no replies — under a
+count the feed had just promised. Both reads now carry the token.
+
+**Threads open two levels deep instead of five.** `?depth=` returns the subtree flat, but
+the page is the **newest** hundred of it, which is not the top hundred: a busy branch deep
+in a thread fills the whole page and pushes the thread's own direct replies off it. Asking
+for five levels made that likely on any thread with traffic. Two levels spends the page on
+the levels a reader starts on, and everything below arrives per branch through the
+"+N more replies" path that already existed for what sits past the nesting cap. Measured
+against the busiest threads on textlog.cc, the same direct replies render either way.
+
+**Upstream moved 413 commits, and almost none of it to the API.** Two endpoints appeared —
+`/feeds/new` and `/autotag` — and the rest of what landed (moods, lists, mutes, tag
+aliases and display names, autotags, campaigns, recap emails) is website-only and
+invisible to a client. What did reach the app is what the site *renders*, which this app
+ports rather than guesses at:
+
+| Upstream | Here |
+|---|---|
+| `feat: markdown tables`, and lists and rules in `linkify` | tables, lists and horizontal rules moved out of the opt-in setting, parsed by ports of the site's own `markdownTable`, `markdownList` and `markdownHorizontalRule` |
+| `feat: mermaid diagrams` | nothing to draw: the server renders the diagram to ASCII with `mermaid-ascii` into the same `execution_output` `#exec` already used. The output cap followed it from ten lines to fifteen, because a diagram is taller than an answer |
+| `feat: collapse exec and mermaid code` | the fence behind a `#exec` or `#mermaid` marker folds behind **show code** |
+| `feat: new tab` | the **new** tab — `/feeds/new`, top-level posts only, where `all` carries replies too |
+| `feat: tag plural handling`, `tag aliases`, hashtag rules | `#cats` and `#cat` are one tag, underscores fold away (`#ascii_art` is `#asciiart`), fifteen tags to a post rather than five, `\#escaped` is not a tag, and `#tldr`, `#cw`, `#sensitive`, `#contentwarning` and `#triggerwarning` hide a body the way `#spoiler` does |
+
+The one deliberate gap: the server folds tags with Unicode NFC, and Dart has no
+normaliser in its core library. Carrying a package for it would be a new dependency in a
+reproducible build, for tags written with decomposed accents. Documented in `content.dart`
+rather than papered over.
+
+**A crowded meta line ran off the screen.** `@a_long_handle replied to @another_handle and
+mentioned you: 3h · 24 replies`, plus the controls that sit on the same row, overflowed a
+narrow phone by a few pixels. The handles already gave way; the stamp, the label and its
+punctuation did not. All of them do now, in that order, and the fixed controls keep their
+room — a clipped control is one nobody can press. Pinned at 240px through 390px, with the
+reply count on and up to three controls on the line.
 
 ## v0.1.0 — catching up with the server
 
