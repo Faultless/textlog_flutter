@@ -17,13 +17,41 @@ void main() {
 
     test('a long run of lines keeps the beginning and the last one', () {
       // The last line is usually the answer; the middle is usually a loop.
-      final output = [for (var i = 1; i <= 40; i++) 'line $i'].join('\n');
+      final total = executionLineLimit + 40;
+      final output = [for (var i = 1; i <= total; i++) 'line $i'].join('\n');
       final shown = displayedExecutionOutput(output).split('\n');
 
       expect(shown, hasLength(executionLineLimit));
       expect(shown.first, 'line 1');
       expect(shown[executionLineLimit - 2], '…');
-      expect(shown.last, 'line 40');
+      expect(shown.last, 'line $total');
+    });
+
+    test('the middle is folded away, not thrown away', () {
+      final total = executionLineLimit + 40;
+      final output = [for (var i = 1; i <= total; i++) 'line $i'].join('\n');
+      final parts = displayedExecutionOutputParts(output);
+
+      expect(parts.hasOmission, isTrue);
+      final omitted = parts.omitted.split('\n');
+      // Everything between the head and the final line, and nothing else.
+      expect(omitted.first, 'line ${executionLineLimit - 1}');
+      expect(omitted.last, 'line ${total - 1}');
+      expect(
+        (executionLineLimit - 2) + omitted.length + 1,
+        total,
+        reason: 'head + middle + last line accounts for every line printed',
+      );
+    });
+
+    test('a diagram the size mermaid actually draws is shown whole', () {
+      // The real thing: post 3487 on textlog.cc is twenty-five lines. The old
+      // ten-line cap took the bottom off it.
+      final diagram = [for (var i = 1; i <= 25; i++) 'row $i'].join('\n');
+      final parts = displayedExecutionOutputParts(diagram);
+
+      expect(parts.hasOmission, isFalse);
+      expect(parts.visible.split('\n'), hasLength(25));
     });
 
     test('a long line is cut, not wrapped', () {

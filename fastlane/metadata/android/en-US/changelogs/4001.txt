@@ -2,6 +2,6 @@ Replies load again. A thread was read signed out even when you were not, so a #m
 
 A thread opens two levels deep and loads deeper branches when you ask, so a busy branch no longer crowds out the replies you came for.
 
-New: the site's "new" tab, #mermaid diagrams, and the tables, lists and rules the site now draws in every post. #exec and #mermaid code folds away.
+New: the site's "new" tab, #mermaid diagrams, and the tables, lists and rules the site now draws in posts.
 
-Fixed: a crowded meta line running off a narrow screen.
+Fixed: long #exec output lost its middle instead of folding it. A crowded meta line ran off narrow screens.

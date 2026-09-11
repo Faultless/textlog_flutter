@@ -458,18 +458,35 @@ class _Tex extends StatelessWidget {
 /// written, and stored what came back — a program's output, or `mermaid-ascii`'s
 /// rendering of the diagram. Nothing executes on this device and every reader sees
 /// the same characters. Drawn like a code fence because that is what it is —
-/// monospaced, scrolled sideways rather than wrapped, and cut to the same fifteen
-/// lines the site shows.
-class ExecutionOutput extends StatelessWidget {
+/// monospaced, scrolled sideways rather than wrapped, and elided in the middle at the
+/// same hundred lines the site elides at, with the middle openable rather than lost.
+class ExecutionOutput extends StatefulWidget {
   const ExecutionOutput(this.post, {super.key});
 
   final Post post;
 
   @override
+  State<ExecutionOutput> createState() => _ExecutionOutputState();
+}
+
+class _ExecutionOutputState extends State<ExecutionOutput> {
+  var _expanded = false;
+
+  @override
   Widget build(BuildContext context) {
-    if (!hasExecutionOutput(post.executionOutput)) return const SizedBox.shrink();
+    final output = widget.post.executionOutput;
+    if (!hasExecutionOutput(output)) return const SizedBox.shrink();
     final palette = context.palette;
     final base = Theme.of(context).textTheme.bodyMedium!;
+    // The line height code art needs: output is often a drawing, and the default
+    // leading pulls a box apart into stripes.
+    final style = base.copyWith(height: 1.15, color: palette.ink);
+    final parts = displayedExecutionOutputParts(output!);
+
+    // The `…` the site puts the omitted middle behind sits second from the end, so
+    // the last line — usually the answer — stays where the reader expects it.
+    final lines = parts.visible.split('\n');
+    final head = parts.hasOmission ? lines.take(lines.length - 2).join('\n') : parts.visible;
 
     return Padding(
       padding: const EdgeInsets.only(top: space3),
@@ -481,11 +498,27 @@ class ExecutionOutput extends StatelessWidget {
             color: palette.tagBg,
             border: Border(left: BorderSide(color: palette.accent, width: 2)),
           ),
-          child: Text(
-            displayedExecutionOutput(post.executionOutput!),
-            // The line height code art needs: output is often a drawing, and the
-            // default leading pulls a box apart into stripes.
-            style: base.copyWith(height: 1.15, color: palette.ink),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(head, style: style),
+              if (parts.hasOmission) ...[
+                if (_expanded)
+                  Text(parts.omitted, style: style)
+                else
+                  Pressable(
+                    onTap: () => setState(() => _expanded = true),
+                    semanticLabel: 'expand omitted output',
+                    builder: (context, pressed) => Text(
+                      '…',
+                      style: style.asLink(palette).copyWith(
+                        color: pressed ? palette.accent : palette.muted,
+                      ),
+                    ),
+                  ),
+                Text(lines.last, style: style),
+              ],
+            ],
           ),
         ),
       ),

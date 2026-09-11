@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:textlog/core/execution.dart';
 import 'package:textlog/core/models.dart';
 import 'package:textlog/ui/theme.dart';
 import 'package:textlog/ui/widgets/post_tile.dart';
@@ -52,13 +53,33 @@ void main() {
       expect(find.text('2'), findsOneWidget);
     });
 
-    testWidgets('clipped to the same lines the site shows', (tester) async {
-      final output = [for (var i = 1; i <= 40; i++) 'line $i'].join('\n');
+    testWidgets('shown whole at the length a diagram actually runs to', (tester) async {
+      // Twenty-five lines is what a modest `#mermaid` diagram draws, and the site
+      // shows every one of them.
+      final output = [for (var i = 1; i <= 25; i++) 'line $i'].join('\n');
       await show(tester, post(executionOutput: output));
 
       expect(find.textContaining('line 1\n'), findsOneWidget);
-      expect(find.textContaining('line 40'), findsOneWidget);
-      expect(find.textContaining('line 20'), findsNothing);
+      expect(find.textContaining('line 13'), findsOneWidget);
+      expect(find.textContaining('line 25'), findsOneWidget);
+      expect(find.text('…'), findsNothing);
+    });
+
+    testWidgets('elided in the middle past the cap, and openable', (tester) async {
+      final total = executionLineLimit + 40;
+      final output = [for (var i = 1; i <= total; i++) 'line $i'].join('\n');
+      await show(tester, post(executionOutput: output));
+
+      // The head and the last line — usually the answer — with the rest behind `…`.
+      expect(find.textContaining('line 1\n'), findsOneWidget);
+      expect(find.text('line $total'), findsOneWidget);
+      expect(find.textContaining('line ${total - 1}'), findsNothing);
+
+      await tester.ensureVisible(find.text('…'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('…'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('line ${total - 1}'), findsOneWidget);
     });
 
     testWidgets('and nothing at all when it printed nothing', (tester) async {

@@ -80,7 +80,7 @@ ports rather than guesses at:
 | Upstream | Here |
 |---|---|
 | `feat: markdown tables`, and lists and rules in `linkify` | tables, lists and horizontal rules moved out of the opt-in setting, parsed by ports of the site's own `markdownTable`, `markdownList` and `markdownHorizontalRule` |
-| `feat: mermaid diagrams` | nothing to draw: the server renders the diagram to ASCII with `mermaid-ascii` into the same `execution_output` `#exec` already used. The output cap followed it from ten lines to fifteen, because a diagram is taller than an answer |
+| `feat: mermaid diagrams` | nothing to draw: the server renders the diagram to ASCII with `mermaid-ascii` into the same `execution_output` `#exec` already used. It did expose a long-standing bug — the app elided output at ten lines where the site elides at a hundred, so a modest twenty-five-line diagram lost its bottom half. The middle is now folded behind a `…` the reader can open, as the site does, rather than dropped |
 | `feat: collapse exec and mermaid code` | the fence behind a `#exec` or `#mermaid` marker folds behind **show code** |
 | `feat: new tab` | the **new** tab — `/feeds/new`, top-level posts only, where `all` carries replies too |
 | `feat: tag plural handling`, `tag aliases`, hashtag rules | `#cats` and `#cat` are one tag, underscores fold away (`#ascii_art` is `#asciiart`), fifteen tags to a post rather than five, `\#escaped` is not a tag, and `#tldr`, `#cw`, `#sensitive`, `#contentwarning` and `#triggerwarning` hide a body the way `#spoiler` does |
