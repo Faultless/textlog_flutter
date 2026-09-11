@@ -149,6 +149,22 @@ identical apart from the signature**. Two things make that hard for a Flutter ap
   (`registry.gitlab.com/fdroid/fdroidserver:buildserver`, x86_64, emulated on an arm
   Mac), not on whatever a laptop has installed. The Flutter version is the one pinned
   in `.github/workflows/pages.yml`, which is where the recipe reads it from too.
+
+  **The emulation has to be Rosetta, not qemu.** On an arm Mac running Colima, start it
+  as `colima start --vm-type=vz --vz-rosetta`. Under the qemu default, the `ninja` the
+  NDK invokes **segfaults** part way through configuring the `jni` package's CMake —
+
+  ```
+  Execution failed for task ':jni:configureCMakeRelWithDebInfo[x86]'
+  CMake Error: Running '…/ninja' '-t' 'restat' 'build.ninja' failed with:
+    Segmentation fault
+  ```
+
+  — which looks like a problem with this app and is nothing of the sort: it is an
+  emulator failing to run a compiler. Note the ABI in that task name. `jni` arrives
+  as a transitive dependency and configures its native build for every ABI the NDK
+  knows, `--target-platform` notwithstanding, so an x86 slice nothing ships can still
+  take the build down.
 - **The path.** Flutter compiles absolute source paths into `libapp.so`, so a build
   under `/Users/someone/` cannot match one under `/home/…`. Both sides build in
   **`/tmp/build/textlog_flutter`**, and the recipe's `prebuild` and `build` do the
