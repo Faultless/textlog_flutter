@@ -15,7 +15,7 @@ Repo: https://github.com/Faultless/textlog_flutter.git
 Builds:
   - versionName: 0.8.0
     versionCode: 4001
-    commit: 8067f28e87e4c5e02b5cc9080b489b5fc1b58fef
+    commit: cb7d2bab748a60a86567add30ced196d1abf8dbb
     output: build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
     binary: 
       https://github.com/Faultless/textlog_flutter/releases/download/v%v/textlog-%v-armeabi-v7a.apk
@@ -59,7 +59,7 @@ Builds:
 
   - versionName: 0.8.0
     versionCode: 4002
-    commit: 8067f28e87e4c5e02b5cc9080b489b5fc1b58fef
+    commit: cb7d2bab748a60a86567add30ced196d1abf8dbb
     output: build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
     binary: 
       https://github.com/Faultless/textlog_flutter/releases/download/v%v/textlog-%v-arm64-v8a.apk
