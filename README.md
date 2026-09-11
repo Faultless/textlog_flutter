@@ -75,6 +75,8 @@ Read the whole thing in [ROADMAP.md](ROADMAP.md). In short:
   loads. Links back to textlog open in the app rather than the browser.
 
 **Next**
+- `POST /autotag` in the compose sheet — the server suggests hashtags for what you wrote.
+  The one endpoint upstream added this cycle that the app does not use yet
 - Share a post or profile through the system share sheet
 - A `for you` unread jump, the way the site's "first unread" link works
 - Instant notifications, which need an FCM or APNs endpoint textlog does not have yet

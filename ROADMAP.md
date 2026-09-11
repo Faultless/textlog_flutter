@@ -73,8 +73,10 @@ against the busiest threads on textlog.cc, the same direct replies render either
 
 **Upstream moved 413 commits, and almost none of it to the API.** Two endpoints appeared —
 `/feeds/new` and `/autotag` — and the rest of what landed (moods, lists, mutes, tag
-aliases and display names, autotags, campaigns, recap emails) is website-only and
-invisible to a client. What did reach the app is what the site *renders*, which this app
+aliases and display names, campaigns, recap emails) is website-only and invisible to a
+client. `/feeds/new` is taken up here; `/autotag`, which enriches a draft with hashtags
+the server picks, is the one left for a later cycle — it belongs in the compose sheet
+and is worth doing properly rather than bolting on. What did reach the app is what the site *renders*, which this app
 ports rather than guesses at:
 
 | Upstream | Here |
