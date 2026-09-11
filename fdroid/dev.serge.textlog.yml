@@ -13,8 +13,8 @@ RepoType: git
 Repo: https://github.com/Faultless/textlog_flutter.git
 
 Builds:
-  - versionName: 0.7.3
-    versionCode: 3001
+  - versionName: 0.8.0
+    versionCode: 4001
     commit: 527cad121247b92cea3050e4dfe654c05151ccf0
     output: build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
     binary: 
@@ -57,8 +57,8 @@ Builds:
       - cd dev.serge.textlog
     ndk: r28c
 
-  - versionName: 0.7.3
-    versionCode: 3002
+  - versionName: 0.8.0
+    versionCode: 4002
     commit: 527cad121247b92cea3050e4dfe654c05151ccf0
     output: build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
     binary: 
@@ -109,5 +109,5 @@ VercodeOperation:
   - 10 * %c + 1
   - 10 * %c + 2
 UpdateCheckData: pubspec.yaml|version:\s.+\+(\d+)|.|version:\s(.+)\+
-CurrentVersion: 0.7.3
-CurrentVersionCode: 3002
+CurrentVersion: 0.8.0
+CurrentVersionCode: 4002

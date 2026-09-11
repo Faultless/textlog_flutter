@@ -1,0 +1,7 @@
+Replies load again. A thread was read signed out even when you were not, so a #meta or #whisper thread came back empty. Threads are now read as you.
+
+A thread opens two levels deep and loads deeper branches when you ask, so a busy branch no longer crowds out the replies you came for.
+
+New: the site's "new" tab, #mermaid diagrams, and the tables, lists and rules the site now draws in every post. #exec and #mermaid code folds away.
+
+Fixed: a crowded meta line running off a narrow screen.
