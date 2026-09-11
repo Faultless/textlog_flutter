@@ -33,6 +33,11 @@ final apiProvider = Provider<TextlogApi>((ref) {
 
 /// Served from [PostCache] when the post was already on screen, which is the usual
 /// case — you tapped it, or it is the parent of a reply you are looking at.
+///
+/// Read as the signed-in reader when there is one. The feeds are read with the token,
+/// so they show posts — `#meta` threads from people you follow, `#whisper` threads you
+/// are part of — that the same endpoint answers with 404 to an anonymous reader. Without
+/// the token here, tapping one of those in the feed opened an error.
 final postProvider = FutureProvider.autoDispose.family<Post, int>((ref, id) async {
   cacheFor(ref, postCacheDuration);
 
@@ -40,7 +45,7 @@ final postProvider = FutureProvider.autoDispose.family<Post, int>((ref, id) asyn
   final known = cache[id];
   if (known != null) return known;
 
-  final post = await ref.watch(apiProvider).post(id);
+  final post = await ref.watch(apiProvider).post(id, token: ref.watch(viewerProvider)?.token);
   cache.remember([post]);
   ref.read(repliesCacheProvider).noticeCounts([post]);
   return post;

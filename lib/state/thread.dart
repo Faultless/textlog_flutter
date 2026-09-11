@@ -6,6 +6,7 @@ import '../core/reply_tree.dart';
 import 'cache.dart';
 import 'providers.dart';
 import 'rate_limit.dart';
+import 'session.dart';
 
 // Lived here first; kept exported so importers do not care that it moved.
 export 'cache.dart' show nowProvider;
@@ -13,12 +14,25 @@ export 'cache.dart' show nowProvider;
 /// How many levels to nest before a branch becomes a "N more replies" link.
 const maxThreadDepth = 5;
 
+/// How many levels one request asks for.
+///
+/// Deliberately shallower than [maxThreadDepth]. `?depth=` returns the subtree flat,
+/// but the page is the **newest** [repliesPerNode] of it — not the top ones — so a
+/// busy branch deep in a thread can fill the whole page and push the thread's own
+/// direct replies off it. Asking for five levels at once made that the common case on
+/// any thread with real traffic: the reader tapped a post and got nothing, because
+/// nothing in the page could be placed under the root.
+///
+/// Two levels is what a reader actually starts on, and it spends the page on them.
+/// Everything below arrives per branch, when they ask for it, through the same
+/// "+N more replies" path that already existed for what sits past the nesting cap.
+const threadFetchDepth = 2;
+
 /// Ceiling on network requests for one pass. Cached subtrees are free.
 ///
 /// It used to take one request per branching node, so this was eight. The server
-/// now walks the tree for us — `?depth=` returns a whole subtree flat — so opening a
-/// thread is *one* request and the rest of the allowance only ever goes on branches
-/// the reader explicitly asked to expand.
+/// walks the tree for us now, so opening a thread is *one* request and the rest of
+/// the allowance only ever goes on branches the reader explicitly asked to expand.
 const maxThreadRequests = 4;
 
 /// How a pass over the thread treats what is already cached.
@@ -41,6 +55,15 @@ final threadProvider =
 
 class ThreadNotifier extends AutoDisposeFamilyAsyncNotifier<List<ReplyNode>, int> {
   var _disposed = false;
+
+  /// Read the thread as whoever is signed in.
+  ///
+  /// Not a nicety: the server decides reply visibility from the reader. A `#meta`
+  /// thread is invisible to an anonymous request, a `#whisper` thread is visible only
+  /// to the people in it, and `#HiddenReplies` opens only to someone who has already
+  /// replied. Read signed out, all three come back as a post with no replies — which
+  /// is what the feed had just promised a count for.
+  String? get _token => ref.read(viewerProvider)?.token;
 
   @override
   Future<List<ReplyNode>> build(int arg) async {
@@ -90,7 +113,11 @@ class ThreadNotifier extends AutoDisposeFamilyAsyncNotifier<List<ReplyNode>, int
 
   bool isExpanded(int id) => _expanded.contains(id);
 
-  /// One request. Everything already loaded is reused.
+  /// Walk one more branch: the [threadFetchDepth] levels below [id].
+  ///
+  /// One request, and everything already loaded is reused. This is the path the whole
+  /// thread now hangs off — the first request covers the top two levels, and each
+  /// branch past that is opened here, by a reader who asked for it.
   Future<void> expand(int id) async {
     if (!_expanded.add(id)) return;
     state = AsyncData(await _walk(ThreadFetch.cached));
@@ -129,7 +156,7 @@ class ThreadNotifier extends AutoDisposeFamilyAsyncNotifier<List<ReplyNode>, int
     // A subtree mark without the root's own entry means something invalidated it
     // since — a live reply, or a count that disagreed. Refetch rather than assemble
     // an empty tree out of it.
-    final covered = held != null && held.depth >= maxThreadDepth && cache[rootId] != null;
+    final covered = held != null && held.depth >= threadFetchDepth && cache[rootId] != null;
 
     // A reused subtree costs nothing and does not touch the budget.
     final reuse = switch (mode) {
@@ -143,14 +170,15 @@ class ThreadNotifier extends AutoDisposeFamilyAsyncNotifier<List<ReplyNode>, int
 
     final posts = await cache.fetchOnce(rootId, () async {
       final page = await ref.read(apiProvider).feed(
-        RepliesFeed(rootId, depth: maxThreadDepth),
+        RepliesFeed(rootId, depth: threadFetchDepth),
         limit: repliesPerNode,
+        token: _token,
       );
       return page.items;
     });
 
     var grouped = _groupByParent(rootId, posts);
-    var depth = maxThreadDepth;
+    var depth = threadFetchDepth;
 
     // More than one level of ancestors missing, which the inlined parents cannot
     // bridge. Rather than show an empty thread, spend one request on the level that
@@ -159,6 +187,7 @@ class ThreadNotifier extends AutoDisposeFamilyAsyncNotifier<List<ReplyNode>, int
       final direct = await ref.read(apiProvider).feed(
         RepliesFeed(rootId),
         limit: repliesPerNode,
+        token: _token,
       );
       if (direct.items.isNotEmpty) {
         grouped = _groupByParent(rootId, direct.items);

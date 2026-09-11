@@ -85,13 +85,15 @@ FakeThreadServer chain(int length) => FakeThreadServer({
 });
 
 void main() {
-  test('opening a thread is one request, not one per level', () async {
+  test('opening a thread is one request, and it covers the first levels', () async {
     final server = chain(12);
     final tree = await server.container().read(threadProvider(1).future);
 
-    // This is the whole point of the change: the server walks the tree for us.
+    // The server walks the tree for us, so this is one request however deep the
+    // thread runs — but a shallow one, so the page is spent on the levels a reader
+    // starts on rather than on the newest posts wherever they happen to sit.
     expect(server.asked, hasLength(1));
-    expect(server.asked.single, (id: 1, depth: maxThreadDepth));
+    expect(server.asked.single, (id: 1, depth: threadFetchDepth));
 
     var node = tree.single;
     var depth = 1;
@@ -99,8 +101,9 @@ void main() {
       node = node.children.single;
       depth++;
     }
-    expect(depth, maxThreadDepth, reason: 'one request reaches the nesting cap');
-    expect(node.hasUnloaded, isTrue, reason: 'what is below the cap is still advertised');
+    expect(depth, threadFetchDepth, reason: 'one request covers the shallow levels');
+    expect(node.hasUnloaded, isTrue, reason: 'the rest is advertised, not dropped');
+    expect(node.expandable, isTrue, reason: 'and a tap can load it, short of the cap');
   });
 
   test('a wide thread comes back in one request too', () async {
@@ -179,6 +182,6 @@ void main() {
     final container = server.container();
     await container.read(threadProvider(1).future);
     expect(container.read(postCacheProvider)[2], isNotNull);
-    expect(container.read(postCacheProvider)[5], isNotNull);
+    expect(container.read(postCacheProvider)[3], isNotNull);
   });
 }

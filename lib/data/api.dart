@@ -63,8 +63,13 @@ final class TextlogApi {
     query: {'limit': '$limit', 'cursor': ?cursor, ...queryOf(source)},
   );
 
-  Future<Post> post(int id) async {
-    final json = await _get('posts/$id');
+  /// A single post.
+  ///
+  /// [token] matters: the server answers a `#meta` or `#whisper` post with 404 to an
+  /// anonymous reader, so reading one signed out is a not-found for a post the feed
+  /// just showed you.
+  Future<Post> post(int id, {String? token}) async {
+    final json = await _send('GET', 'posts/$id', token: token);
     return Post.fromJson(json['data'] as Map<String, dynamic>);
   }
 

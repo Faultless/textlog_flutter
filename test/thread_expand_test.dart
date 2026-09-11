@@ -41,9 +41,15 @@ Map<String, dynamic> post(
 /// `/posts/{id}/replies` as textlog implements it: walks to the requested depth, then
 /// returns the **newest** `limit` of what it found, flat and id-descending.
 final class FakeThread {
-  FakeThread(this.children);
+  FakeThread(this.children, {this.inlineParents = true});
 
   final Map<int, List<int>> children;
+
+  /// The real server inlines a quoted parent on every post, which is what lets a
+  /// truncated page be repaired for free. Turn it off to exercise what happens when
+  /// it cannot be.
+  final bool inlineParents;
+
   final asked = <String>[];
 
   /// The server's `reply_count` is a post's whole descendant count, not its
@@ -63,7 +69,7 @@ final class FakeThread {
     parent: parentOf(id),
     replyCount: descendants(id),
     depth: depth,
-    parentPost: parentOf(id) == 0
+    parentPost: parentOf(id) == 0 || !inlineParents
         ? null
         : post(parentOf(id), parent: parentOf(parentOf(id)), replyCount: descendants(parentOf(id))),
   );
@@ -113,24 +119,31 @@ List<({ReplyNode node, int depth})> flatten(List<ReplyNode> nodes, [int depth = 
 
 void main() {
   group('"+N more replies"', () {
-    test('never offers to load in place when that would change nothing', () async {
-      // A chain deeper than the app nests. Every visible node has descendants below
-      // the cap, and every one of them used to offer to load them in place — which
-      // fired a request and left the tree exactly as it was.
+    test('offers to load in place right up to the nesting cap, and not past it', () async {
+      // A chain deeper than the app nests. Each open reaches [threadFetchDepth]
+      // levels, so walking to the bottom is a few deliberate taps — and the node that
+      // lands *on* the cap must stop offering, because there is nowhere to draw what
+      // it would load. Offering there fired a request and changed nothing.
       final server = FakeThread({for (var id = 1; id < 12; id++) id: [id + 1]});
       final container = server.container();
 
-      final tree = await container.read(threadProvider(1).future);
-      final nodes = flatten(tree);
+      var nodes = flatten(await container.read(threadProvider(1).future));
+      expect(nodes, hasLength(threadFetchDepth), reason: 'two levels on the first open');
+      expect(nodes.last.node.expandable, isTrue, reason: 'short of the cap: load here');
+
+      // Walk down until a node sits on the cap.
+      while (nodes.last.depth < maxThreadDepth) {
+        await container.read(threadProvider(1).notifier).expand(nodes.last.node.post.id);
+        nodes = flatten(await container.read(threadProvider(1).future));
+      }
 
       expect(nodes, hasLength(maxThreadDepth));
       expect(nodes.every((entry) => entry.node.hasUnloaded), isTrue);
       expect(
-        nodes.every((entry) => !entry.node.expandable),
-        isTrue,
-        reason: 'nothing here can be revealed by loading in place; these open the post',
+        nodes.last.node.expandable,
+        isFalse,
+        reason: 'nothing can be revealed in place at the cap; this opens the post',
       );
-      expect(server.asked, ['1@5'], reason: 'and none of them cost a request');
     });
 
     test('counts descendants, not direct children', () async {
@@ -139,11 +152,11 @@ void main() {
       final server = FakeThread({for (var id = 1; id < 12; id++) id: [id + 1]});
       final tree = await server.container().read(threadProvider(1).future);
 
-      // Node 2 has descendants 3..12 (ten), of which 3,4,5,6 are drawn beneath it.
+      // Node 2 has descendants 3..12 (ten), of which only 3 is drawn beneath it.
       final top = tree.single;
       expect(top.post.id, 2);
       expect(top.unloaded, server.descendants(2) - countReplies(top.children));
-      expect(top.unloaded, 6);
+      expect(top.unloaded, 9);
     });
 
     test('does load in place when a cached branch was invalidated', () async {
@@ -199,14 +212,14 @@ void main() {
       final container = server.container();
       await container.read(threadProvider(1).future);
       final cache = container.read(repliesCacheProvider);
-      expect(cache[3], isNotNull);
+      expect(cache[2], isNotNull);
 
       // Exactly what a feed or the firehose hands it: the same posts, unchanged.
       cache.noticeCounts([
         for (final entry in [2, 3, 4, 5]) Post.fromJson(server.asJson(entry)),
       ]);
 
-      expect(cache[3], isNotNull, reason: 'nothing changed, so nothing is dropped');
+      expect(cache[2], isNotNull, reason: 'nothing changed, so nothing is dropped');
       final before = server.asked.length;
       container.invalidate(threadProvider(1));
       await container.read(threadProvider(1).future);
@@ -219,10 +232,10 @@ void main() {
       await container.read(threadProvider(1).future);
       final cache = container.read(repliesCacheProvider);
 
-      final grown = Post.fromJson({...server.asJson(3), 'reply_count': 99});
+      final grown = Post.fromJson({...server.asJson(2), 'reply_count': 99});
       cache.noticeCounts([grown]);
 
-      expect(cache[3], isNull, reason: 'the subtree grew, so what we hold is wrong');
+      expect(cache[2], isNull, reason: 'the subtree grew, so what we hold is wrong');
     });
   });
 
@@ -243,7 +256,7 @@ void main() {
       expect(tree, isNotEmpty, reason: 'a thread with replies must never render empty');
       expect(
         server.asked,
-        ['1@5'],
+        ['1@$threadFetchDepth'],
         reason: 'the inlined parent is already in the response; no second request',
       );
       // Node 200 was rebuilt from the parent its children carry.
@@ -252,25 +265,29 @@ void main() {
     });
 
     test('falls back to one direct-children request when it cannot be repaired', () async {
-      // Two levels of ancestors missing is more than an inlined parent can bridge.
+      // The page is all one busy branch, and this server does not inline the parent
+      // that would place it. Nothing in the response can hang off the root.
       final server = FakeThread({
-        1: [2],
-        2: [3],
-        3: [for (var id = 400; id < 520; id++) id],
-      });
+        1: [2, 200],
+        200: [for (var id = 300; id < 420; id++) id],
+      }, inlineParents: false);
       final container = server.container();
 
       final tree = await container.read(threadProvider(1).future);
 
       expect(tree, isNotEmpty, reason: 'better one more request than an empty thread');
-      expect(server.asked, ['1@5', '1@1']);
-      expect(tree.single.post.id, 2);
+      expect(server.asked, ['1@$threadFetchDepth', '1@1']);
+      expect(tree.map((node) => node.post.id), [2, 200]);
     });
   });
 
   test('a thread that really has no replies asks once and renders nothing', () async {
     final server = FakeThread(const {});
     expect(await server.container().read(threadProvider(1).future), isEmpty);
-    expect(server.asked, ['1@5'], reason: 'no fallback for a genuinely empty thread');
+    expect(
+      server.asked,
+      ['1@$threadFetchDepth'],
+      reason: 'no fallback for a genuinely empty thread',
+    );
   });
 }
