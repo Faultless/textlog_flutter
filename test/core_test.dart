@@ -65,6 +65,7 @@ void main() {
     test('maps every source to its documented endpoint', () {
       expect(pathOf(const LatestFeed()), 'feeds/latest');
       expect(pathOf(const HotFeed()), 'feeds/hot');
+      expect(pathOf(const NewFeed()), 'feeds/new');
       expect(pathOf(const NotesFeed('stagas')), 'users/stagas/notes');
       expect(pathOf(const UserRepliesFeed('stagas')), 'users/stagas/replies');
       expect(pathOf(const TagFeed('open_source')), 'tags/open_source/posts');

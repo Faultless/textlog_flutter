@@ -22,6 +22,21 @@ final class LatestFeed extends FeedSource {
   int get hashCode => (LatestFeed).hashCode;
 }
 
+/// The site's `new` tab: the newest **top-level** posts, replies left out.
+///
+/// Not the same feed as [LatestFeed], which the server calls `all` and which carries
+/// replies too. On a busy day `all` is mostly other people's threads scrolling past,
+/// and this is the one that answers "what has been posted".
+final class NewFeed extends FeedSource {
+  const NewFeed();
+
+  @override
+  bool operator ==(Object other) => other is NewFeed;
+
+  @override
+  int get hashCode => (NewFeed).hashCode;
+}
+
 final class HotFeed extends FeedSource {
   const HotFeed();
 
@@ -124,6 +139,7 @@ final class SearchFeed extends FeedSource {
 /// Pure: source -> API path. No I/O, no Flutter, trivially unit tested.
 String pathOf(FeedSource source) => switch (source) {
   LatestFeed() => 'feeds/latest',
+  NewFeed() => 'feeds/new',
   HotFeed() => 'feeds/hot',
   NotesFeed(:final handle) => 'users/${Uri.encodeComponent(handle)}/notes',
   UserRepliesFeed(:final handle) => 'users/${Uri.encodeComponent(handle)}/replies',
@@ -142,8 +158,8 @@ Map<String, String> queryOf(FeedSource source) => switch (source) {
 
 /// Which feeds are worth keeping on disk between sessions, and under what key.
 ///
-/// Only the two the app can open on: `hot` and `latest`. A cold start shows one of
-/// them, so having them already on screen is the whole win — whereas keeping every
+/// Only the three the app can open on: `hot`, `all` and `new`. A cold start shows one
+/// of them, so having them already on screen is the whole win — whereas keeping every
 /// tag page and every search anyone ever opened would fill a phone with feeds nobody
 /// is about to look at.
 ///
@@ -156,6 +172,7 @@ String? coldStorageKeyOf(FeedSource source, {String? viewer}) {
   final name = switch (source) {
     LatestFeed() => 'latest',
     HotFeed() => 'hot',
+    NewFeed() => 'new',
     _ => null,
   };
   if (name == null) return null;

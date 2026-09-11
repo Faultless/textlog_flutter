@@ -92,6 +92,16 @@ void main() {
     expect(page.items, isNotEmpty);
   });
 
+  live('new is top-level posts only', () async {
+    final page = await api.feed(const NewFeed(), limit: 20);
+    expect(page.items, isNotEmpty);
+    expect(
+      page.items.every((post) => post.parentId == null),
+      isTrue,
+      reason: 'the site\'s `new` tab leaves replies out',
+    );
+  });
+
   live('a thread comes back flat, with a depth on every reply', () async {
     // Find a post with replies to ask about.
     final feed = await api.feed(const HotFeed(), limit: 20);

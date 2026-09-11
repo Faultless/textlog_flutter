@@ -35,6 +35,9 @@ enum HomeTab {
   toMe('@', '/to-me', authenticated: true),
   forYou('my feed', '/for-you', authenticated: true),
   hot('hot', '/hot'),
+  // The site's own tab, added upstream: top-level posts only, so it answers "what
+  // has been written" where `all` answers "what has been said".
+  fresh('new', '/new'),
   latest('all', '/latest'),
   live('live', '/live');
 
@@ -182,6 +185,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     HomeTab.forYou => const ActivityView(ActivityScope.forYou),
     HomeTab.toMe => const ActivityView(ActivityScope.toMe),
     HomeTab.hot => const FeedView(HotFeed()),
+    HomeTab.fresh => const FeedView(NewFeed()),
     HomeTab.latest => const FeedView(LatestFeed()),
     HomeTab.live => const LiveFeed(),
   };
