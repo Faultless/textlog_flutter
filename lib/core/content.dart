@@ -177,9 +177,9 @@ String normalizeHashtag(String tag) => singularHashtag(normalizeHashtagSpelling(
 /// Case and underscores folded away, but the word left as written.
 ///
 /// The server also applies Unicode NFC here. Dart has no normaliser in its core
-/// library and this app will not carry a package for it, so a tag written with
-/// decomposed accents — `#café` rather than `#café` — is the one case where the app
-/// and the site can disagree about what a tag is.
+/// library and this app will not carry a package for it, so a tag whose accents were
+/// typed as combining marks rather than precomposed characters is the one case where
+/// the app and the site can disagree about what a tag is.
 String normalizeHashtagSpelling(String tag) =>
     tag.toLowerCase().replaceAll('_', '');
 
